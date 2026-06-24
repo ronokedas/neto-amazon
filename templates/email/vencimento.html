@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerta de Vencimento - Amazon Naval</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: #1a1a2e; padding: 30px 20px; text-align: center; }
+        .header h1 { color: #2ECC71; margin: 0; font-size: 24px; font-weight: 700; }
+        .header p { color: #cccccc; margin: 8px 0 0; font-size: 14px; }
+        .body { padding: 30px 20px; color: #333333; }
+        .body h2 { color: #1a1a2e; font-size: 20px; margin-top: 0; }
+        .body p { line-height: 1.6; margin: 0 0 15px; }
+        .alerta { background: #fff3cd; border: 1px solid #ffc107; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .alerta h4 { margin: 0 0 8px; color: #856404; font-size: 15px; }
+        .alerta p { margin: 3px 0; font-size: 13px; color: #856404; }
+        .alerta-urgente { background: #f8d7da; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; }
+        .alerta-urgente h4 { color: #721c24; }
+        .alerta-urgente p { color: #721c24; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; margin: 5px 0; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        .table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .table th { background: #1a1a2e; color: #ffffff; padding: 10px 12px; text-align: left; font-size: 13px; }
+        .table td { padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 13px; }
+        .table tr:hover { background: #f8f9fa; }
+        .footer { background: #f4f4f4; padding: 20px; text-align: center; color: #888888; font-size: 12px; }
+        .footer p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Alerta de Vencimento</h1>
+            <p>Amazon Naval Ltda.</p>
+        </div>
+        <div class="body">
+            <h2>Olá, {{NOME_GESTOR}}!</h2>
+            <p>O sistema identificou certificados com vencimento próximo que necessitam de atenção:</p>
+
+            <div class="alerta {{ALERTA_CLASS}}">
+                <h4><i class="fas fa-exclamation-triangle"></i> {{ALERTA_TITULO}}</h4>
+                <p>{{ALERTA_DESCRICAO}}</p>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Certificado</th>
+                        <th>Embarcação</th>
+                        <th>Tipo</th>
+                        <th>Vencimento</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{LINHAS_CERTIFICADOS}}
+                </tbody>
+            </table>
+
+            <p>Recomenda-se agendar a renovação com antecedência para evitar interrupções nas operações.</p>
+
+            <p style="text-align: center; margin-top: 25px;">
+                <a href="{{APP_URL}}documentacao/certificados" style="display: inline-block; background: #2ECC71; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600;">
+                    Gerenciar Certificados
+                </a>
+            </p>
+
+            <p>Atenciosamente,<br><strong>Amazon Naval Ltda.</strong></p>
+        </div>
+        <div class="footer">
+            <p><strong>Amazon Naval Ltda.</strong></p>
+            <p>Belém-PA | E-mail: {{EMAIL_CONTATO}} | Telefone: {{TELEFONE_CONTATO}}</p>
+            <p>Este e-mail foi enviado automaticamente pelo sistema ERP.</p>
+        </div>
+    </div>
+</body>
+</html>

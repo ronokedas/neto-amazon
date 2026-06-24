@@ -1,0 +1,10 @@
+{
+    "name": "amazonnaval/erp",
+    "description": "ERP Amazon Naval",
+    "require": {
+        "php": ">=8.2",
+        "tecnickcom/tcpdf": "^6.6",
+        "phpmailer/phpmailer": "^7.1",
+        "endroid/qr-code": "^5.0"
+    }
+}

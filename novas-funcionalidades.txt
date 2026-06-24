@@ -1,0 +1,537 @@
+================================================================================
+  PROMPT PARA IA LOCAL — SISTEMA ERP AMAZON NAVAL LTDA
+  Desenvolvedor: uso interno
+  Atualizado em: 22/06/2026
+================================================================================
+
+# CONTEXTO GERAL
+
+Você é um assistente especializado no desenvolvimento do sistema ERP da empresa
+Amazon Naval Ltda, uma empresa de certificação naval localizada em Belém/PA.
+
+O sistema é uma aplicação web desenvolvida em:
+  - Backend:    PHP 8.2+ com PDO
+  - Frontend:   HTML5, CSS3, JavaScript vanilla
+  - Banco:      MySQL/MariaDB (chaves primárias UUID)
+  - PDF:        Biblioteca FPDF
+  - Segurança:  password_hash/verify, CSRF tokens, sessão 30min, Prepared Statements
+  - Infra:      Docker (docker-compose)
+  - Design:     Tema escuro, verde (#2ECC71), sidebar retrátil, Font Awesome 6, Inter
+
+O sistema roda localmente em: http://localhost:8080/
+Caminho físico no Windows: C:\sistema\
+
+================================================================================
+# ESTRUTURA ATUAL DO SISTEMA (O QUE JÁ EXISTE)
+================================================================================
+
+MÓDULOS ATIVOS:
+  1. Login / Autenticação (2 níveis: ADMIN e VISTORIADOR)
+  2. Dashboard (estatísticas, últimas vistorias, ações rápidas)
+  3. Embarcações (CRUD completo com soft delete)
+  4. Pessoas (CRUD com validação de CPF)
+  5. Vistorias (wizard 3 passos: embarcação → pessoa → confirmação)
+  6. Financeiro (receitas, despesas, saldo — apenas ADMIN)
+  7. Usuários (CRUD — apenas ADMIN)
+  8. Documentação → Certificados CSN
+       - Formulário completo com 3 seções
+       - Convalidações anuais (tabela dinâmica)
+       - Geração de PDF via FPDF
+       - Assinatura digital via canvas HTML5 com token SHA-256
+
+TABELAS DO BANCO ATUAL:
+  - usuarios
+  - embarcacoes
+  - pessoas
+  - vistorias
+  - financeiro_lancamentos
+  - certificados_csn
+  - csn_convalidacoes
+  - csn_distribuicao_passageiros
+  - logs_atividade
+
+ROTAS EXISTENTES (padrão: modules/{modulo}/index.php | form.php | actions.php):
+  /login | /dashboard | /embarcacoes | /pessoas | /vistorias
+  /financeiro | /usuarios | /documentacao/certificados
+
+ESTRUTURA DE ARQUIVOS:
+  C:\sistema\
+  ├── index.php              ← roteador principal
+  ├── config.php
+  ├── assets/css/style.css   ← tema visual (1251 linhas)
+  ├── assets/js/script.js
+  ├── includes/              ← auth.php, functions.php, header.php,
+  │                             sidebar.php, footer.php
+  └── modules/               ← cada módulo com index/form/actions.php
+
+================================================================================
+# LIMITAÇÕES ATUAIS (O QUE FALTA OU ESTÁ INCOMPLETO)
+================================================================================
+
+PROBLEMA 1 — Módulo de Pessoas não serve como "Cadastro de Clientes":
+  O módulo atual armazena apenas dados básicos (nome, CPF, telefone, email).
+  Falta: distinção de perfil (Armador / Proprietário / Despachante), CNPJ,
+  vínculo com embarcações e dados comerciais.
+
+PROBLEMA 2 — Módulo de Embarcações não está vinculado a clientes:
+  Não existe relação entre embarcação e cliente/armador no banco de dados.
+  Os campos atuais são: nome, registro, tipo, ano, proprietário (texto livre),
+  observações. Faltam dados técnicos completos da embarcação.
+
+PROBLEMA 3 — Módulo Comercial inexistente:
+  Não existe geração de proposta comercial no sistema. O orçamento hoje é
+  gerado manualmente por planilha Excel e convertido em PDF fora do sistema.
+
+PROBLEMA 4 — Módulo de Agendamento / Ordem de Serviço inexistente:
+  Não existe agendamento formal de vistorias com OS vinculada.
+  O módulo de vistorias atual é apenas um registro simples.
+
+PROBLEMA 5 — Módulo de Vistoria atual é insuficiente:
+  O vistoriador não recebe agendamentos automaticamente.
+  Não existe geração de relatório de vistoria dentro do sistema.
+  Não existem campos para exigências e observações técnicas.
+
+PROBLEMA 6 — Certificados limitados ao CSN:
+  O sistema gera apenas o Certificado de Segurança da Navegação (CSN).
+  Faltam: CNBL (Borda Livre), CNARQ (Arqueação), e a Proposta de Serviço/
+  Orçamento em PDF.
+
+PROBLEMA 7 — Numeração sequencial manual:
+  Os números de certificados, relatórios e orçamentos são inseridos à mão.
+  O sistema deve gerar sequenciais automáticos por tipo de documento.
+
+================================================================================
+# NOVAS FUNCIONALIDADES SOLICITADAS PELO CLIENTE
+================================================================================
+
+--- A. MÓDULO CLIENTES (substituir / expandir módulo Pessoas) ---
+
+  Perfis de cadastro:
+    - Armador
+    - Proprietário
+    - Despachante
+    (um cliente pode ter mais de um perfil)
+
+  Dados cadastrais obrigatórios:
+    - Nome completo / Razão Social
+    - CPF ou CNPJ (com validação)
+    - Telefone / WhatsApp
+    - Email
+    - Endereço completo
+    - Tipo de perfil (Armador / Proprietário / Despachante)
+    - Status (Ativo / Inativo)
+
+  Vínculo com Embarcações:
+    - Dentro do cadastro do cliente deve existir uma seção "Embarcações"
+    - Permitir vincular uma ou mais embarcações ao cliente
+    - Exibir as embarcações vinculadas em lista dentro do cadastro
+
+  ARQUIVO A CRIAR/MODIFICAR:
+    modules/clientes/index.php      ← listar clientes
+    modules/clientes/form.php       ← cadastro / edição
+    modules/clientes/actions.php    ← processar ações
+    modules/clientes/embarcacoes.php ← gerenciar embarcações do cliente
+
+  BANCO DE DADOS — novas tabelas necessárias:
+    - clientes (id UUID, nome, cpf_cnpj, tipo_pessoa, perfil, telefone,
+                email, endereco, status, criado_por, created_at)
+    - clientes_embarcacoes (id, cliente_id, embarcacao_id) — tabela de vínculo
+
+
+--- B. MÓDULO EMBARCAÇÕES — EXPANSÃO DOS DADOS TÉCNICOS ---
+
+  Adicionar novos campos à tabela `embarcacoes`:
+    - cliente_id (FK → clientes)
+    - comprimento_total (decimal)
+    - comprimento_casco (decimal)
+    - comprimento_lpp (decimal)
+    - pontal_moldado (decimal)
+    - boca_moldada (decimal)
+    - boca_maxima (decimal)
+    - material_casco (varchar) — ex: Aço, Madeira, Fibra, Alumínio
+    - tipo_servico (varchar) — ex: Transporte de Carga, Passageiros...
+    - tipo_navegacao (varchar) — Interior / Mar Aberto
+    - area_navegacao (varchar) — Área 1 / Área 2
+    - ano_construcao (int)
+    - arqueacao_bruta (decimal)
+    - numero_inscricao (varchar)
+    - porto_inscricao (varchar)
+    - indicativo_chamada (varchar)
+    - numero_tripulantes (int)
+    - numero_passageiros_n1 (int)
+    - numero_passageiros_n2 (int)
+
+  ARQUIVO A MODIFICAR:
+    modules/embarcacoes/form.php   ← adicionar campos técnicos
+    docker/02-erp_sistema_mysql.sql ← alterar tabela (ALTER TABLE embarcacoes)
+
+
+--- C. MÓDULO COMERCIAL — PROPOSTA / ORÇAMENTO ---
+
+  Subseção: Proposta de Serviço
+
+  Fluxo ao criar nova proposta:
+    1. Usuário clica em "Nova Proposta"
+    2. Sistema exibe lista de clientes cadastrados para seleção
+    3. Após selecionar o cliente, sistema carrega automaticamente as
+       embarcações vinculadas a ele
+    4. Usuário seleciona a embarcação desejada
+    5. Sistema carrega os dados técnicos da embarcação automaticamente
+    6. Usuário seleciona os serviços a realizar (checkboxes com preços)
+    7. O sistema calcula total, desconto e total geral automaticamente
+    8. Geração do PDF no modelo Amazon Naval (igual ao exemplo-pdf-ORÇAMENTO)
+
+  Serviços disponíveis (com preço cadastrado no sistema):
+    - Análise de Planos (Ec1)
+    - Análise de Planos (Ec2)
+    - Vistoria Inicial Seco
+    - Vistoria Inicial Flutuando
+    - Vistoria Inicial de Borda Livre
+    - Vistoria Inicial de Arqueação
+    - Acompanhamento de Ultrassom
+    - Vistoria Anual
+    - Vistoria Anual Periódica
+    - Vistoria Intermediária
+    - Licença Provisória
+
+  Numeração automática:
+    - Formato: AM-ORC:{sequencial}/{ano} (ex: AM-ORC:11/26)
+    - Sequencial incremental por ano, reinicia a cada ano
+
+  Forma de pagamento padrão:
+    - 3 parcelas iguais (editável)
+    - Dados bancários fixos da empresa (configurável em config.php)
+
+  Por embarcação:
+    - Cada embarcação deve ter seus serviços listados separadamente
+    - Subtotal por embarcação + Total geral da proposta
+
+  Indicadores comerciais (para o ADMIN):
+    - Número de propostas geradas no mês
+    - Valor total de propostas no mês
+    - Percentual de meta atingida (meta configurável)
+
+  ARQUIVOS A CRIAR:
+    modules/comercial/index.php         ← listar propostas
+    modules/comercial/nova.php          ← wizard de nova proposta
+    modules/comercial/form.php          ← editar proposta
+    modules/comercial/actions.php       ← processar ações
+    modules/comercial/pdf.php           ← gerar PDF da proposta
+    modules/comercial/servicos.php      ← cadastro/edição de serviços e preços
+
+  BANCO DE DADOS — novas tabelas:
+    - servicos (id, nome, descricao, preco_padrao, ativo)
+    - propostas (id UUID, numero_orc, cliente_id, data_emissao, status,
+                 desconto_total, total_geral, observacoes, criado_por)
+    - propostas_embarcacoes (id, proposta_id, embarcacao_id)
+    - propostas_servicos (id, proposta_id, embarcacao_id, servico_id,
+                          preco_cobrado, observacao)
+
+
+--- D. MÓDULO AGENDAMENTO / ORDEM DE SERVIÇO ---
+
+  Fluxo:
+    1. Vendedor/Admin cria agendamento vinculado a uma proposta aprovada
+    2. Seleciona: data da vistoria, local, tipo de vistoria, contato responsável
+    3. Sistema gera a Ordem de Serviço (OS) automaticamente
+    4. O agendamento aparece automaticamente na aba do Vistoriador responsável
+
+  Tipos de vistoria agendável:
+    - Vistoria Anual
+    - Vistoria Anual Periódica
+    - Vistoria Flutuando
+    - Vistoria em Seco
+    - Vistoria de Arqueação
+    - Vistoria de Borda Livre
+    - Acompanhamento de Ultrassom
+    - Vistoria Intermediária
+
+  Campos do agendamento:
+    - Data e hora
+    - Local da vistoria
+    - Embarcação
+    - Cliente / Contato responsável (nome + telefone)
+    - Tipo de vistoria
+    - Vistoriador responsável (select → usuários com cargo VISTORIADOR)
+    - Observações
+
+  Visualização do Vistoriador:
+    - Ao entrar no sistema, o vistoriador vê apenas os agendamentos
+      atribuídos a ele
+    - Informações visíveis: data, local, embarcação, contato, tipo de vistoria
+    - Botão "Iniciar Relatório" na OS
+
+  ARQUIVOS A CRIAR:
+    modules/agendamentos/index.php    ← listar agendamentos (ADMIN vê todos)
+    modules/agendamentos/form.php     ← criar/editar agendamento
+    modules/agendamentos/actions.php  ← processar ações
+    modules/agendamentos/os.php       ← visualizar OS / imprimir
+
+  BANCO DE DADOS:
+    - agendamentos (id UUID, proposta_id, embarcacao_id, cliente_id,
+                    vistoriador_id, tipo_vistoria, data_vistoria, local,
+                    contato_nome, contato_telefone, status, observacoes,
+                    criado_por, created_at)
+    - ordens_servico (id UUID, agendamento_id, numero_os, data_geracao,
+                      status, criado_por)
+
+
+--- E. MÓDULO DE VISTORIA — EXPANSÃO ---
+
+  O módulo atual registra vistorias mas não tem relatório técnico.
+  Expansão necessária:
+
+  Após o vistoriador abrir a OS:
+    1. Sistema carrega os dados da embarcação e do agendamento
+    2. Vistoriador preenche o relatório de vistoria com:
+       - Resultado de cada item inspecionado
+       - Exigências identificadas (tabela dinâmica)
+       - Observações técnicas
+    3. Ao salvar o relatório, o status da OS avança para "Executado"
+    4. O sistema libera a geração dos certificados correspondentes
+
+  Numeração dos relatórios:
+    - Formato: AM-REL-V:{sequencial}/{ano} (ex: AM-REL-V:1/26)
+    - Formato arqueação: AM-REL-AP:{sequencial}/{ano}
+    - Sequencial automático por tipo, reiniciando a cada ano
+
+  ARQUIVOS A MODIFICAR/CRIAR:
+    modules/vistorias/relatorio.php    ← novo: formulário do relatório
+    modules/vistorias/detalhe.php      ← modificar: integrar OS e relatório
+
+
+--- F. MÓDULO DOCUMENTAÇÃO — NOVOS CERTIFICADOS ---
+
+  Além do CSN já existente, o sistema deve gerar:
+
+  F1. CNBL — Certificado Nacional de Borda Livre
+      Arquivo: modules/documentacao/cnbl/
+      Numeração: AM-CNBL-{sequencial}/{ano}
+      Campos: distâncias da linha do convés, disco de Plimsoll, área de
+              navegação, validade, assinatura
+
+  F2. CNARQ — Certificado Nacional de Arqueação
+      Arquivo: modules/documentacao/cnarq/
+      Numeração: AM-CNARQ-{sequencial}/{ano}
+      Campos: arqueação bruta, arqueação líquida, comprimento de regra,
+              boca, pontal, data de batimento da quilha, validade, assinatura
+
+  F3. Proposta de Serviço em PDF (já coberto no módulo Comercial acima)
+
+  Para todos os certificados:
+    - Status: rascunho → emitido → assinado → cancelado
+    - Assinatura digital via canvas (mesmo padrão do CSN existente)
+    - Registro de convalidações anuais (tabela dinâmica)
+    - Os dados da embarcação devem ser puxados automaticamente do cadastro
+
+  BANCO DE DADOS:
+    - certificados_cnbl (id UUID, embarcacao_id, numero_cert, data_emissao,
+                         validade, status, dados_json, assinatura_base64,
+                         criado_por, created_at)
+    - certificados_cnarq (id UUID, embarcacao_id, numero_cert, data_emissao,
+                          validade, status, dados_json, assinatura_base64,
+                          criado_por, created_at)
+    - cert_convalidacoes (genérica: certificado_tipo, certificado_id, ...)
+
+
+--- G. SEQUENCIAL AUTOMÁTICO DE DOCUMENTOS ---
+
+  Criar uma tabela central de controle de numeração:
+
+  BANCO DE DADOS:
+    - sequenciais_documentos
+      (id, tipo_documento VARCHAR, ano INT, ultimo_numero INT,
+       PRIMARY KEY (tipo_documento, ano))
+
+  Tipos gerenciados:
+    - 'CSN'     → AM-CSN-{n}/{ano}
+    - 'CNBL'    → AM-CNBL-{n}/{ano}
+    - 'CNARQ'   → AM-CNARQ-{n}/{ano}
+    - 'ORC'     → AM-ORC:{n}/{ano}
+    - 'REL-V'   → AM-REL-V:{n}/{ano}
+    - 'REL-AP'  → AM-REL-AP:{n}/{ano}
+    - 'OS'      → AM-OS:{n}/{ano}
+
+  Função PHP a criar em includes/functions.php:
+    function gerarNumeroDocumento(PDO $pdo, string $tipo): string
+      → faz SELECT FOR UPDATE no sequencial, incrementa e retorna o número
+
+--- H. MÓDULO DE ENVIO DE EMAILS ---
+
+  Por que é necessário:
+    Hoje todo envio de proposta, certificado e link de assinatura é feito
+    manualmente fora do sistema (WhatsApp, email avulso). Com o módulo de
+    email integrado, o fluxo fecha 100% dentro do ERP: o usuário gera o
+    documento e já envia ao cliente com um clique, sem sair do sistema.
+
+  Tecnologia recomendada:
+    - Biblioteca PHPMailer (via Composer: composer require phpmailer/phpmailer)
+    - Protocolo SMTP com suporte a TLS/SSL
+    - Configuração de credenciais SMTP em config.php (host, porta, usuário,
+      senha, remetente padrão) — nunca hardcoded nos arquivos de módulo
+
+  Configuração em config.php (adicionar):
+    define('MAIL_HOST',       'smtp.gmail.com');   // ou outro SMTP
+    define('MAIL_PORT',       587);
+    define('MAIL_USERNAME',   'contato@amazonnatal.com.br');
+    define('MAIL_PASSWORD',   'senha_app');         // senha de app Gmail
+    define('MAIL_FROM_NAME',  'Amazon Naval Ltda');
+    define('MAIL_ENCRYPTION', 'tls');
+
+  Função central a criar em includes/functions.php:
+    function enviarEmail(
+        string $destinatario,
+        string $nomeDestinatario,
+        string $assunto,
+        string $corpoHtml,
+        array  $anexos = []   // [['path' => '/tmp/cert.pdf', 'nome' => 'CSN.pdf']]
+    ): bool
+      → retorna true/false e registra resultado em email_logs
+
+  ONDE O EMAIL SERÁ USADO (pontos de disparo):
+
+  H1. Proposta Comercial (módulo comercial)
+      Gatilho: botão "Enviar Proposta" na tela de detalhes da proposta
+      Destinatário: email do cliente cadastrado
+      Anexo: PDF da proposta (AM-ORC)
+      Assunto: "Proposta de Serviço Amazon Naval — {nome da embarcação}"
+      Corpo: template HTML com dados da proposta e dados bancários para pagamento
+
+  H2. Confirmação de Agendamento (módulo agendamentos)
+      Gatilho: automático ao salvar um novo agendamento com status "Confirmado"
+      Destinatário: email do cliente
+      Sem anexo
+      Assunto: "Vistoria Agendada — {embarcação} em {data}"
+      Corpo: data, hora, local, tipo de vistoria, nome do vistoriador,
+             contato para dúvidas
+
+  H3. Envio de Certificados (módulo documentação)
+      Gatilho: botão "Enviar Certificado" após emissão de CSN, CNBL ou CNARQ
+      Destinatário: email do cliente
+      Anexo: PDF do certificado correspondente
+      Assunto: "Certificado {tipo} Emitido — {embarcação}"
+      Corpo: dados básicos do certificado, validade, orientações sobre
+             convalidações anuais
+
+  H4. Link de Assinatura Digital (já existe no CSN, generalizar)
+      Gatilho: botão "Enviar para Assinatura" em qualquer certificado
+      Destinatário: email do responsável pela assinatura
+      Sem anexo
+      Assunto: "Assinar Documento — Amazon Naval Ltda"
+      Corpo: link único de assinatura + instruções + prazo de validade do link
+
+  H5. Alerta de Vencimento de Certificados (automático / cron)
+      Gatilho: script de verificação diária (via cron job ou chamada agendada)
+      Arquivo: scripts/alerta_vencimentos.php
+      Lógica: busca certificados com validade nos próximos 30 e 7 dias
+      Destinatário: email do cliente vinculado à embarcação
+      Assunto: "⚠️ Certificado vencendo em {N} dias — {embarcação}"
+      Corpo: nome do certificado, data de vencimento, instrução para contato
+
+  HISTÓRICO DE EMAILS (rastreabilidade):
+    Toda vez que um email for enviado, registrar na tabela email_logs para
+    que o ADMIN possa ver o histórico de comunicações por cliente/embarcação.
+
+  BANCO DE DADOS — nova tabela:
+    - email_logs
+      (id UUID,
+       destinatario       VARCHAR(255),
+       assunto            VARCHAR(500),
+       tipo               ENUM('proposta','agendamento','certificado',
+                               'assinatura','alerta_vencimento','outro'),
+       referencia_tipo    VARCHAR(50),   ← ex: 'proposta', 'csn', 'cnbl'
+       referencia_id      VARCHAR(36),   ← UUID do documento relacionado
+       status             ENUM('enviado','erro'),
+       mensagem_erro      TEXT,
+       enviado_por        VARCHAR(36),   ← usuario_id (NULL se automático)
+       created_at         DATETIME DEFAULT CURRENT_TIMESTAMP)
+
+  TELA DE HISTÓRICO DE EMAILS (apenas ADMIN):
+    Arquivo: modules/emails/index.php
+    Exibe: data, destinatário, assunto, tipo, status (enviado/erro)
+    Filtros: por tipo, por status, por período
+    Ação: botão "Reenviar" em caso de falha
+
+  ARQUIVOS A CRIAR:
+    includes/mailer.php              ← função enviarEmail() + inicialização PHPMailer
+    modules/emails/index.php         ← histórico de emails (ADMIN)
+    scripts/alerta_vencimentos.php   ← script cron para alertas automáticos
+    templates/email/proposta.html    ← template HTML do email de proposta
+    templates/email/agendamento.html ← template HTML de confirmação de vistoria
+    templates/email/certificado.html ← template HTML de envio de certificado
+    templates/email/assinatura.html  ← template HTML do link de assinatura
+    templates/email/vencimento.html  ← template HTML de alerta de vencimento
+
+  OBSERVAÇÃO IMPORTANTE:
+    Para que o alerta automático de vencimentos funcione, é necessário
+    configurar um cron job no servidor:
+      0 8 * * * php /var/www/html/scripts/alerta_vencimentos.php
+    Isso faz o script rodar todo dia às 08h. Documentar este passo no
+    README do projeto.
+
+================================================================================
+# PRIORIDADE DE IMPLEMENTAÇÃO SUGERIDA
+================================================================================
+
+  FASE 1 — Base de dados e clientes (pré-requisito de tudo)
+    1. Criar tabela `sequenciais_documentos` e função gerarNumeroDocumento()
+    2. Expandir tabela `embarcacoes` com campos técnicos
+    3. Criar módulo `clientes` completo com vínculo a embarcações
+
+  FASE 2 — Comercial
+    4. Criar tabela `servicos` e cadastro de preços
+    5. Criar módulo `comercial` (proposta com seleção de cliente → embarcação
+       → serviços → PDF)
+
+  FASE 3 — Operacional
+    6. Criar módulo `agendamentos` e geração de OS
+    7. Expandir módulo `vistorias` com relatório técnico e exigências
+
+  FASE 4 — Documentação
+    8. Criar certificado CNBL (pdf + assinatura + convalidações)
+    9. Criar certificado CNARQ (pdf + assinatura + convalidações)
+    10. Integrar dados automáticos da embarcação em todos os certificados
+
+  FASE 5 — Email
+    11. Instalar PHPMailer e criar includes/mailer.php
+    12. Criar tabela email_logs e tela de histórico (ADMIN)
+    13. Adicionar botão "Enviar" em: proposta, agendamento, certificados
+    14. Criar templates HTML de email
+    15. Criar script cron de alertas de vencimento
+
+  FASE 6 — Indicadores
+    16. Atualizar dashboard com indicadores comerciais (meta, propostas)
+    17. Adicionar calendário de vistorias (opcional)
+
+================================================================================
+# PADRÕES DE CÓDIGO A SEGUIR
+================================================================================
+
+  - Sempre usar Prepared Statements PDO (nunca concatenar SQL)
+  - Adicionar CSRF token em todos os formulários
+  - Validar no backend mesmo que haja validação no frontend
+  - Usar UUID como chave primária (função uuid() no MySQL ou PHP uniqid)
+  - Registrar toda ação relevante na tabela logs_atividade
+  - Controle de acesso: verificar $_SESSION['cargo'] no início de cada arquivo
+  - Soft delete: usar campo `ativo` (1/0) em vez de DELETE físico
+  - Manter o padrão visual: tema escuro, verde #2ECC71, sidebar, Font Awesome 6
+  - Cada módulo novo deve ter seu link adicionado em includes/sidebar.php
+
+================================================================================
+# COMO USAR ESTE PROMPT
+================================================================================
+
+  Quando receber uma tarefa, siga esta estrutura de resposta:
+
+  1. IDENTIFICAÇÃO: qual arquivo(s) será(ão) criado(s) ou modificado(s)
+  2. BANCO DE DADOS: SQL necessário (CREATE TABLE ou ALTER TABLE)
+  3. BACKEND (PHP): código do arquivo
+  4. FRONTEND: HTML/CSS/JS necessário (se houver)
+  5. INTEGRAÇÃO: onde conectar o novo módulo (sidebar, roteador, etc.)
+
+  Sempre que modificar uma tabela existente, gere o ALTER TABLE completo.
+  Sempre que criar um módulo novo, gere os 3 arquivos: index, form, actions.
+
+================================================================================
+  FIM DO PROMPT
+================================================================================

@@ -1,0 +1,74 @@
+services:
+  # Servidor Web Apache + PHP
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp_app
+    ports:
+      - "8082:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/php.ini:/usr/local/etc/php/conf.d/erp.ini
+      - ./docker/000-default.conf:/etc/apache2/sites-available/000-default.conf
+    environment:
+      - DB_HOST=db
+      - DB_NAME=erp_sistema
+      - DB_USER=erp_user
+      - DB_PASS=erp_pass_2026
+      - APP_URL=http://localhost:8082/
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - erp_network
+    restart: unless-stopped
+
+  # Banco de Dados MySQL
+  db:
+    image: mysql:8.0
+    container_name: erp_db
+    ports:
+      - "3307:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_pass_2026
+      - MYSQL_DATABASE=erp_sistema
+      - MYSQL_USER=erp_user
+      - MYSQL_PASSWORD=erp_pass_2026
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/init-custom.sql:/docker-entrypoint-initdb.d/01-init-custom.sql
+      - ./docker/02-erp_sistema_mysql.sql:/docker-entrypoint-initdb.d/02-erp_sistema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - erp_network
+    restart: unless-stopped
+
+  # phpMyAdmin (opcional)
+  phpmyadmin:
+    image: phpmyadmin:5.2.1
+    container_name: erp_phpmyadmin
+    ports:
+      - "8083:80"
+    environment:
+      - PMA_HOST=db
+      - PMA_PORT=3306
+      - UPLOAD_LIMIT=50M
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - erp_network
+    restart: unless-stopped
+
+volumes:
+  db_data:
+
+networks:
+  erp_network:
+    driver: bridge

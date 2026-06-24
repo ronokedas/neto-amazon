@@ -1,0 +1,353 @@
+<?php
+/**
+ * MÓDULO: COMERCIAL > PROPOSTAS
+ * Arquivo: actions.php - Processar criação de propostas + endpoint AJAX
+ */
+
+require_once __DIR__ . '/../../../config.php';
+require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../includes/auth.php';
+
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+// === ENDPOINT AJAX: Carregar embarcações do cliente ===
+if ($action === 'embarcacoes_cliente') {
+    verificar_sessao();
+    header('Content-Type: application/json; charset=utf-8');
+
+    if (getCargo() !== 'ADMIN') {
+        echo json_encode(['error' => 'Acesso negado.']);
+        exit;
+    }
+
+    $cliente_id = $_GET['cliente_id'] ?? '';
+
+    if (empty($cliente_id)) {
+        echo json_encode(['error' => 'cliente_id não informado.']);
+        exit;
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT e.id, e.nome, e.registro
+            FROM embarcacoes e
+            INNER JOIN clientes_embarcacoes ce ON ce.embarcacao_id = e.id
+            WHERE ce.cliente_id = :cliente_id AND e.ativo = 1
+            ORDER BY e.nome ASC
+        ");
+        $stmt->execute([':cliente_id' => $cliente_id]);
+        $embarcacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode(['embarcacoes' => $embarcacoes]);
+        exit;
+    } catch (Exception $e) {
+        error_log('Erro ao buscar embarcações do cliente: ' . $e->getMessage());
+        echo json_encode(['error' => 'Erro ao carregar embarcações.']);
+        exit;
+    }
+}
+
+// === DAQUI EM DIANTE: Ações via POST ===
+verificar_sessao();
+if (getCargo() !== 'ADMIN') {
+    setMensagem('error', 'Acesso negado. Apenas Administradores podem gerenciar propostas.');
+    redirecionar(APP_URL . 'dashboard');
+}
+
+// Validar CSRF token
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) || !verificarCSRF($_POST['csrf_token'])) {
+        setMensagem('error', 'Token de segurança inválido. Tente novamente.');
+        redirecionar(APP_URL . 'comercial/propostas');
+    }
+}
+
+switch ($action) {
+
+    case 'criar':
+        try {
+            $cliente_json = $_POST['dados_cliente'] ?? '{}';
+            $clienteData  = json_decode($cliente_json, true);
+            $cliente_id   = $clienteData['id'] ?? '';
+            $cliente_nome = $clienteData['nome'] ?? 'Desconhecido';
+
+            // Novo formato: serviços por embarcação via JSON
+            $dados_servicos_json = $_POST['dados_servicos_json'] ?? '[]';
+            $dadosServicos       = json_decode($dados_servicos_json, true);
+            if (!is_array($dadosServicos)) $dadosServicos = [];
+
+            $desconto_percentual = max(0, min(100, (float)($_POST['desconto_global'] ?? 0)));
+            $parcelas            = max(1, min(12, (int)($_POST['parcelas'] ?? 3)));
+
+            if (empty($cliente_id)) {
+                setMensagem('error', 'Cliente não selecionado.');
+                redirecionar(APP_URL . 'comercial/nova');
+            }
+
+            if (empty($dadosServicos)) {
+                setMensagem('error', 'Selecione pelo menos uma embarcação com serviços.');
+                redirecionar(APP_URL . 'comercial/nova');
+            }
+
+            $pdo->beginTransaction();
+
+            // 1. Gerar número da proposta
+            $numero = gerarNumeroDocumento('ORC', 'AM-ORC');
+
+            // 2. Calcular valores com base no JSON recebido
+            $subtotal_geral  = 0;
+            $embarcacoes_ids = [];
+            $servicos_a_inserir = []; // [{ servico_id, embarcacao_id, preco_aplicado, quantidade }]
+
+            $stmtPreco = $pdo->prepare("SELECT id, preco_padrao FROM servicos WHERE id = :id AND ativo = 1");
+
+            foreach ($dadosServicos as $embData) {
+                $emb_id = $embData['embarcacao_id'] ?? '';
+                if (empty($emb_id)) continue;
+                $embarcacoes_ids[] = $emb_id;
+
+                $servicos = $embData['servicos'] ?? [];
+                foreach ($servicos as $sv) {
+                    // Buscar preço real do banco (não confiar no frontend)
+                    $stmtPreco->execute([':id' => $sv['servico_id'] ?? '']);
+                    $servDb = $stmtPreco->fetch(PDO::FETCH_ASSOC);
+                    if (!$servDb) continue;
+
+                    $qtd    = max(1, (int)($sv['quantidade'] ?? 1));
+                    $preco  = (float)$servDb['preco_padrao'];
+                    $sub    = round($preco * $qtd, 2);
+                    $subtotal_geral += $sub;
+
+                    $servicos_a_inserir[] = [
+                        'servico_id'     => $servDb['id'],
+                        'embarcacao_id'  => $emb_id,
+                        'preco_aplicado' => $preco,
+                        'quantidade'     => $qtd,
+                    ];
+                }
+            }
+
+            if ($subtotal_geral <= 0) {
+                throw new Exception('Nenhum serviço com preço válido foi selecionado.');
+            }
+
+            // Calcular desconto e total
+            $desconto_valor = round($subtotal_geral * ($desconto_percentual / 100), 2);
+            $valor_total    = round($subtotal_geral - $desconto_valor, 2);
+
+            // Forma de pagamento e observações
+            $forma_pagamento = $_POST['forma_pagamento'] ?? 'parcelado';
+            $formas_validas   = ['a_vista', 'parcelado', 'boleto', 'pix'];
+            if (!in_array($forma_pagamento, $formas_validas, true)) {
+                $forma_pagamento = 'parcelado';
+            }
+            $observacoes = trim(sanitizar($_POST['observacoes'] ?? '')) ?: null;
+
+            // 3. Inserir a proposta
+            $stmtProp = $pdo->prepare("
+                INSERT INTO propostas (id, numero, cliente_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, desconto_percentual, desconto_valor, observacoes, status, criado_por)
+                VALUES (UUID(), :numero, :cliente_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por)
+            ");
+            $stmtProp->execute([
+                ':numero'              => $numero,
+                ':cliente_id'          => $cliente_id,
+                ':parcelas'            => $parcelas,
+                ':forma_pagamento'     => $forma_pagamento,
+                ':valor_total'         => $valor_total,
+                ':desconto_percentual' => $desconto_percentual,
+                ':desconto_valor'      => $desconto_valor,
+                ':observacoes'         => $observacoes,
+                ':criado_por'          => $_SESSION['usuario_id'],
+            ]);
+
+            // Pegar o ID da proposta recém-criada
+            $proposta_id_stmt = $pdo->prepare("SELECT id FROM propostas WHERE numero = :numero");
+            $proposta_id_stmt->execute([':numero' => $numero]);
+            $proposta_id = $proposta_id_stmt->fetchColumn();
+
+            if (!$proposta_id) {
+                throw new Exception('Erro ao recuperar ID da proposta.');
+            }
+
+            // 4. Vincular embarcações (únicas)
+            $stmtEmb = $pdo->prepare("INSERT INTO propostas_embarcacoes (id, proposta_id, embarcacao_id) VALUES (UUID(), :proposta_id, :embarcacao_id)");
+            foreach (array_unique($embarcacoes_ids) as $emb_id) {
+                $stmtEmb->execute([
+                    ':proposta_id'   => $proposta_id,
+                    ':embarcacao_id' => $emb_id,
+                ]);
+            }
+
+            // 5. Vincular serviços com preços aplicados + embarcacao_id
+            $stmtServ = $pdo->prepare("
+                INSERT INTO propostas_servicos (id, proposta_id, servico_id, embarcacao_id, preco_aplicado, quantidade)
+                VALUES (UUID(), :proposta_id, :servico_id, :embarcacao_id, :preco_aplicado, :quantidade)
+            ");
+            foreach ($servicos_a_inserir as $sp) {
+                $stmtServ->execute([
+                    ':proposta_id'    => $proposta_id,
+                    ':servico_id'     => $sp['servico_id'],
+                    ':embarcacao_id'  => $sp['embarcacao_id'],
+                    ':preco_aplicado' => $sp['preco_aplicado'],
+                    ':quantidade'     => $sp['quantidade'],
+                ]);
+            }
+
+            $pdo->commit();
+
+            log_atividade('proposta_criada', "Proposta {$numero} criada para cliente '{$cliente_nome}'. Subtotal: R$ " . number_format($subtotal_geral, 2, ',', '.') . " | Desconto: {$desconto_percentual}% | Total: R$ " . number_format($valor_total, 2, ',', '.'));
+            setMensagem('success', "Proposta {$numero} criada com sucesso!");
+            redirecionar(APP_URL . 'comercial/propostas');
+
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('Erro ao criar proposta: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao criar proposta: ' . $e->getMessage());
+            redirecionar(APP_URL . 'comercial/nova');
+        }
+        break;
+
+    case 'enviar_proposta':
+        try {
+            $proposta_id = $_POST['id'] ?? '';
+            if (empty($proposta_id)) {
+                setMensagem('error', 'ID da proposta não informado.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+
+            // Buscar dados da proposta + cliente
+            $stmt = $pdo->prepare("
+                SELECT p.*, c.nome AS cliente_nome, c.email AS cliente_email,
+                       c.cpf_cnpj AS cliente_cpfcnpj, c.telefone AS cliente_telefone
+                FROM propostas p
+                INNER JOIN clientes c ON c.id = p.cliente_id
+                WHERE p.id = :id
+            ");
+            $stmt->execute([':id' => $proposta_id]);
+            $proposta = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$proposta) {
+                setMensagem('error', 'Proposta não encontrada.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+
+            if (empty($proposta['cliente_email'])) {
+                setMensagem('error', 'Cliente não possui e-mail cadastrado para envio.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+
+            // Carregar template HTML
+            $templatePath = __DIR__ . '/../../../templates/email/proposta.html';
+            if (!file_exists($templatePath)) {
+                throw new Exception('Template de e-mail não encontrado.');
+            }
+            $htmlBody = file_get_contents($templatePath);
+
+            // Substituir placeholders
+            $valorTotal = 'R$ ' . number_format((float)$proposta['valor_total'], 2, ',', '.');
+            $parcelasTexto = (int)$proposta['parcelas'] . 'x de R$ ' . number_format((float)$proposta['valor_total'] / max(1, (int)$proposta['parcelas']), 2, ',', '.');
+
+            $replacements = [
+                '{{NOME_CLIENTE}}'    => h($proposta['cliente_nome']),
+                '{{NUMERO_PROPOSTA}}' => h($proposta['numero']),
+                '{{VALOR_TOTAL}}'     => $valorTotal,
+                '{{PARCELAS}}'        => $parcelasTexto,
+                '{{PROPOSTA_ID}}'     => h($proposta_id),
+                '{{APP_URL}}'         => APP_URL,
+                '{{BANCO_NOME}}'      => BANCO_NOME,
+                '{{BANCO_AGENCIA}}'   => BANCO_AGENCIA,
+                '{{BANCO_CONTA}}'     => BANCO_CONTA,
+                '{{PIX_CHAVE}}'       => PIX_CHAVE,
+                '{{EMAIL_CONTATO}}'   => EMAIL_CONTATO,
+                '{{TELEFONE_CONTATO}}'=> TELEFONE_CONTATO,
+            ];
+            $htmlBody = str_replace(array_keys($replacements), array_values($replacements), $htmlBody);
+
+            // Gerar PDF para anexar
+            $pdfDir  = __DIR__ . '/../../../temp_pdf/';
+            if (!is_dir($pdfDir)) {
+                mkdir($pdfDir, 0755, true);
+            }
+            $pdfFile = $pdfDir . 'proposta_' . $proposta_id . '.pdf';
+
+            // Gerar PDF via requisição HTTP interna com cookie de sessão
+            $pdfUrl = APP_URL . 'comercial/pdf?id=' . urlencode($proposta_id);
+            $opts = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "Cookie: " . session_name() . "=" . session_id() . "\r\n",
+                    'timeout' => 30,
+                ]
+            ];
+            $context = stream_context_create($opts);
+            $pdfContent = @file_get_contents($pdfUrl, false, $context);
+
+            if ($pdfContent && strlen($pdfContent) > 200) {
+                file_put_contents($pdfFile, $pdfContent);
+            } else {
+                throw new Exception('Não foi possível gerar o PDF da proposta para anexar.');
+            }
+
+            // Incluir mailer e enviar
+            require_once __DIR__ . '/../../../includes/mailer.php';
+
+            $resultado = enviarEmail(
+                $proposta['cliente_email'],
+                $proposta['cliente_nome'],
+                'Proposta Comercial - ' . $proposta['numero'],
+                $htmlBody,
+                [$pdfFile]
+            );
+
+            // Registrar no log de e-mails
+            $stmtLog = $pdo->prepare("
+                INSERT INTO email_logs (id, destinatario, assunto, tipo, referencia_tipo, referencia_id, status, mensagem_erro, enviado_por)
+                VALUES (UUID(), :destinatario, :assunto, 'proposta', 'propostas', :referencia_id, :status, :mensagem_erro, :enviado_por)
+            ");
+            $stmtLog->execute([
+                ':destinatario'  => $proposta['cliente_email'],
+                ':assunto'       => 'Proposta Comercial - ' . $proposta['numero'],
+                ':referencia_id' => $proposta_id,
+                ':status'        => $resultado['success'] ? 'enviado' : 'erro',
+                ':mensagem_erro' => $resultado['success'] ? null : $resultado['message'],
+                ':enviado_por'   => $_SESSION['usuario_id'],
+            ]);
+
+            // Limpar PDF temporário
+            if (file_exists($pdfFile)) {
+                unlink($pdfFile);
+            }
+
+            // Atualizar status da proposta para 'enviada'
+            if ($resultado['success']) {
+                $stmtUp = $pdo->prepare("UPDATE propostas SET status = 'enviada' WHERE id = :id AND status = 'rascunho'");
+                $stmtUp->execute([':id' => $proposta_id]);
+            }
+
+            if ($resultado['success']) {
+                log_atividade('proposta_enviada_email', "Proposta {$proposta['numero']} enviada por e-mail para {$proposta['cliente_email']}");
+                setMensagem('success', "Proposta {$proposta['numero']} enviada com sucesso para {$proposta['cliente_email']}!");
+            } else {
+                setMensagem('error', 'Erro ao enviar: ' . $resultado['message']);
+            }
+
+            redirecionar(APP_URL . 'comercial/propostas');
+
+        } catch (Exception $e) {
+            error_log('Erro ao enviar proposta por e-mail: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao enviar proposta: ' . $e->getMessage());
+            redirecionar(APP_URL . 'comercial/propostas');
+        }
+        break;
+
+    default:
+        // Verificar se é uma requisição AJAX não reconhecida
+        if (isset($_GET['action'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['error' => 'Ação não reconhecida.']);
+            exit;
+        }
+        setMensagem('error', 'Ação inválida.');
+        redirecionar(APP_URL . 'comercial/propostas');
+        break;
+}

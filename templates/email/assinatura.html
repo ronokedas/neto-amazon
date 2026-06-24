@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assinatura de Certificado - Amazon Naval</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: #1a1a2e; padding: 35px 20px; text-align: center; }
+        .header h1 { color: #2ECC71; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+        .header p { color: #cccccc; margin: 8px 0 0; font-size: 14px; }
+        .body { padding: 35px 25px; color: #333333; }
+        .body h2 { color: #1a1a2e; font-size: 22px; margin-top: 0; }
+        .body p { line-height: 1.7; margin: 0 0 15px; font-size: 15px; }
+        .info-box { background: #f8f9fa; border-left: 4px solid #3498DB; padding: 18px; margin: 20px 0; border-radius: 6px; }
+        .info-box strong { display: block; color: #1a1a2e; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .info-box span { color: #555555; font-size: 15px; }
+        .btn { display: inline-block; background: #2ECC71; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 6px; font-weight: 600; margin: 20px 0; font-size: 15px; }
+        .btn:hover { background: #27ae60; }
+        .btn-secondary { background: #3498DB; }
+        .btn-secondary:hover { background: #2980b9; }
+        .footer { background: #f4f4f4; padding: 25px 20px; text-align: center; color: #888888; font-size: 12px; }
+        .footer p { margin: 5px 0; }
+        .footer strong { color: #1a1a2e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Assinatura Digital de Certificado</h1>
+            <p>Amazon Naval Ltda.</p>
+        </div>
+        <div class="body">
+            <h2>Olá, {{NOME_CLIENTE}}!</h2>
+            <p>O certificado <strong>{{TIPO_CERTIFICADO}} - {{NUMERO_CERTIFICADO}}</strong> referente à embarcação <strong>{{EMBARCACAO_NOME}}</strong> foi emitido e aguarda sua <strong>assinatura digital</strong>.</p>
+
+            <div class="info-box">
+                <strong>Certificado:</strong>
+                <span>{{TIPO_CERTIFICADO}}</span>
+                <strong style="margin-top: 10px;">Número:</strong>
+                <span>{{NUMERO_CERTIFICADO}}</span>
+                <strong style="margin-top: 10px;">Embarcação:</strong>
+                <span>{{EMBARCACAO_NOME}}</span>
+                <strong style="margin-top: 10px;">Data de Emissão:</strong>
+                <span>{{DATA_EMISSAO}}</span>
+                <strong style="margin-top: 10px;">Validade:</strong>
+                <span>{{DATA_VALIDADE}}</span>
+            </div>
+
+            <p style="text-align: center;">
+                <a href="{{LINK_ASSINATURA}}" class="btn" target="_blank">
+                    <i class="fas fa-file-signature"></i> Assinar Digitalmente
+                </a>
+            </p>
+
+            <p>
+                <strong>Instruções:</strong><br>
+                1. Clique no botão acima ou acesse o link abaixo<br>
+                2. Informe seu nome e título/cargo<br>
+                3. Desenhe sua assinatura no campo indicado<br>
+                4. Confirme a assinatura
+            </p>
+
+            <p style="word-break: break-all; font-size: 12px; color: #888;">
+                Link direto: <a href="{{LINK_ASSINATURA}}" style="color: #2ECC71;">{{LINK_ASSINATURA}}</a>
+            </p>
+
+            <p>Atenciosamente,<br><strong>Amazon Naval Ltda.</strong></p>
+        </div>
+        <div class="footer">
+            <p><strong>Amazon Naval Ltda.</strong></p>
+            <p>Belém-PA | E-mail: {{EMAIL_CONTATO}} | Telefone: {{TELEFONE_CONTATO}}</p>
+            <p>Este e-mail foi enviado automaticamente pelo sistema ERP.</p>
+        </div>
+    </div>
+</body>
+</html>

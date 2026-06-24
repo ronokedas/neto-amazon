@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proposta Comercial</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: #1a1a2e; padding: 35px 20px; text-align: center; }
+        .header h1 { color: #2ECC71; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+        .header p { color: #cccccc; margin: 8px 0 0; font-size: 14px; }
+        .body { padding: 35px 25px; color: #333333; }
+        .body h2 { color: #1a1a2e; font-size: 22px; margin-top: 0; }
+        .body p { line-height: 1.7; margin: 0 0 15px; font-size: 15px; }
+        .info-box { background: #f8f9fa; border-left: 4px solid #2ECC71; padding: 18px; margin: 20px 0; border-radius: 6px; }
+        .info-box strong { display: block; color: #1a1a2e; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .info-box span { color: #555555; font-size: 15px; }
+        .btn { display: inline-block; background: #2ECC71; color: #ffffff; text-decoration: none; padding: 14px 35px; border-radius: 6px; font-weight: 600; margin: 20px 0; font-size: 15px; }
+        .btn:hover { background: #27ae60; }
+        .footer { background: #f4f4f4; padding: 25px 20px; text-align: center; color: #888888; font-size: 12px; }
+        .footer p { margin: 5px 0; }
+        .footer strong { color: #1a1a2e; }
+        .dados-bancarios { background: #fff3cd; border: 1px solid #ffc107; padding: 18px; border-radius: 6px; margin: 20px 0; }
+        .dados-bancarios h4 { margin: 0 0 10px; color: #856404; font-size: 14px; }
+        .dados-bancarios p { margin: 3px 0; font-size: 13px; color: #856404; }
+        .valor { font-size: 22px; font-weight: 700; color: #2ECC71; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Proposta Comercial</h1>
+            <p>Amazon Naval Ltda.</p>
+        </div>
+        <div class="body">
+            <h2>Olá, {{NOME_CLIENTE}}!</h2>
+            <p>Segue em anexo a proposta comercial elaborada especialmente para sua embarcação.</p>
+
+            <div class="info-box">
+                <strong>Número da Proposta:</strong>
+                <span>{{NUMERO_PROPOSTA}}</span>
+                <strong style="margin-top: 10px;">Valor Total:</strong>
+                <span>{{VALOR_TOTAL}}</span>
+                <strong style="margin-top: 10px;">Parcelas:</strong>
+                <span>{{PARCELAS}}</span>
+            </div>
+
+            <p>Para visualizar o documento completo, consulte o arquivo PDF anexo a este e-mail.</p>
+
+            <p style="text-align: center;">
+                <a href="{{APP_URL}}comercial/pdf?id={{PROPOSTA_ID}}" class="btn" target="_blank">
+                    Visualizar Proposta
+                </a>
+            </p>
+
+            <div class="dados-bancarios">
+                <h4>Dados Bancários</h4>
+                <p><strong>Banco:</strong> {{BANCO_NOME}}</p>
+                <p><strong>Agência:</strong> {{BANCO_AGENCIA}}</p>
+                <p><strong>Conta:</strong> {{BANCO_CONTA}}</p>
+                <p><strong>PIX:</strong> {{PIX_CHAVE}}</p>
+            </div>
+
+            <p>Atenciosamente,<br><strong>Amazon Naval Ltda.</strong></p>
+        </div>
+        <div class="footer">
+            <p><strong>Amazon Naval Ltda.</strong></p>
+            <p>Belém-PA | E-mail: {{EMAIL_CONTATO}} | Telefone: {{TELEFONE_CONTATO}}</p>
+            <p>Este e-mail foi enviado automaticamente pelo sistema ERP. Favor não responder diretamente.</p>
+        </div>
+    </div>
+</body>
+</html>

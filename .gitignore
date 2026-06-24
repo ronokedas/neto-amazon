@@ -1,0 +1,10 @@
+﻿vendor/
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+logs/
+temp_pdf/
+uploads/
+.env
+docker/

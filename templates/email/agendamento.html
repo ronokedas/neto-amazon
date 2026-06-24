@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmação de Agendamento</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .header { background: #1a1a2e; padding: 35px 20px; text-align: center; }
+        .header h1 { color: #2ECC71; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.5px; }
+        .header p { color: #cccccc; margin: 8px 0 0; font-size: 14px; }
+        .body { padding: 35px 25px; color: #333333; }
+        .body h2 { color: #1a1a2e; font-size: 22px; margin-top: 0; }
+        .body p { line-height: 1.7; margin: 0 0 15px; font-size: 15px; }
+        .info-box { background: #f8f9fa; border-left: 4px solid #3498DB; padding: 18px; margin: 20px 0; border-radius: 6px; }
+        .info-box strong { display: block; color: #1a1a2e; margin-bottom: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .info-box span { color: #555555; font-size: 15px; }
+        .info-row { display: flex; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #f0f0f0; }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .label { font-weight: 600; color: #1a1a2e; min-width: 140px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .info-row .value { color: #555555; font-size: 14px; }
+        .footer { background: #f4f4f4; padding: 25px 20px; text-align: center; color: #888888; font-size: 12px; }
+        .footer p { margin: 5px 0; }
+        .footer strong { color: #1a1a2e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Agendamento Confirmado</h1>
+            <p>Amazon Naval Ltda.</p>
+        </div>
+        <div class="body">
+            <h2>Olá, {{NOME_CLIENTE}}!</h2>
+            <p>Seu agendamento de vistoria foi <strong>confirmado</strong> conforme os detalhes abaixo:</p>
+            <div class="info-box">
+                <div class="info-row">
+                    <span class="label">Tipo de Vistoria:</span>
+                    <span class="value">{{TIPO_VISTORIA}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Embarcação:</span>
+                    <span class="value">{{EMBARCACAO_NOME}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Data:</span>
+                    <span class="value">{{DATA_VISTORIA}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Horário:</span>
+                    <span class="value">{{HORA_VISTORIA}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Local:</span>
+                    <span class="value">{{LOCAL}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">OS Número:</span>
+                    <span class="value">{{OS_NUMERO}}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Contato:</span>
+                    <span class="value">{{CONTATO_NOME}} ({{CONTATO_TELEFONE}})</span>
+                </div>
+            </div>
+            {{OBSERVACOES}}
+            <p>Caso precise reagendar ou cancelar, entre em contato pelo telefone {{TELEFONE_CONTATO}} ou e-mail {{EMAIL_CONTATO}}.</p>
+            <p>Atenciosamente,<br><strong>Amazon Naval Ltda.</strong></p>
+        </div>
+        <div class="footer">
+            <p><strong>Amazon Naval Ltda.</strong></p>
+            <p>Belém-PA | E-mail: {{EMAIL_CONTATO}} | Telefone: {{TELEFONE_CONTATO}}</p>
+            <p>Este e-mail foi enviado automaticamente pelo sistema ERP.</p>
+        </div>
+    </div>
+</body>
+</html>

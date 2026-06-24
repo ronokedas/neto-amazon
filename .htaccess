@@ -1,0 +1,42 @@
+# ROTEAMENTO E PROTECOES DO SISTEMA ERP
+
+# Ativar mod_rewrite
+RewriteEngine On
+
+# Redirecionar tudo para index.php (roteamento)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Proteger arquivos sensiveis
+<FilesMatch "^(config\.php|php\.ini)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Bloquear listagem de diretorios
+Options -Indexes
+
+# Definir charset padrao
+AddDefaultCharset UTF-8
+
+# Proteger pasta includes contra acesso direto
+RewriteRule ^includes/ - [F,L]
+
+# Proteger uploads contra execucao de PHP
+<IfModule mod_rewrite.c>
+    RewriteRule ^uploads/.*\.php$ - [F,L]
+</IfModule>
+
+# Configuracoes de seguranca
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Limitar upload de arquivos
+<IfModule mod_php.c>
+    php_value upload_max_filesize "10M"
+    php_value post_max_size "12M"
+</IfModule>

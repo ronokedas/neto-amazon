@@ -1,0 +1,1 @@
+<?php =new PDO('mysql:host=127.0.0.1;port=3307;dbname=erp_sistema','erp_user','erp_pass_2026'); echo \" "AGENDAMENTOS:\n\; foreach(->query('DESCRIBE agendamentos') as ) echo [0].' - '.[1].\\n\; echo \VISTORIAS:\n\; foreach(->query('DESCRIBE vistorias') as ) echo [0].' - '.[1].\\n\; 

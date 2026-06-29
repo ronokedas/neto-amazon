@@ -258,7 +258,7 @@ $pdf->Cell($col_w_cl[1], 5, 'COMP.', 1, 0, 'C', true);
 $pdf->Cell($col_w_cl[2], 5, 'NÚMERO DE PASSAGEIROS', 1, 1, 'C', true);
 
 $pdf->SetFont('helvetica', '', 7);
-$pdf->Cell($col_w_cl[0], 5, $c['calado_maximo_m'] ? number_format($c['calado_maximo_m'], 3, ',', '') . ' m' : '', 1, 0, 'C');
+$pdf->Cell($col_w_cl[0], 5, !empty($c['calado_maximo_m']) ? number_format($c['calado_maximo_m'], 3, ',', '') . ' m' : '', 1, 0, 'C');
 $pdf->Cell($col_w_cl[1], 5, '______________', 1, 0, 'C');
 $pdf->Cell($col_w_cl[2], 5, '', 1, 1, 'C');
 

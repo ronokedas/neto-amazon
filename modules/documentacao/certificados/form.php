@@ -10,7 +10,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+verificar_cargo(['ADMIN', 'VENDEDOR', 'VISTORIADOR']);
 
 $editando = false;
 $certificado = null;
@@ -41,6 +41,41 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
     $stmt_conv->execute([':cert_id' => $id]);
     $convalidacoes = $stmt_conv->fetchAll(PDO::FETCH_ASSOC);
 }
+
+// --- PRE-PREENCHIMENTO VIA AGENDAMENTO ---
+$preenchimento = [
+    'nome_embarcacao'    => '', 'numero_inscricao'   => '', 'indicativo_chamada' => '',
+    'atividades_servicos'=> '', 'tipo_embarcacao'    => '', 'ano_construcao'     => '',
+    'comprimento_m'      => '', 'arqueacao_bruta'    => '', 'material_casco'     => '',
+    'relatorio_numero'   => '', 'data_vistoria_seco' => '', 'data_vistoria_flutuando' => '',
+    'local_vistoria'     => ''
+];
+
+if (!$editando && !empty($_GET['agendamento_id'])) {
+    $stmtPre = $pdo->prepare("
+        SELECT e.nome as emb_nome, e.registro, e.tipo_embarcacao, e.ano as emb_ano,
+               e.comprimento_total, e.arqueacao_bruta, e.material_casco,
+               v.numero as relatorio_numero
+        FROM agendamentos a
+        JOIN embarcacoes e ON a.embarcacao_id = e.id
+        LEFT JOIN vistorias v ON v.agendamento_id = a.id
+        WHERE a.id = :aid
+    ");
+    $stmtPre->execute([':aid' => $_GET['agendamento_id']]);
+    $dadosPre = $stmtPre->fetch(PDO::FETCH_ASSOC);
+
+    if ($dadosPre) {
+        $preenchimento['nome_embarcacao']    = $dadosPre['emb_nome'];
+        $preenchimento['numero_inscricao']   = $dadosPre['registro'];
+        $preenchimento['tipo_embarcacao']    = $dadosPre['tipo_embarcacao'];
+        $preenchimento['ano_construcao']     = $dadosPre['emb_ano'];
+        $preenchimento['comprimento_m']      = $dadosPre['comprimento_total'];
+        $preenchimento['arqueacao_bruta']    = $dadosPre['arqueacao_bruta'];
+        $preenchimento['material_casco']     = $dadosPre['material_casco'];
+        $preenchimento['relatorio_numero']   = $dadosPre['relatorio_numero'];
+    }
+}
+
 
 // Gerar próximo número (se não estiver editando)
 $proximo_numero = '';
@@ -85,7 +120,12 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="<?php echo APP_URL; ?>documentacao/certificados/actions" id="formCertificado">
+    <?php if ($_SESSION['usuario_cargo'] ?? '' !== 'ADMIN'): ?>
+        <div class="alert alert-info" style="margin-bottom: 20px;">
+            <i class="fas fa-eye"></i> <strong>Modo de visualização</strong> — Você não tem permissão para editar este certificado.
+        </div>
+    <?php endif; ?>
+    <form method="POST" action="<?php echo APP_URL; ?>documentacao/certificados/actions" id="formCertificado" <?php echo ($_SESSION['usuario_cargo'] ?? '') !== 'ADMIN' ? 'style="pointer-events: none; opacity: 0.7;"' : ''; ?>>
         <input type="hidden" name="action" value="salvar">
         <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
         <?php if ($editando): ?>
@@ -149,52 +189,52 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <div class="form-group">
                         <label for="nome_embarcacao">Nome da Embarcação *</label>
                         <input type="text" name="nome_embarcacao" id="nome_embarcacao" class="form-control" required
-                               value="<?php echo $editando ? h($certificado['nome_embarcacao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['nome_embarcacao']) : h($preenchimento['nome_embarcacao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="numero_inscricao">N° de Inscrição</label>
                         <input type="text" name="numero_inscricao" id="numero_inscricao" class="form-control"
-                               value="<?php echo $editando ? h($certificado['numero_inscricao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['numero_inscricao']) : h($preenchimento['numero_inscricao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="indicativo_chamada">Indicativo de Chamada</label>
                         <input type="text" name="indicativo_chamada" id="indicativo_chamada" class="form-control"
-                               value="<?php echo $editando ? h($certificado['indicativo_chamada']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['indicativo_chamada']) : h($preenchimento['indicativo_chamada']); ?>">
                     </div>
                 </div>
                 <div class="grid-3">
                     <div class="form-group">
                         <label for="atividades_servicos">Atividades ou Serviços</label>
                         <input type="text" name="atividades_servicos" id="atividades_servicos" class="form-control"
-                               value="<?php echo $editando ? h($certificado['atividades_servicos']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['atividades_servicos']) : h($preenchimento['atividades_servicos']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="tipo_embarcacao">Tipo de Embarcação</label>
                         <input type="text" name="tipo_embarcacao" id="tipo_embarcacao" class="form-control"
-                               value="<?php echo $editando ? h($certificado['tipo_embarcacao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['tipo_embarcacao']) : h($preenchimento['tipo_embarcacao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="ano_construcao">Ano de Construção</label>
                         <input type="text" name="ano_construcao" id="ano_construcao" class="form-control"
                                maxlength="4" placeholder="AAAA"
-                               value="<?php echo $editando ? h($certificado['ano_construcao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['ano_construcao']) : h($preenchimento['ano_construcao']); ?>">
                     </div>
                 </div>
                 <div class="grid-3">
                     <div class="form-group">
                         <label for="comprimento_m">Comprimento (m)</label>
                         <input type="number" name="comprimento_m" id="comprimento_m" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($certificado['comprimento_m']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['comprimento_m']) : h($preenchimento['comprimento_m']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="arqueacao_bruta">Arqueação Bruta</label>
                         <input type="text" name="arqueacao_bruta" id="arqueacao_bruta" class="form-control"
-                               value="<?php echo $editando ? h($certificado['arqueacao_bruta']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['arqueacao_bruta']) : h($preenchimento['arqueacao_bruta']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="material_casco">Material do Casco</label>
                         <input type="text" name="material_casco" id="material_casco" class="form-control"
-                               value="<?php echo $editando ? h($certificado['material_casco']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['material_casco']) : h($preenchimento['material_casco']); ?>">
                     </div>
                 </div>
 
@@ -289,24 +329,24 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         <label for="relatorio_numero">N° Relatório de Vistorias</label>
                         <input type="text" name="relatorio_numero" id="relatorio_numero" class="form-control"
                                placeholder="Ex: AM-REL-AP:100/26"
-                               value="<?php echo $editando ? h($certificado['relatorio_numero']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['relatorio_numero']) : h($preenchimento['relatorio_numero']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="local_vistoria">Local da Vistoria</label>
                         <input type="text" name="local_vistoria" id="local_vistoria" class="form-control"
-                               value="<?php echo $editando ? h($certificado['local_vistoria']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['local_vistoria']) : h($preenchimento['local_vistoria']); ?>">
                     </div>
                 </div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="data_vistoria_seco">Data da Vistoria em Seco</label>
                         <input type="date" name="data_vistoria_seco" id="data_vistoria_seco" class="form-control"
-                               value="<?php echo $editando ? h($certificado['data_vistoria_seco']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['data_vistoria_seco']) : h($preenchimento['data_vistoria_seco']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="data_vistoria_flutuando">Data da Vistoria Flutuando</label>
                         <input type="date" name="data_vistoria_flutuando" id="data_vistoria_flutuando" class="form-control"
-                               value="<?php echo $editando ? h($certificado['data_vistoria_flutuando']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['data_vistoria_flutuando']) : h($preenchimento['data_vistoria_flutuando']); ?>">
                     </div>
                 </div>
                 <div class="form-group">

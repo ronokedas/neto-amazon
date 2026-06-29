@@ -423,16 +423,51 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                    class="btn btn-primary btn-sm" title="Gerar PDF" target="_blank" style="padding: 4px 8px;">
                                     <i class="fas fa-file-pdf"></i>
                                 </a>
-                                <?php if ($cargo === 'ADMIN' && $p['status'] !== 'cancelada'): ?>
-                                <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
-                                      onsubmit="return confirm('Enviar proposta <?php echo h(addslashes($p['numero'])); ?> por e-mail para o cliente?')">
-                                    <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
-                                    <input type="hidden" name="action" value="enviar_proposta">
-                                    <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
-                                    <button type="submit" class="btn btn-success btn-sm" title="Enviar Proposta por E-mail" style="padding: 4px 8px;">
-                                        <i class="fas fa-envelope"></i>
-                                    </button>
-                                </form>
+                                <?php if ($cargo === 'ADMIN'): ?>
+                                    <?php if ($p['status'] === 'enviada' || $p['status'] === 'rascunho'): ?>
+                                    <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
+                                          onsubmit="return confirm('Marcar proposta <?php echo h(addslashes($p['numero'])); ?> como APROVADA?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                        <input type="hidden" name="action" value="aprovar_proposta">
+                                        <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
+                                        <button type="submit" class="btn btn-success btn-sm" title="Aprovar Proposta" style="padding: 4px 8px;">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
+                                          onsubmit="return confirm('Marcar proposta <?php echo h(addslashes($p['numero'])); ?> como RECUSADA?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                        <input type="hidden" name="action" value="recusar_proposta">
+                                        <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
+                                        <button type="submit" class="btn btn-danger btn-sm" title="Recusar Proposta" style="padding: 4px 8px;">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
+
+                                    <?php if ($p['status'] === 'aprovada'): ?>
+                                    <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
+                                          onsubmit="return confirm('Cancelar proposta <?php echo h(addslashes($p['numero'])); ?>?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                        <input type="hidden" name="action" value="cancelar_proposta">
+                                        <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
+                                        <button type="submit" class="btn btn-warning btn-sm" title="Cancelar Proposta" style="padding: 4px 8px;">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
+
+                                    <?php if ($p['status'] === 'recusada' || $p['status'] === 'cancelada'): ?>
+                                    <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
+                                          onsubmit="return confirm('Reabrir proposta <?php echo h(addslashes($p['numero'])); ?>?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                        <input type="hidden" name="action" value="reabrir_proposta">
+                                        <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
+                                        <button type="submit" class="btn btn-info btn-sm" title="Reabrir Proposta" style="padding: 4px 8px;">
+                                            <i class="fas fa-undo"></i>
+                                        </button>
+                                    </form>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </td>

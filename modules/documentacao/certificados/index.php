@@ -10,7 +10,7 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+verificar_cargo(['ADMIN', 'VENDEDOR', 'VISTORIADOR']);
 
 // Filtros
 $busca = $_GET['busca'] ?? '';
@@ -50,9 +50,11 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
     <div class="tabela-header">
         <h2><i class="fas fa-file-certificate"></i> Certificados de Segurança da Navegação (CSN)</h2>
         <div class="d-flex gap-2">
+            <?php if ($_SESSION['usuario_cargo'] ?? '' === 'ADMIN'): ?>
             <a href="<?php echo APP_URL; ?>documentacao/certificados/form" class="btn btn-success">
                 <i class="fas fa-plus"></i> Novo Certificado
             </a>
+            <?php endif; ?>
         </div>
     </div>
 

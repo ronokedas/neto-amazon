@@ -15,7 +15,7 @@ if ($action === 'embarcacoes_cliente') {
     verificar_sessao();
     header('Content-Type: application/json; charset=utf-8');
 
-    if (getCargo() !== 'ADMIN') {
+    if (!in_array(getCargo(), ['ADMIN', 'VENDEDOR'])) {
         echo json_encode(['error' => 'Acesso negado.']);
         exit;
     }
@@ -49,7 +49,7 @@ if ($action === 'embarcacoes_cliente') {
 
 // === DAQUI EM DIANTE: Ações via POST ===
 verificar_sessao();
-if (getCargo() !== 'ADMIN') {
+if (!in_array(getCargo(), ['ADMIN', 'VENDEDOR'])) {
     setMensagem('error', 'Acesso negado. Apenas Administradores podem gerenciar propostas.');
     redirecionar(APP_URL . 'dashboard');
 }
@@ -336,6 +336,98 @@ switch ($action) {
         } catch (Exception $e) {
             error_log('Erro ao enviar proposta por e-mail: ' . $e->getMessage());
             setMensagem('error', 'Erro ao enviar proposta: ' . $e->getMessage());
+            redirecionar(APP_URL . 'comercial/propostas');
+        }
+        break;
+
+    case 'aprovar_proposta':
+        try {
+            $id = $_POST['id'] ?? '';
+            if (empty($id)) {
+                setMensagem('error', 'ID da proposta não informado.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+            $stmt = $pdo->prepare("UPDATE propostas SET status = 'aprovada' WHERE id = :id AND status IN ('rascunho','enviada')");
+            $stmt->execute([':id' => $id]);
+            if ($stmt->rowCount() === 0) {
+                setMensagem('warning', 'Proposta não encontrada ou já está em outro status.');
+            } else {
+                log_atividade('proposta_aprovada', "Proposta ID: {$id} marcada como aprovada.");
+                setMensagem('success', 'Proposta aprovada com sucesso!');
+            }
+            redirecionar(APP_URL . 'comercial/propostas');
+        } catch (Exception $e) {
+            error_log('Erro ao aprovar proposta: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao aprovar proposta.');
+            redirecionar(APP_URL . 'comercial/propostas');
+        }
+        break;
+
+    case 'recusar_proposta':
+        try {
+            $id = $_POST['id'] ?? '';
+            if (empty($id)) {
+                setMensagem('error', 'ID da proposta não informado.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+            $stmt = $pdo->prepare("UPDATE propostas SET status = 'recusada' WHERE id = :id AND status IN ('rascunho','enviada')");
+            $stmt->execute([':id' => $id]);
+            if ($stmt->rowCount() === 0) {
+                setMensagem('warning', 'Proposta não encontrada ou já está em outro status.');
+            } else {
+                log_atividade('proposta_recusada', "Proposta ID: {$id} marcada como recusada.");
+                setMensagem('success', 'Proposta recusada.');
+            }
+            redirecionar(APP_URL . 'comercial/propostas');
+        } catch (Exception $e) {
+            error_log('Erro ao recusar proposta: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao recusar proposta.');
+            redirecionar(APP_URL . 'comercial/propostas');
+        }
+        break;
+
+    case 'cancelar_proposta':
+        try {
+            $id = $_POST['id'] ?? '';
+            if (empty($id)) {
+                setMensagem('error', 'ID da proposta não informado.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+            $stmt = $pdo->prepare("UPDATE propostas SET status = 'cancelada' WHERE id = :id AND status = 'aprovada'");
+            $stmt->execute([':id' => $id]);
+            if ($stmt->rowCount() === 0) {
+                setMensagem('warning', 'Proposta não encontrada ou não está aprovada.');
+            } else {
+                log_atividade('proposta_cancelada', "Proposta ID: {$id} cancelada.");
+                setMensagem('success', 'Proposta cancelada!');
+            }
+            redirecionar(APP_URL . 'comercial/propostas');
+        } catch (Exception $e) {
+            error_log('Erro ao cancelar proposta: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao cancelar proposta.');
+            redirecionar(APP_URL . 'comercial/propostas');
+        }
+        break;
+
+    case 'reabrir_proposta':
+        try {
+            $id = $_POST['id'] ?? '';
+            if (empty($id)) {
+                setMensagem('error', 'ID da proposta não informado.');
+                redirecionar(APP_URL . 'comercial/propostas');
+            }
+            $stmt = $pdo->prepare("UPDATE propostas SET status = 'rascunho' WHERE id = :id AND status IN ('recusada','cancelada')");
+            $stmt->execute([':id' => $id]);
+            if ($stmt->rowCount() === 0) {
+                setMensagem('warning', 'Proposta não encontrada ou não está recusada/cancelada.');
+            } else {
+                log_atividade('proposta_reaberta', "Proposta ID: {$id} reaberta como rascunho.");
+                setMensagem('success', 'Proposta reaberta como rascunho!');
+            }
+            redirecionar(APP_URL . 'comercial/propostas');
+        } catch (Exception $e) {
+            error_log('Erro ao reabrir proposta: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao reabrir proposta.');
             redirecionar(APP_URL . 'comercial/propostas');
         }
         break;

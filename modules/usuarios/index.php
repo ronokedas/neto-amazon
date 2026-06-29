@@ -83,9 +83,9 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         </td>
                         <td><?php echo h($u['email']); ?></td>
                         <td>
-                            <span class="badge <?php echo $u['cargo'] === 'ADMIN' ? 'badge-success' : 'badge-info'; ?>">
-                                <i class="fas <?php echo $u['cargo'] === 'ADMIN' ? 'fa-user-shield' : 'fa-user-check'; ?>"></i>
-                                <?php echo h($u['cargo'] === 'ADMIN' ? 'Administrador' : 'Vistoriador'); ?>
+                            <span class="badge <?php echo $u['cargo'] === 'ADMIN' ? 'badge-success' : ($u['cargo'] === 'VENDEDOR' ? 'badge-primary' : 'badge-info'); ?>">
+                                <i class="fas <?php echo $u['cargo'] === 'ADMIN' ? 'fa-user-shield' : ($u['cargo'] === 'VENDEDOR' ? 'fa-user-tie' : 'fa-user-check'); ?>"></i>
+                                <?php echo h($u['cargo'] === 'ADMIN' ? 'Administrador' : ($u['cargo'] === 'VENDEDOR' ? 'Vendedor' : 'Vistoriador')); ?>
                             </span>
                         </td>
                         <td>

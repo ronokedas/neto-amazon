@@ -5,6 +5,9 @@
  * Cabecalho padrao de todas as paginas
  */
 require_once __DIR__ . '/auth.php';
+
+// Garantir encoding UTF-8
+header('Content-Type: text/html; charset=UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -15,10 +18,13 @@ require_once __DIR__ . '/auth.php';
     <title><?php echo $titulo_page ?? APP_NAME; ?></title>
     
     <!-- CSS do Sistema -->
-    <link rel="stylesheet" href="<?php echo APP_URL; ?>assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo APP_URL; ?>assets/css/style.css?v=<?php echo time(); ?>">
     
     <!-- Font Awesome para icones -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     
     <!-- Google Fonts - Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,57 +32,183 @@ require_once __DIR__ . '/auth.php';
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Header Superior -->
-    <header class="header-main">
-        <div class="header-left">
-            <button class="btn-sidebar-toggle" onclick="toggleSidebar()" title="Menu">
-                <i class="fas fa-bars"></i>
-            </button>
-            <a href="<?php echo APP_URL; ?>dashboard" class="logo-link" title="Dashboard">
-                
-                <span class="logo-texto">Sistema Amazon</span>
-            </a>
-        </div>
-        <div class="header-right">
-            <?php if (estaLogado()): ?>
-            <div class="user-menu">
-                <span class="user-name">
-                    <i class="fas fa-user-circle"></i>
-                    <?php echo h($_SESSION['usuario_nome']); ?>
-                </span>
-                <span class="user-cargo badge-<?php echo strtolower($_SESSION['usuario_cargo']); ?>">
-                    <?php echo h($_SESSION['usuario_cargo'] === 'ADMIN' ? 'Administrador' : 'Vistoriador'); ?>
-                </span>
-                <a href="<?php echo APP_URL; ?>login?action=logout" class="btn-logout" title="Sair">
-                    <i class="fas fa-sign-out-alt"></i>
-                </a>
-            </div>
-            <?php endif; ?>
-        </div>
-    </header>
-
-    <!-- Mensagens -->
-    <?php
-    if (function_exists('getMensagem')) {
-        $msg = getMensagem();
-        if ($msg):
-            $icones = [
-                'success' => 'fa-check-circle',
-                'error'   => 'fa-exclamation-circle',
-                'warning' => 'fa-exclamation-triangle',
-                'info'    => 'fa-info-circle'
-            ];
-            $icon = $icones[$msg['tipo']] ?? 'fa-info-circle';
-    ?>
-    <div class="message message-<?php echo h($msg['tipo']); ?>" id="mensagem" onclick="this.remove()">
-        <i class="fas <?php echo $icon; ?>"></i>
-        <span><?php echo h($msg['texto']); ?></span>
-        <button class="close-msg" onclick="this.parentElement.remove()">&times;</button>
-    </div>
-    <?php
-        endif;
+    <!-- Toast Notification Function -->
+    <script>
+    function showToast(message, type = 'success', duration = 4000) {
+        const colors = {
+            success: { bg: 'rgba(57,211,83,0.12)', border: '#39d353', color: '#39d353', icon: 'fa-check-circle' },
+            error: { bg: 'rgba(248,81,73,0.12)', border: '#f85149', color: '#f85149', icon: 'fa-circle-xmark' },
+            warn: { bg: 'rgba(210,153,34,0.12)', border: '#d29922', color: '#d29922', icon: 'fa-triangle-exclamation' },
+            info: { bg: 'rgba(88,166,255,0.12)', border: '#58a6ff', color: '#58a6ff', icon: 'fa-circle-info' },
+        };
+        const c = colors[type] || colors.success;
+        const toast = document.createElement('div');
+        toast.style.cssText = 'background:#161b22;border:1px solid '+c.border+
+            ';border-left:3px solid '+c.border+';border-radius:8px;padding:12px 16px;'+
+            'display:flex;align-items:center;gap:10px;min-width:260px;max-width:380px;'+
+            'pointer-events:all;box-shadow:0 4px 16px rgba(0,0,0,0.4);'+
+            'animation:toastIn 0.2s ease;font-family:Inter,sans-serif;font-size:13px;color:#e6edf3';
+        toast.innerHTML = '<i class="fa-solid '+c.icon+'" style="color:'+c.color+';font-size:15px"></i>'+
+            '<span>'+message+'</span>'+
+            '<button onclick="this.parentElement.remove()" style="margin-left:auto;background:none;'+
+            'border:none;color:#6e7681;cursor:pointer;font-size:14px;line-height:1">'+
+            '<i class="fa-solid fa-xmark"></i></button>';
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.style.animation = 'toastOut 0.2s ease forwards', duration - 200);
+        setTimeout(() => toast.remove(), duration);
     }
-    ?>
+    </script>
 
-    <!-- Conteudo Principal -->
-    <div class="container-main">
+    <!-- Toast Messages from PHP Session -->
+    <?php if (isset($_SESSION['msg_sucesso'])): ?>
+    <script>showToast('<?= addslashes($_SESSION['msg_sucesso']) ?>', 'success');</script>
+    <?php unset($_SESSION['msg_sucesso']); endif; ?>
+
+    <?php if (isset($_SESSION['msg_erro'])): ?>
+    <script>showToast('<?= addslashes($_SESSION['msg_erro']) ?>', 'error');</script>
+    <?php unset($_SESSION['msg_erro']); endif; ?>
+
+    <?php if (isset($_SESSION['msg_aviso'])): ?>
+    <script>showToast('<?= addslashes($_SESSION['msg_aviso']) ?>', 'warn');</script>
+    <?php unset($_SESSION['msg_aviso']); endif; ?>
+
+    <?php if (isset($_SESSION['msg_info'])): ?>
+    <script>showToast('<?= addslashes($_SESSION['msg_info']) ?>', 'info');</script>
+    <?php unset($_SESSION['msg_info']); endif; ?>
+
+    <?php if (estaLogado()): ?>
+    <!-- Layout Shell -->
+    <div class="app-shell">
+        
+        <!-- Sidebar -->
+        <?php if (file_exists(__DIR__ . '/sidebar.php')) require_once __DIR__ . '/sidebar.php'; ?>
+        
+        <div class="main-area">
+            <!-- Header Superior (Topbar) -->
+            <header class="topbar">
+                <div class="topbar-search" style="position: relative;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="buscaGlobal" placeholder="Buscar embarcação, vistoria, cliente..." autocomplete="off">
+                    <span class="search-shortcut">⌘K</span>
+                    <div class="search-results" id="searchResults"></div>
+                </div>
+                <div class="topbar-right">
+                    <button class="btn-notification" title="Notificações" onclick="showToast('Nenhuma notificação no momento.', 'info')">
+                        <i class="fa-regular fa-bell"></i>
+                    </button>
+                    <div class="topbar-separator"></div>
+                    <div class="topbar-user" onclick="toggleUserMenu()">
+                        <div class="topbar-avatar"><?php echo strtoupper(substr($_SESSION['usuario_nome'] ?? 'A', 0, 1)); ?></div>
+                        <span class="topbar-username"><?php echo h($_SESSION['usuario_nome'] ?? 'Usuário'); ?></span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                        
+                        <div class="user-dropdown" id="userDropdown">
+                            <a href="<?php echo APP_URL; ?>perfil"><i class="fa-solid fa-user"></i> Meu Perfil</a>
+                            <a href="<?php echo APP_URL; ?>configuracoes"><i class="fa-solid fa-gear"></i> Configurações</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="<?php echo APP_URL; ?>login?action=logout" class="text-error"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+    <?php endif; ?>
+
+            <!-- Mensagens -->
+            <?php
+            if (function_exists('getMensagem')) {
+                $msg = getMensagem();
+                if ($msg):
+                    $icones = [
+                        'success' => 'fa-check-circle',
+                        'error'   => 'fa-exclamation-circle',
+                        'warning' => 'fa-exclamation-triangle',
+                        'info'    => 'fa-info-circle'
+                    ];
+                    $icon = $icones[$msg['tipo']] ?? 'fa-info-circle';
+            ?>
+            <div class="message message-<?php echo h($msg['tipo']); ?>" id="mensagem" onclick="this.remove()">
+                <i class="fas <?php echo $icon; ?>"></i>
+                <span><?php echo h($msg['texto']); ?></span>
+                <button class="close-msg" onclick="this.parentElement.remove()">&times;</button>
+            </div>
+            <?php
+                endif;
+            }
+            ?>
+
+    <script>
+    // Busca Global
+    let buscaTimeout;
+    const buscaInput = document.getElementById('buscaGlobal');
+    const buscaResults = document.getElementById('searchResults');
+
+    if (buscaInput) {
+        buscaInput.addEventListener('input', function() {
+            clearTimeout(buscaTimeout);
+            const q = this.value.trim();
+            if (q.length < 2) {
+                buscaResults.classList.remove('show');
+                return;
+            }
+            buscaTimeout = setTimeout(() => {
+                fetch('<?php echo APP_URL; ?>busca-global?q=' + encodeURIComponent(q))
+                    .then(r => {
+                        if (!r.ok) throw new Error('Erro HTTP');
+                        return r.json();
+                    })
+                    .then(data => {
+                        if (data.erro || !data || data.length === 0) {
+                            buscaResults.innerHTML = '<div class="search-result-empty">Nenhum resultado encontrado</div>';
+                            buscaResults.classList.add('show');
+                            return;
+                        }
+                        const baseUrl = '<?php echo APP_URL; ?>';
+                        buscaResults.innerHTML = data.map(item => {
+                            const icones = { embarcacao: 'fa-ship', pessoa: 'fa-user', cliente: 'fa-building', vistoria: 'fa-clipboard-check' };
+                            const icon = icones[item.tipo] || 'fa-search';
+                            return '<a href="' + baseUrl + item.url + '" class="search-result-item">' +
+                                '<i class="fa-solid ' + icon + '"></i>' +
+                                '<span class="search-result-nome">' + item.nome + '</span>' +
+                                '<span class="search-result-tipo">' + item.tipo + '</span>' +
+                                '</a>';
+                        }).join('');
+                        buscaResults.classList.add('show');
+                    })
+                    .catch(() => {
+                        buscaResults.innerHTML = '<div class="search-result-empty">Erro ao buscar</div>';
+                        buscaResults.classList.add('show');
+                    });
+            }, 300);
+        });
+
+        buscaInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const primeiro = buscaResults.querySelector('.search-result-item');
+                if (primeiro) {
+                    window.location.href = primeiro.getAttribute('href');
+                }
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!buscaInput.parentElement.contains(e.target)) {
+                buscaResults.classList.remove('show');
+            }
+        });
+
+        // Atalho Ctrl+K / ⌘K
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                buscaInput.focus();
+            }
+            if (e.key === 'Escape') {
+                buscaResults.classList.remove('show');
+                buscaInput.blur();
+            }
+        });
+    }
+    </script>
+
+            <!-- Conteudo Principal -->
+            <main class="page-content">

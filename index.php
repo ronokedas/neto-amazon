@@ -46,6 +46,7 @@ $rotas = [
     'usuarios'      => 'modules/usuarios/index.php',
     'usuarios/form' => 'modules/usuarios/form.php',
     'usuarios/actions' => 'modules/usuarios/actions.php',
+    'documentacao'                      => 'modules/documentacao/index.php',
     'documentacao/certificados'         => 'modules/documentacao/certificados/index.php',
     'documentacao/certificados/form'    => 'modules/documentacao/certificados/form.php',
     'documentacao/certificados/actions' => 'modules/documentacao/certificados/actions.php',
@@ -70,6 +71,9 @@ $rotas = [
     'documentacao/cht/form'             => 'modules/documentacao/cht/form.php',
     'documentacao/cht/actions'          => 'modules/documentacao/cht/actions.php',
     'documentacao/cht/pdf'              => 'modules/documentacao/cht/pdf.php',
+    'documentacao/aprovacao_relatorios' => 'modules/documentacao/aprovacao_relatorios.php',
+    'documentacao/novo_certificado'     => 'modules/documentacao/novo_certificado.php',
+    'documentacao/baixa_exigencias'     => 'modules/documentacao/baixa_exigencias.php',
     'comercial'                     => 'modules/comercial/index.php',
     'comercial/servicos'            => 'modules/comercial/servicos/index.php',
     'comercial/servicos/form'       => 'modules/comercial/servicos/form.php',
@@ -78,6 +82,8 @@ $rotas = [
     'comercial/pdf'                 => 'modules/comercial/pdf.php',
     'comercial/propostas'           => 'modules/comercial/propostas/index.php',
     'comercial/propostas/actions'   => 'modules/comercial/propostas/actions.php',
+    'contratos'                     => 'modules/contratos/index.php',
+    'relatorios'                    => 'modules/relatorios/index.php',
     'agendamentos'          => 'modules/agendamentos/index.php',
     'agendamentos/form'     => 'modules/agendamentos/form.php',
     'agendamentos/actions'  => 'modules/agendamentos/actions.php',
@@ -85,6 +91,8 @@ $rotas = [
     'emails'                => 'modules/emails/index.php',
     'configuracoes'             => 'modules/configuracoes/index.php',
     'configuracoes/actions'     => 'modules/configuracoes/actions.php',
+    'busca-global'              => 'ajax/busca_global.php',
+    'perfil'                    => 'modules/perfil/index.php',
 ];
 
 // Se nao esta logado, sempre ir para login (exceto proprio login)
@@ -151,6 +159,7 @@ if (isset($rotas[$path])) {
 } else {
     // 404 - Pagina nao encontrada
     http_response_code(404);
+    require_once __DIR__ . '/includes/functions.php';
     require_once __DIR__ . '/includes/header.php';
     ?>
     <div class="error-page">

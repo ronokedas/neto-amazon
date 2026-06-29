@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `agendamentos` (
   `embarcacao_id` char(36) NOT NULL,
   `cliente_id` char(36) NOT NULL,
   `vistoriador_id` char(36) DEFAULT NULL,
+  `vendedor_id` char(36) DEFAULT NULL,
   `tipo_vistoria` varchar(150) NOT NULL,
   `data_vistoria` date NOT NULL,
   `hora_vistoria` time DEFAULT NULL,

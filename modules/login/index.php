@@ -71,8 +71,7 @@ require_once __DIR__ . '/../../includes/header.php';
             <div class="logo-icon">
                 <i class="fas fa-anchor"></i>
             </div>
-            <h1>ERP Sistema</h1>
-            <p>Sistema de Gestao</p>
+            <h1>Sistema Amazon</h1>
         </div>
 
         <?php if (!empty($erro_msg)): ?>

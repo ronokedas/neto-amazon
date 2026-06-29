@@ -28,6 +28,23 @@ function podeAcessar($modulo) {
         return true;
     }
     
+    // VENDEDOR tem acesso similar ao ADMIN, exceto usuarios e configuracoes
+    if ($cargo === 'VENDEDOR') {
+        $modulosPermitidos = [
+            'dashboard',
+            'clientes',
+            'embarcacoes',
+            'pessoas',
+            'vistorias',
+            'agendamentos',
+            'documentacao',
+            'comercial',
+            'emails'
+        ];
+        return in_array($modulo, $modulosPermitidos);
+    }
+    
+
     // VISTORIADOR tem acesso restrito
     $modulosPermitidos = [
         'dashboard',
@@ -53,9 +70,20 @@ function requireLogin() {
 function requireCargo($cargoRequerido) {
     requireLogin();
     
-    if (getCargo() !== $cargoRequerido) {
-        header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
-        exit;
+    $cargo = getCargo();
+    
+    if (is_array($cargoRequerido)) {
+        // Aceita array de cargos: ['ADMIN', 'VENDEDOR']
+        if (!in_array($cargo, $cargoRequerido)) {
+            header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+            exit;
+        }
+    } else {
+        // Aceita string simples: 'ADMIN'
+        if ($cargo !== $cargoRequerido) {
+            header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+            exit;
+        }
     }
 }
 
@@ -86,12 +114,18 @@ function verificarSessao() {
 
 // Alias para compatibilidade com o modulo
 function verificar_sessao() {
+    verificarSessao();
     requireLogin();
 }
 
 // Verificar se o usuario logado possui o cargo especificado
 function verificar_cargo($cargoRequerido) {
     requireCargo($cargoRequerido);
+}
+
+// Verificar se o usuario logado e VENDEDOR
+function is_vendedor() {
+    return getCargo() === 'VENDEDOR';
 }
 
 // Obter usuario logado por ID

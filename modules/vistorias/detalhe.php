@@ -92,6 +92,16 @@ if ($cargo === 'VISTORIADOR' && !empty($vistoria['vistoriador_id']) && $vistoria
     redirecionar(APP_URL . 'vistorias');
 }
 
+// Vendedor ve apenas vistorias de agendamentos que ele criou
+if ($cargo === 'VENDEDOR' && !empty($vistoria['agendamento_id'])) {
+    $stmtVend = $pdo->prepare('SELECT id FROM agendamentos WHERE id = ? AND vendedor_id = ?');
+    $stmtVend->execute([$vistoria['agendamento_id'], $usuario_id]);
+    if (!$stmtVend->fetch()) {
+        setMensagem('error', 'Acesso negado. Voce nao tem permissao para visualizar esta vistoria.');
+        redirecionar(APP_URL . 'vistorias');
+    }
+}
+
 // Gerar CSRF para o form de alteracao de status
 $csrf = gerarCSRF();
 

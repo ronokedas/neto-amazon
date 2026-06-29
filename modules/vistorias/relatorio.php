@@ -60,6 +60,15 @@ try {
         setMensagem('error', 'Acesso negado. Este agendamento nao esta atribuido a voce.');
         redirecionar(APP_URL . 'agendamentos');
     }
+    
+    // Se estiver aprovada, vistoriador não pode mais editar
+    $stmtV_check = $pdo->prepare("SELECT status FROM vistorias WHERE agendamento_id = :id LIMIT 1");
+    $stmtV_check->execute([':id' => $agendamento_id]);
+    $vistoria_check = $stmtV_check->fetch(PDO::FETCH_ASSOC);
+    if ($vistoria_check && in_array($vistoria_check['status'], ['APROVADA', 'APROVADA_COM_EXIGENCIAS']) && $cargo === 'VISTORIADOR') {
+        setMensagem('error', 'Este relatório já foi aprovado e não pode mais ser modificado.');
+        redirecionar(APP_URL . 'agendamentos');
+    }
 
 } catch (Exception $e) {
     error_log('Erro ao carregar agendamento relatorio: ' . $e->getMessage());
@@ -90,6 +99,13 @@ try {
 
 $editando = !empty($vistoria);
 
+// --- DETERMINAR ETAPA ATUAL ---
+$status_vistoria = $vistoria['status'] ?? 'PENDENTE';
+$pode_ir_etapa2 = in_array($status_vistoria, ['APROVADA', 'APROVADA_COM_EXIGENCIAS']);
+$etapa_atual = 1;
+if ($pode_ir_etapa2) $etapa_atual = 2;
+
+
 // Se nao tem exigencias ainda, inicializa com um item vazio
 if (empty($exigencias)) {
     $exigencias = [
@@ -118,12 +134,47 @@ $itens_sugeridos = [
     'Documentacao de Bordo',
 ];
 
+?>
+
+<?php
 $titulo_page = 'Relatorio Tecnico - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
 
 <div class="conteudo-principal">
+<!-- BARRA DE ETAPAS -->
+<div class="etapas-fluxo mb-4" style="display: flex; align-items: center; padding: 20px 0;">
+    <div class="etapa <?= $etapa_atual >= 1 ? 'ativa' : '' ?>">
+        <span class="etapa-numero">1</span>
+        <span class="etapa-label">Relatório</span>
+    </div>
+    <div class="etapa-linha <?= $pode_ir_etapa2 ? 'completa' : '' ?>" style="flex: 1; height: 3px; background: #444; margin: 0 8px; margin-bottom: 20px;"></div>
+    <div class="etapa <?= $pode_ir_etapa2 ? 'ativa' : 'bloqueada' ?>">
+        <span class="etapa-numero">2</span>
+        <span class="etapa-label">Certificado</span>
+    </div>
+</div>
+
+<style>
+.etapa { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.etapa-numero { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; }
+.etapa.ativa .etapa-numero { background: #2ECC71; color: #000; }
+.etapa.bloqueada .etapa-numero { background: #444; color: #888; }
+.etapa-label { font-size: 12px; color: #ccc; }
+.etapa-linha.completa { background: #2ECC71 !important; }
+</style>
+
+<!-- BOTÃO ETAPA 2 (somente ADMIN, somente quando aprovado) -->
+<?php if (getCargo() === 'ADMIN' && $pode_ir_etapa2): ?>
+    <div class="alert alert-success" style="margin-bottom: 20px;">
+        <strong>Relatório aprovado.</strong> Você pode gerar os certificados agora.
+        <a href="<?= APP_URL ?>documentacao/novo_certificado?agendamento_id=<?= urlencode($agendamento_id) ?>" 
+           class="btn btn-success ms-3">
+            <i class="fas fa-certificate"></i> Ir para Etapa 2 — Gerar Certificado
+        </a>
+    </div>
+<?php endif; ?>
     <div class="form-container" style="max-width: 950px;">
         <div class="form-header">
             <h3>
@@ -276,8 +327,13 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <select id="status_vistoria" name="status_vistoria" required
                             style="width: 100%; padding: 10px 14px; background: var(--cor-input-bg, #2a2a3e); border: 1px solid var(--cor-borda, #444); border-radius: 6px; color: var(--cor-texto, #ddd); font-size: 1rem;">
                         <option value="PENDENTE" <?php echo ($vistoria['status'] ?? '') === 'PENDENTE' ? 'selected' : ''; ?>>Pendente (relatorio em andamento)</option>
+                        <option value="AGUARDANDO_APROVACAO" <?php echo ($vistoria['status'] ?? '') === 'AGUARDANDO_APROVACAO' ? 'selected' : ''; ?>>Aguardando Aprovação</option>
+                        <?php if (getCargo() === 'ADMIN'): ?>
                         <option value="APROVADA" <?php echo ($vistoria['status'] ?? '') === 'APROVADA' ? 'selected' : ''; ?>>Aprovada</option>
+                        <option value="APROVADA_COM_EXIGENCIAS" <?php echo ($vistoria['status'] ?? '') === 'APROVADA_COM_EXIGENCIAS' ? 'selected' : ''; ?>>Aprovada c/ Exigências</option>
                         <option value="REPROVADA" <?php echo ($vistoria['status'] ?? '') === 'REPROVADA' ? 'selected' : ''; ?>>Reprovada</option>
+                        <option value="CANCELADA" <?php echo ($vistoria['status'] ?? '') === 'CANCELADA' ? 'selected' : ''; ?>>Cancelada</option>
+                        <?php endif; ?>
                     </select>
                 </div>
             </div>
@@ -444,4 +500,29 @@ document.getElementById('formRelatorio').addEventListener('submit', function(e) 
 .select-conforme option[value="na"] { background: rgba(150,150,150,0.2); color: #999; }
 </style>
 
+<?php if (getCargo() === 'ADMIN' && ($vistoria['status'] ?? '') === 'AGUARDANDO_APROVACAO'): ?>
+<div class="card mt-4" style="border: 2px solid #f39c12; max-width: 950px; margin: 20px auto;">
+    <div class="card-header" style="background:#f39c12;color:#000">
+        <h4><i class="fas fa-gavel"></i> Decisão de Aprovação</h4>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="<?= APP_URL ?>vistorias/actions?action=aprovar_ou_reprovar">
+            <input type="hidden" name="csrf_token" value="<?= h(gerarCSRF()); ?>">
+            <input type="hidden" name="id" value="<?= h($vistoria['id']); ?>">
+            <div class="form-group mb-3">
+                <label>Observação (obrigatória para reprovar, opcional para aprovar):</label>
+                <textarea name="observacao_admin" class="form-control" rows="3"></textarea>
+            </div>
+            <button type="submit" name="decisao" value="aprovar" class="btn btn-success"
+                onclick="return confirm('Confirmar APROVAÇÃO deste relatório?')">
+                <i class="fas fa-check"></i> Aprovar Relatório
+            </button>
+            <button type="submit" name="decisao" value="reprovar" class="btn btn-danger ms-2"
+                onclick="return confirm('Confirmar REPROVAÇÃO? A observação é obrigatória.')">
+                <i class="fas fa-times"></i> Reprovar Relatório
+            </button>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

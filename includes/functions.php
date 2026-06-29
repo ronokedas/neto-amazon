@@ -12,9 +12,18 @@ function sanitizar($dados) {
 }
 
 // Alias para compatibilidade
-function sanitize($dados) {
-    return sanitizar($dados);
+if (!function_exists('h')) {
+    function h($dados) {
+        return sanitizar($dados);
+    }
 }
+
+if (!function_exists('sanitize')) {
+    function sanitize($dados) {
+        return sanitizar($dados);
+    }
+}
+
 
 // Gerar CSRF token
 function gerarCSRF() {

@@ -342,7 +342,7 @@ CREATE TABLE `usuarios` (
   `nome` varchar(150) NOT NULL,
   `email` varchar(150) NOT NULL,
   `senha_hash` varchar(255) NOT NULL,
-  `cargo` enum('ADMIN','VISTORIADOR') NOT NULL DEFAULT 'VISTORIADOR',
+  `cargo` enum('ADMIN','VENDEDOR','VISTORIADOR') NOT NULL DEFAULT 'VISTORIADOR',
   `ativo` tinyint(1) NOT NULL DEFAULT 1,
   `criado_em` datetime DEFAULT current_timestamp(),
   `atualizado_em` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()

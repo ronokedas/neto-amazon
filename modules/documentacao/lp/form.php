@@ -43,7 +43,58 @@ if (!$editando) {
     $proximo_numero = "AM-LP-{$seq}/{$ano}";
 }
 
-// Buscar lista de embarcações ativas para o select
+// --- PRE-PREENCHIMENTO VIA AGENDAMENTO ---
+$preenchimento = [
+    'embarcacao_id'      => '',
+    'nome_embarcacao'    => '',
+    'numero_inscricao'   => '',
+    'indicativo_chamada' => '',
+    'atividades_servicos'=> '',
+    'tipo_embarcacao'    => '',
+    'ano_construcao'     => '',
+    'comprimento_total'  => '',
+    'comprimento_casco'  => '',
+    'boca_moldada'       => '',
+    'pontal_moldado'     => '',
+    'arqueacao_bruta'    => '',
+    'material_casco'     => '',
+    'relatorio_numero'   => '',
+    'proprietario'       => ''
+];
+$dadosPre = null;
+if (!$editando && !empty($_GET['agendamento_id'])) {
+    $stmtPre = $pdo->prepare("
+        SELECT 
+            e.id as embarcacao_id, e.nome as emb_nome, e.registro, e.indicativo_chamada, e.tipo_embarcacao, e.ano as emb_ano,
+            e.comprimento_total, e.comprimento_casco, e.boca_moldada, e.pontal_moldado, 
+            e.arqueacao_bruta, e.material_casco, e.observacoes as atividades, e.proprietario,
+            v.numero as relatorio_numero
+        FROM agendamentos a
+        JOIN embarcacoes e ON a.embarcacao_id = e.id
+        LEFT JOIN vistorias v ON v.agendamento_id = a.id
+        WHERE a.id = :aid
+    ");
+    $stmtPre->execute([':aid' => $_GET['agendamento_id']]);
+    $dadosPre = $stmtPre->fetch(PDO::FETCH_ASSOC);
+
+    if ($dadosPre) {
+        $preenchimento['embarcacao_id']      = h($dadosPre['embarcacao_id'] ?? '');
+        $preenchimento['nome_embarcacao']    = h($dadosPre['emb_nome'] ?? '');
+        $preenchimento['numero_inscricao']   = h($dadosPre['registro'] ?? '');
+        $preenchimento['indicativo_chamada'] = h($dadosPre['indicativo_chamada'] ?? '');
+        $preenchimento['atividades_servicos']= h($dadosPre['atividades'] ?? '');
+        $preenchimento['tipo_embarcacao']    = h($dadosPre['tipo_embarcacao'] ?? '');
+        $preenchimento['ano_construcao']     = h($dadosPre['emb_ano'] ?? '');
+        $preenchimento['comprimento_total']  = h($dadosPre['comprimento_total'] ?? '');
+        $preenchimento['comprimento_casco']  = h($dadosPre['comprimento_casco'] ?? '');
+        $preenchimento['boca_moldada']       = h($dadosPre['boca_moldada'] ?? '');
+        $preenchimento['pontal_moldado']     = h($dadosPre['pontal_moldado'] ?? '');
+        $preenchimento['arqueacao_bruta']    = h($dadosPre['arqueacao_bruta'] ?? '');
+        $preenchimento['material_casco']     = h($dadosPre['material_casco'] ?? '');
+        $preenchimento['relatorio_numero']   = h($dadosPre['relatorio_numero'] ?? '');
+        $preenchimento['proprietario']       = h($dadosPre['proprietario'] ?? '');
+    }
+}// Buscar lista de embarcações ativas para o select
 $stmt_emb = $pdo->prepare("SELECT id, nome, tipo, registro, proprietario
                            FROM embarcacoes WHERE ativo = 1 ORDER BY nome");
 $stmt_emb->execute();
@@ -170,10 +221,18 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <select id="embarcacao_id" class="form-control" onchange="carregarDadosEmbarcacao(this.value)">
                         <option value="">-- Selecione uma embarcação --</option>
                         <?php foreach ($embarcacoes as $emb): ?>
-                            <option value="<?php echo h($emb['id']); ?>"
+                             <option value="<?php echo h($emb['id']); ?>"
                                 data-nome="<?php echo h($emb['nome']); ?>"
+                                data-registro="<?php echo h($emb['registro']); ?>"
                                 data-tipo="<?php echo h($emb['tipo']); ?>"
-                                data-prop-nome="<?php echo h($emb['proprietario'] ?? ''); ?>">
+                                data-prop-nome="<?php echo h($emb['proprietario'] ?? ''); ?>"
+                                data-comprimento_total="<?php echo h($emb['comprimento_total'] ?? ''); ?>"
+                                data-comprimento_casco="<?php echo h($emb['comprimento_casco'] ?? ''); ?>"
+                                data-boca_moldada="<?php echo h($emb['boca_moldada'] ?? ''); ?>"
+                                data-pontal_moldado="<?php echo h($emb['pontal_moldado'] ?? ''); ?>"
+                                data-arqueacao_bruta="<?php echo h($emb['arqueacao_bruta'] ?? ''); ?>"
+                                data-material_casco="<?php echo h($emb['material_casco'] ?? ''); ?>"
+                                <?php echo (!empty($_GET['agendamento_id']) && isset($dadosPre['embarcacao_id']) && $dadosPre['embarcacao_id'] == $emb['id']) ? 'selected' : ''; ?>>
                                 <?php echo h($emb['nome']) . ' (' . h($emb['tipo']) . ' - ' . h($emb['registro']) . ')'; ?>
                             </option>
                         <?php endforeach; ?>
@@ -187,41 +246,41 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <div class="form-group">
                         <label for="nome_embarcacao">Nome da Embarcação *</label>
                         <input type="text" name="nome_embarcacao" id="nome_embarcacao" class="form-control" required
-                               value="<?php echo $editando ? h($licenca['nome_embarcacao']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['nome_embarcacao']) : h($preenchimento['nome_embarcacao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="tipo_embarcacao">Tipo de Embarcação</label>
                         <input type="text" name="tipo_embarcacao" id="tipo_embarcacao" class="form-control"
-                               value="<?php echo $editando ? h($licenca['tipo_embarcacao']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['tipo_embarcacao']) : h($preenchimento['tipo_embarcacao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="numero_casco">Número do Casco</label>
                         <input type="text" name="numero_casco" id="numero_casco" class="form-control"
-                               value="<?php echo $editando ? h($licenca['numero_casco']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['numero_casco'] ?? '') : ''; ?>">
                     </div>
                 </div>
                 <div class="grid-3">
                     <div class="form-group">
                         <label for="material_casco">Material do Casco</label>
                         <input type="text" name="material_casco" id="material_casco" class="form-control"
-                               value="<?php echo $editando ? h($licenca['material_casco']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['material_casco']) : h($preenchimento['material_casco']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="comprimento_total">Comprimento Total (m)</label>
                         <input type="number" name="comprimento_total" id="comprimento_total" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($licenca['comprimento_total']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['comprimento_total']) : h($preenchimento['comprimento_total']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="boca_moldada">Boca Moldada (m)</label>
                         <input type="number" name="boca_moldada" id="boca_moldada" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($licenca['boca_moldada']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['boca_moldada']) : h($preenchimento['boca_moldada']); ?>">
                     </div>
                 </div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="pontal_moldado">Pontal Moldado (m)</label>
                         <input type="number" name="pontal_moldado" id="pontal_moldado" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($licenca['pontal_moldado']) : ''; ?>">
+                               value="<?php echo $editando ? h($licenca['pontal_moldado']) : h($preenchimento['pontal_moldado']); ?>">
                     </div>
                 </div>
             </div>
@@ -333,9 +392,6 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
 </div>
 
 <script>
-/**
- * Carrega os dados da embarcação selecionada para o formulário
- */
 function carregarDadosEmbarcacao(embarcacaoId) {
     if (!embarcacaoId) return;
     
@@ -344,21 +400,17 @@ function carregarDadosEmbarcacao(embarcacaoId) {
     
     if (!option) return;
     
-    // Mapear data attributes para os campos do formulário
     const campos = {
         'nome_embarcacao': 'nome',
+        'numero_inscricao': 'numero_inscricao',
+        'indicativo_chamada': 'indicativo_chamada',
         'tipo_embarcacao': 'tipo',
-        'numero_casco': 'casco',
-        'material_casco': 'material',
-        'comprimento_total': 'comprimento',
-        'boca_moldada': 'boca',
-        'pontal_moldado': 'pontal',
-        'proprietario_nome': 'propNome',
-        'proprietario_cpf_cnpj': 'propCpf',
-        'proprietario_endereco': 'propEndereco',
-        'estaleiro_nome': 'estaleiroNome',
-        'estaleiro_cpf_cnpj': 'estaleiroCpf',
-        'estaleiro_endereco': 'estaleiroEndereco'
+        'comprimento_total': 'comprimento_total',
+        'comprimento_casco': 'comprimento_casco',
+        'boca_moldada': 'boca_moldada',
+        'pontal_moldado': 'pontal_moldado',
+        'arqueacao_bruta': 'arqueacao_bruta',
+        'material_casco': 'material_casco'
     };
     
     for (const [fieldId, dataAttr] of Object.entries(campos)) {
@@ -370,26 +422,14 @@ function carregarDadosEmbarcacao(embarcacaoId) {
     }
 }
 
-/**
- * Calcula a data de validade baseada na data de emissão + validade_dias
- */
-function calcularValidade() {
-    const dias = parseInt(document.getElementById('validade_dias').value);
-    const dataEmissao = document.getElementById('data_emissao').value;
-    const validadeData = document.getElementById('validade_data');
-    
-    if (dias && dataEmissao) {
-        const data = new Date(dataEmissao);
-        data.setDate(data.getDate() + dias);
-        const ano = data.getFullYear();
-        const mes = String(data.getMonth() + 1).padStart(2, '0');
-        const dia = String(data.getDate()).padStart(2, '0');
-        validadeData.value = `${ano}-${mes}-${dia}`;
+<?php if (!empty($_GET['agendamento_id'])): ?>
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('embarcacao_id');
+    if (select && select.value) {
+        carregarDadosEmbarcacao(select.value);
     }
-}
-
-// Calcular validade automaticamente quando mudar data de emissão
-document.getElementById('data_emissao').addEventListener('change', calcularValidade);
+});
+<?php endif; ?>
 </script>
 
 <?php require_once __DIR__ . '/../../../includes/footer.php'; ?>

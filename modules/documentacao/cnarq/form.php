@@ -42,14 +42,65 @@ $proximo_numero = '';
 if (!$editando) {
     $ano = date('y');
     $ano4 = date('Y');
-    $stmt_num = $pdo->prepare("SELECT COUNT(*) as total FROM certificados_cnarq WHERE YEAR(criado_em) = :ano");
+    $stmt_num = $pdo->prepare('SELECT COUNT(*) as total FROM certificados_cnarq WHERE YEAR(criado_em) = :ano');
     $stmt_num->execute([':ano' => $ano4]);
     $total = $stmt_num->fetch()['total'];
     $seq = $total + 1;
     $proximo_numero = "AM-CNARQ-{$seq}/{$ano}";
 }
 
-// Buscar lista de embarcações ativas para o select
+// --- PRE-PREENCHIMENTO VIA AGENDAMENTO ---
+$preenchimento = [
+    'embarcacao_id'      => '',
+    'nome_embarcacao'    => '',
+    'numero_inscricao'   => '',
+    'indicativo_chamada' => '',
+    'atividades_servicos'=> '',
+    'tipo_embarcacao'    => '',
+    'ano_construcao'     => '',
+    'comprimento_total'  => '',
+    'comprimento_casco'  => '',
+    'boca_moldada'       => '',
+    'pontal_moldado'     => '',
+    'arqueacao_bruta'    => '',
+    'material_casco'     => '',
+    'relatorio_numero'   => '',
+    'proprietario'       => ''
+];
+$dadosPre = null;
+if (!$editando && !empty($_GET['agendamento_id'])) {
+    $stmtPre = $pdo->prepare("
+        SELECT 
+            e.id as embarcacao_id, e.nome as emb_nome, e.registro, e.indicativo_chamada, e.tipo_embarcacao, e.ano as emb_ano,
+            e.comprimento_total, e.comprimento_casco, e.boca_moldada, e.pontal_moldado, 
+            e.arqueacao_bruta, e.material_casco, e.observacoes as atividades, e.proprietario,
+            v.numero as relatorio_numero
+        FROM agendamentos a
+        JOIN embarcacoes e ON a.embarcacao_id = e.id
+        LEFT JOIN vistorias v ON v.agendamento_id = a.id
+        WHERE a.id = :aid
+    ");
+    $stmtPre->execute([':aid' => $_GET['agendamento_id']]);
+    $dadosPre = $stmtPre->fetch(PDO::FETCH_ASSOC);
+
+    if ($dadosPre) {
+        $preenchimento['embarcacao_id']      = h($dadosPre['embarcacao_id'] ?? '');
+        $preenchimento['nome_embarcacao']    = h($dadosPre['emb_nome'] ?? '');
+        $preenchimento['numero_inscricao']   = h($dadosPre['registro'] ?? '');
+        $preenchimento['indicativo_chamada'] = h($dadosPre['indicativo_chamada'] ?? '');
+        $preenchimento['atividades_servicos']= h($dadosPre['atividades'] ?? '');
+        $preenchimento['tipo_embarcacao']    = h($dadosPre['tipo_embarcacao'] ?? '');
+        $preenchimento['ano_construcao']     = h($dadosPre['emb_ano'] ?? '');
+        $preenchimento['comprimento_total']  = h($dadosPre['comprimento_total'] ?? '');
+        $preenchimento['comprimento_casco']  = h($dadosPre['comprimento_casco'] ?? '');
+        $preenchimento['boca_moldada']       = h($dadosPre['boca_moldada'] ?? '');
+        $preenchimento['pontal_moldado']     = h($dadosPre['pontal_moldado'] ?? '');
+        $preenchimento['arqueacao_bruta']    = h($dadosPre['arqueacao_bruta'] ?? '');
+        $preenchimento['material_casco']     = h($dadosPre['material_casco'] ?? '');
+        $preenchimento['relatorio_numero']   = h($dadosPre['relatorio_numero'] ?? '');
+        $preenchimento['proprietario']       = h($dadosPre['proprietario'] ?? '');
+    }
+}// Buscar lista de embarcações ativas para o select
 $stmt_emb = $pdo->prepare("SELECT id, nome, tipo, registro
                            FROM embarcacoes WHERE ativo = 1 ORDER BY nome");
 $stmt_emb->execute();
@@ -150,12 +201,20 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                 <!-- Select de embarcação para puxar dados automaticamente -->
                 <div class="form-group">
                     <label for="embarcacao_id"><i class="fas fa-search"></i> Selecionar Embarcação do Cadastro</label>
-                    <select id="embarcacao_id" class="form-control" onchange="carregarDadosEmbarcacao(this.value)">
+                     <select id="embarcacao_id" class="form-control" onchange="carregarDadosEmbarcacao(this.value)">
                         <option value="">-- Selecione uma embarcação --</option>
                         <?php foreach ($embarcacoes as $emb): ?>
                             <option value="<?php echo h($emb['id']); ?>"
                                 data-nome="<?php echo h($emb['nome']); ?>"
-                                data-tipo="<?php echo h($emb['tipo']); ?>">
+                                data-tipo="<?php echo h($emb['tipo']); ?>"
+                                data-numero_inscricao="<?php echo h($emb['numero_inscricao'] ?? ''); ?>"
+                                data-indicativo_chamada="<?php echo h($emb['indicativo_chamada'] ?? ''); ?>"
+                                data-comprimento_total="<?php echo h($emb['comprimento_total'] ?? ''); ?>"
+                                data-comprimento_casco="<?php echo h($emb['comprimento_casco'] ?? ''); ?>"
+                                data-boca_moldada="<?php echo h($emb['boca_moldada'] ?? ''); ?>"
+                                data-pontal_moldado="<?php echo h($emb['pontal_moldado'] ?? ''); ?>"
+                                data-arqueacao_bruta="<?php echo h($emb['arqueacao_bruta'] ?? ''); ?>"
+                                <?php echo (!empty($_GET['agendamento_id']) && isset($dadosPre['embarcacao_id']) && $dadosPre['embarcacao_id'] == $emb['id']) ? 'selected' : ''; ?>>
                                 <?php echo h($emb['nome']) . ' (' . h($emb['tipo']) . ' - ' . h($emb['registro']) . ')'; ?>
                             </option>
                         <?php endforeach; ?>
@@ -169,35 +228,35 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <div class="form-group">
                         <label for="nome_embarcacao">Nome da Embarcação *</label>
                         <input type="text" name="nome_embarcacao" id="nome_embarcacao" class="form-control" required
-                               value="<?php echo $editando ? h($certificado['nome_embarcacao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['nome_embarcacao']) : h($preenchimento['nome_embarcacao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="numero_inscricao">N° de Inscrição</label>
                         <input type="text" name="numero_inscricao" id="numero_inscricao" class="form-control"
-                               value="<?php echo $editando ? h($certificado['numero_inscricao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['numero_inscricao']) : h($preenchimento['numero_inscricao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="indicativo_chamada">Indicativo de Chamada</label>
                         <input type="text" name="indicativo_chamada" id="indicativo_chamada" class="form-control"
-                               value="<?php echo $editando ? h($certificado['indicativo_chamada']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['indicativo_chamada']) : h($preenchimento['indicativo_chamada']); ?>">
                     </div>
                 </div>
                 <div class="grid-3">
                     <div class="form-group">
                         <label for="tipo_embarcacao">Tipo de Embarcação</label>
                         <input type="text" name="tipo_embarcacao" id="tipo_embarcacao" class="form-control"
-                               value="<?php echo $editando ? h($certificado['tipo_embarcacao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['tipo_embarcacao']) : h($preenchimento['tipo_embarcacao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="ano_construcao">Ano de Construção</label>
                         <input type="text" name="ano_construcao" id="ano_construcao" class="form-control"
                                maxlength="4" placeholder="AAAA"
-                               value="<?php echo $editando ? h($certificado['ano_construcao']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['ano_construcao']) : h($preenchimento['ano_construcao']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="material_casco">Material do Casco</label>
                         <input type="text" name="material_casco" id="material_casco" class="form-control"
-                               value="<?php echo $editando ? h($certificado['material_casco']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['material_casco']) : h($preenchimento['material_casco']); ?>">
                     </div>
                 </div>
                 <div class="grid-2">
@@ -218,35 +277,35 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <div class="form-group">
                         <label for="comprimento_total">Comprimento Total (m)</label>
                         <input type="number" name="comprimento_total" id="comprimento_total" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($certificado['comprimento_total']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['comprimento_total']) : h($preenchimento['comprimento_total']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="comprimento_casco">Comprimento do Casco (m)</label>
                         <input type="number" name="comprimento_casco" id="comprimento_casco" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($certificado['comprimento_casco']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['comprimento_casco']) : h($preenchimento['comprimento_casco']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="comprimento_lpp">Comprimento LPP (m)</label>
                         <input type="number" name="comprimento_lpp" id="comprimento_lpp" class="form-control" step="0.01"
                                placeholder="Entre perpendiculares"
-                               value="<?php echo $editando ? h($certificado['comprimento_lpp']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['comprimento_lpp'] ?? '') : ''; ?>">
                     </div>
                 </div>
                 <div class="grid-3">
                     <div class="form-group">
                         <label for="boca_moldada">Boca Moldada (m)</label>
                         <input type="number" name="boca_moldada" id="boca_moldada" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($certificado['boca_moldada']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['boca_moldada']) : h($preenchimento['boca_moldada']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="boca_maxima">Boca Máxima (m)</label>
                         <input type="number" name="boca_maxima" id="boca_maxima" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($certificado['boca_maxima']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['boca_maxima'] ?? '') : ''; ?>">
                     </div>
                     <div class="form-group">
                         <label for="pontal_moldado">Pontal Moldado (m)</label>
                         <input type="number" name="pontal_moldado" id="pontal_moldado" class="form-control" step="0.01"
-                               value="<?php echo $editando ? h($certificado['pontal_moldado']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['pontal_moldado']) : h($preenchimento['pontal_moldado']); ?>">
                     </div>
                 </div>
             </div>
@@ -299,19 +358,19 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         <label for="relatorio_numero">N° Relatório de Vistorias</label>
                         <input type="text" name="relatorio_numero" id="relatorio_numero" class="form-control"
                                placeholder="Ex: AM-REL-AP:100/26"
-                               value="<?php echo $editando ? h($certificado['relatorio_numero']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['relatorio_numero'] ?? '') : h($preenchimento['relatorio_numero']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="local_vistoria">Local da Vistoria</label>
                         <input type="text" name="local_vistoria" id="local_vistoria" class="form-control"
-                               value="<?php echo $editando ? h($certificado['local_vistoria']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['local_vistoria'] ?? '') : ''; ?>">
                     </div>
                 </div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="data_vistoria">Data da Vistoria</label>
                         <input type="date" name="data_vistoria" id="data_vistoria" class="form-control"
-                               value="<?php echo $editando ? h($certificado['data_vistoria']) : ''; ?>">
+                               value="<?php echo $editando ? h($certificado['data_vistoria'] ?? '') : ''; ?>">
                     </div>
                 </div>
             </div>
@@ -415,9 +474,6 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
 </div>
 
 <script>
-/**
- * Carrega os dados da embarcação selecionada para o formulário
- */
 function carregarDadosEmbarcacao(embarcacaoId) {
     if (!embarcacaoId) return;
     
@@ -426,12 +482,36 @@ function carregarDadosEmbarcacao(embarcacaoId) {
     
     if (!option) return;
     
-    // Preencher nome e tipo da embarcação
-    const nomeEmb = document.getElementById('nome_embarcacao');
-    const tipoEmb = document.getElementById('tipo_embarcacao');
-    if (nomeEmb) nomeEmb.value = option.dataset.nome || '';
-    if (tipoEmb) tipoEmb.value = option.dataset.tipo || '';
+    const campos = {
+        'nome_embarcacao': 'nome',
+        'numero_inscricao': 'numero_inscricao',
+        'indicativo_chamada': 'indicativo_chamada',
+        'tipo_embarcacao': 'tipo',
+        'comprimento_total': 'comprimento_total',
+        'comprimento_casco': 'comprimento_casco',
+        'boca_moldada': 'boca_moldada',
+        'pontal_moldado': 'pontal_moldado',
+        'arqueacao_bruta': 'arqueacao_bruta',
+        'material_casco': 'material_casco'
+    };
+    
+    for (const [fieldId, dataAttr] of Object.entries(campos)) {
+        const input = document.getElementById(fieldId);
+        if (input) {
+            const value = option.dataset[dataAttr] || '';
+            input.value = value;
+        }
+    }
 }
+
+<?php if (!empty($_GET['agendamento_id'])): ?>
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('embarcacao_id');
+    if (select && select.value) {
+        carregarDadosEmbarcacao(select.value);
+    }
+});
+<?php endif; ?>
 </script>
 
 <?php require_once __DIR__ . '/../../../includes/footer.php'; ?>

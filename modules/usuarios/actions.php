@@ -55,7 +55,7 @@ switch ($action) {
             $erros[] = 'Email invalido.';
         }
 
-        if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
+        if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'])) {
             $erros[] = 'Cargo invalido.';
         }
 

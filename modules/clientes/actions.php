@@ -65,11 +65,13 @@ switch ($action) {
 
             $pdo->beginTransaction();
 
+            $cliente_id = gerarUUID();
             $stmt = $pdo->prepare("
                 INSERT INTO clientes (id, nome, tipo_pessoa, cpf_cnpj, perfil, telefone, email, endereco, criado_por)
-                VALUES (UUID(), :nome, :tipo_pessoa, :cpf_cnpj, :perfil, :telefone, :email, :endereco, :criado_por)
+                VALUES (:id, :nome, :tipo_pessoa, :cpf_cnpj, :perfil, :telefone, :email, :endereco, :criado_por)
             ");
             $stmt->execute([
+                ':id'         => $cliente_id,
                 ':nome'       => $nome,
                 ':tipo_pessoa' => $tipo_pessoa,
                 ':cpf_cnpj'   => $cpf_cnpj ?: null,
@@ -79,9 +81,6 @@ switch ($action) {
                 ':endereco'   => $endereco ?: null,
                 ':criado_por' => $_SESSION['usuario_id'],
             ]);
-
-            // Pegar o ID do cliente inserido
-            $cliente_id = $pdo->lastInsertId();
 
             // Vincular embarcacoes
             if (!empty($embarcacoes_ids)) {

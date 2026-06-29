@@ -10,7 +10,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 
 verificar_sessao();
 $cargo = getCargo();
-if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
+if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'])) {
     setMensagem('error', 'Acesso negado.');
     redirecionar(APP_URL . 'dashboard');
 }
@@ -103,6 +103,7 @@ switch ($action) {
             $contato_telefone = preg_replace('/\D/', '', $_POST['contato_telefone'] ?? '') ?: null;
             $observacoes     = sanitizar($_POST['observacoes'] ?? '');
             $vistoriador_id  = $_POST['vistoriador_id'] ?? null;
+            $vendedor_id     = $_POST['vendedor_id'] ?? null;
 
             if (empty($embarcacao_id) || empty($cliente_id) || empty($tipo_vistoria) || empty($data_vistoria)) {
                 setMensagem('error', 'Preencha todos os campos obrigatórios (cliente, embarcação, tipo e data).');
@@ -120,13 +121,18 @@ switch ($action) {
                 $vistoriador_id = $_SESSION['usuario_id'];
             }
 
+            // Se VENDEDOR, atribuir vendedor_id automaticamente
+            if ($cargo === 'VENDEDOR') {
+                $vendedor_id = $_SESSION['usuario_id'];
+            }
+
             $stmt = $pdo->prepare("
                 INSERT INTO agendamentos (
-                    id, proposta_id, embarcacao_id, cliente_id, vistoriador_id,
+                    id, proposta_id, embarcacao_id, cliente_id, vistoriador_id, vendedor_id,
                     tipo_vistoria, data_vistoria, hora_vistoria, local,
                     contato_nome, contato_telefone, status, observacoes, criado_por
                 ) VALUES (
-                    UUID(), :proposta_id, :embarcacao_id, :cliente_id, :vistoriador_id,
+                    UUID(), :proposta_id, :embarcacao_id, :cliente_id, :vistoriador_id, :vendedor_id,
                     :tipo_vistoria, :data_vistoria, :hora_vistoria, :local,
                     :contato_nome, :contato_telefone, 'pendente', :observacoes, :criado_por
                 )
@@ -136,6 +142,7 @@ switch ($action) {
                 ':embarcacao_id'   => $embarcacao_id,
                 ':cliente_id'      => $cliente_id,
                 ':vistoriador_id'  => $vistoriador_id ?: null,
+                ':vendedor_id'     => $vendedor_id ?: null,
                 ':tipo_vistoria'   => $tipo_vistoria,
                 ':data_vistoria'   => $data_vistoria,
                 ':hora_vistoria'   => $hora_vistoria ?: null,
@@ -160,7 +167,12 @@ switch ($action) {
     // ==================== EDITAR ====================
     case 'editar':
         try {
-            $id              = $_POST['id'] ?? '';
+        // VISTORIADOR nao pode editar agendamentos
+        if ($cargo === 'VISTORIADOR') {
+            setMensagem('error', 'Acesso negado. Vistoriadores nao podem editar agendamentos.');
+            redirecionar(APP_URL . 'agendamentos');
+        }
+                    $id              = $_POST['id'] ?? '';
             $proposta_id     = !empty($_POST['proposta_id']) ? $_POST['proposta_id'] : null;
             $embarcacao_id   = $_POST['embarcacao_id'] ?? '';
             $cliente_id      = $_POST['cliente_id'] ?? '';
@@ -172,6 +184,7 @@ switch ($action) {
             $contato_telefone = preg_replace('/\D/', '', $_POST['contato_telefone'] ?? '') ?: null;
             $observacoes     = sanitizar($_POST['observacoes'] ?? '');
             $vistoriador_id  = $_POST['vistoriador_id'] ?? null;
+            $vendedor_id     = $_POST['vendedor_id'] ?? null;
 
             if (empty($id) || empty($embarcacao_id) || empty($cliente_id) || empty($tipo_vistoria) || empty($data_vistoria)) {
                 setMensagem('error', 'Dados incompletos para atualização.');
@@ -202,6 +215,7 @@ switch ($action) {
                 ':embarcacao_id'   => $embarcacao_id,
                 ':cliente_id'      => $cliente_id,
                 ':vistoriador_id'  => $vistoriador_id ?: null,
+                ':vendedor_id'     => $vendedor_id ?: null,
                 ':tipo_vistoria'   => $tipo_vistoria,
                 ':data_vistoria'   => $data_vistoria,
                 ':hora_vistoria'   => $hora_vistoria ?: null,
@@ -393,7 +407,12 @@ switch ($action) {
     // ==================== CANCELAR ====================
     case 'cancelar':
         try {
-            $id = $_GET['id'] ?? '';
+        // VISTORIADOR nao pode cancelar agendamentos
+        if ($cargo === 'VISTORIADOR') {
+            setMensagem('error', 'Acesso negado. Vistoriadores nao podem cancelar agendamentos.');
+            redirecionar(APP_URL . 'agendamentos');
+        }
+                    $id = $_GET['id'] ?? '';
 
             if (empty($id)) {
                 setMensagem('error', 'ID do agendamento não informado.');
@@ -458,7 +477,7 @@ switch ($action) {
 
             // Se estiver marcando como concluido, atualizar a OS para em_andamento
             if ($status === 'concluido') {
-                $stmtOs = $pdo->prepare("UPDATE ordens_servico SET status = 'em_andamento' WHERE agendamento_id = :agendamento_id AND status = 'pendente'");
+                $stmtOs = $pdo->prepare("UPDATE ordens_servico SET status = 'executado' WHERE agendamento_id = :agendamento_id AND status = 'pendente'");
                 $stmtOs->execute([':agendamento_id' => $id]);
             }
 

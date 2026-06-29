@@ -44,12 +44,25 @@ if ($action === 'salvar') {
 
     // Checkboxes (arrays)
     $tipo_navegacao = isset($_POST['tipo_navegacao']) ? implode(',', $_POST['tipo_navegacao']) : '';
-    $area_navegacao = isset($_POST['area_navegacao']) ? implode(',', $_POST['area_navegacao']) : '';
+    $area_navegacao = $_POST['area_navegacao'] ?? '';
 
     // Borda livre
     $borda_livre_mm   = $_POST['borda_livre_mm'] !== '' ? (int)$_POST['borda_livre_mm'] : null;
-    $borda_livre_tipo = trim($_POST['borda_livre_tipo'] ?? '');
-    $calado_maximo_m  = $_POST['calado_maximo_m'] !== '' ? $_POST['calado_maximo_m'] : null;
+
+    // Dimensões da embarcação
+    $comprimento_total    = $_POST['comprimento_total'] !== '' ? $_POST['comprimento_total'] : null;
+    $comprimento_casco    = $_POST['comprimento_casco'] !== '' ? $_POST['comprimento_casco'] : null;
+    $boca_moldada         = $_POST['boca_moldada'] !== '' ? $_POST['boca_moldada'] : null;
+    $pontal_moldado       = $_POST['pontal_moldado'] !== '' ? $_POST['pontal_moldado'] : null;
+
+    // Marcas de Linha de Carga
+    $aresta_superior_linha_conves = trim($_POST['aresta_superior_linha_conves'] ?? '');
+    $centro_disco_situado = trim($_POST['centro_disco_situado'] ?? '');
+    $dist_linha_conves_bico_proa = trim($_POST['dist_linha_conves_bico_proa'] ?? '');
+    $dist_linha_conves_abaixo_disco = trim($_POST['dist_linha_conves_abaixo_disco'] ?? '');
+    $marca_linha_carga_area1 = trim($_POST['marca_linha_carga_area1'] ?? '');
+    $marca_linha_carga_area2 = trim($_POST['marca_linha_carga_area2'] ?? '');
+    $acrescimo_agua_salgada = trim($_POST['acrescimo_agua_salgada'] ?? '');
 
     // Vistoria
     $relatorio_numero = trim($_POST['relatorio_numero'] ?? '');
@@ -109,8 +122,13 @@ if ($action === 'salvar') {
                         area_navegacao = :area_navegacao,
                         material_casco = :material_casco,
                         borda_livre_mm = :borda_livre_mm,
-                        borda_livre_tipo = :borda_livre_tipo,
-                        calado_maximo_m = :calado_maximo_m,
+                        aresta_superior_linha_conves = :aresta_superior_linha_conves,
+                        centro_disco_situado = :centro_disco_situado,
+                        dist_linha_conves_bico_proa = :dist_linha_conves_bico_proa,
+                        dist_linha_conves_abaixo_disco = :dist_linha_conves_abaixo_disco,
+                        marca_linha_carga_area1 = :marca_linha_carga_area1,
+                        marca_linha_carga_area2 = :marca_linha_carga_area2,
+                        acrescimo_agua_salgada = :acrescimo_agua_salgada,
                         relatorio_numero = :relatorio_numero,
                         data_vistoria = :data_vistoria,
                         local_vistoria = :local_vistoria,
@@ -140,8 +158,13 @@ if ($action === 'salvar') {
                 ':area_navegacao'      => $area_navegacao,
                 ':material_casco'      => $material_casco,
                 ':borda_livre_mm'      => $borda_livre_mm,
-                ':borda_livre_tipo'    => $borda_livre_tipo,
-                ':calado_maximo_m'     => $calado_maximo_m,
+                ':aresta_superior_linha_conves' => $aresta_superior_linha_conves,
+                ':centro_disco_situado' => $centro_disco_situado,
+                ':dist_linha_conves_bico_proa' => $dist_linha_conves_bico_proa,
+                ':dist_linha_conves_abaixo_disco' => $dist_linha_conves_abaixo_disco,
+                ':marca_linha_carga_area1' => $marca_linha_carga_area1,
+                ':marca_linha_carga_area2' => $marca_linha_carga_area2,
+                ':acrescimo_agua_salgada' => $acrescimo_agua_salgada,
                 ':relatorio_numero'    => $relatorio_numero,
                 ':data_vistoria'       => $data_vistoria,
                 ':local_vistoria'      => $local_vistoria,
@@ -176,7 +199,10 @@ if ($action === 'salvar') {
                         atividades_servicos, tipo_embarcacao, ano_construcao,
                         comprimento_total, comprimento_casco, boca_moldada, pontal_moldado,
                         arqueacao_bruta, tipo_navegacao, area_navegacao, material_casco,
-                        borda_livre_mm, borda_livre_tipo, calado_maximo_m,
+                        borda_livre_mm,
+                        aresta_superior_linha_conves, centro_disco_situado, dist_linha_conves_bico_proa,
+                        dist_linha_conves_abaixo_disco, marca_linha_carga_area1, marca_linha_carga_area2,
+                        acrescimo_agua_salgada,
                         relatorio_numero, data_vistoria, local_vistoria,
                         data_emissao, data_validade, local_emissao,
                         assinante_nome, assinante_titulo, assinante_registro,
@@ -187,7 +213,10 @@ if ($action === 'salvar') {
                         :atividades_servicos, :tipo_embarcacao, :ano_construcao,
                         :comprimento_total, :comprimento_casco, :boca_moldada, :pontal_moldado,
                         :arqueacao_bruta, :tipo_navegacao, :area_navegacao, :material_casco,
-                        :borda_livre_mm, :borda_livre_tipo, :calado_maximo_m,
+                        :borda_livre_mm,
+                        :aresta_superior_linha_conves, :centro_disco_situado, :dist_linha_conves_bico_proa,
+                        :dist_linha_conves_abaixo_disco, :marca_linha_carga_area1, :marca_linha_carga_area2,
+                        :acrescimo_agua_salgada,
                         :relatorio_numero, :data_vistoria, :local_vistoria,
                         :data_emissao, :data_validade, :local_emissao,
                         :assinante_nome, :assinante_titulo, :assinante_registro,
@@ -216,8 +245,13 @@ if ($action === 'salvar') {
                 ':area_navegacao'      => $area_navegacao,
                 ':material_casco'      => $material_casco,
                 ':borda_livre_mm'      => $borda_livre_mm,
-                ':borda_livre_tipo'    => $borda_livre_tipo,
-                ':calado_maximo_m'     => $calado_maximo_m,
+                ':aresta_superior_linha_conves' => $aresta_superior_linha_conves,
+                ':centro_disco_situado' => $centro_disco_situado,
+                ':dist_linha_conves_bico_proa' => $dist_linha_conves_bico_proa,
+                ':dist_linha_conves_abaixo_disco' => $dist_linha_conves_abaixo_disco,
+                ':marca_linha_carga_area1' => $marca_linha_carga_area1,
+                ':marca_linha_carga_area2' => $marca_linha_carga_area2,
+                ':acrescimo_agua_salgada' => $acrescimo_agua_salgada,
                 ':relatorio_numero'    => $relatorio_numero,
                 ':data_vistoria'       => $data_vistoria,
                 ':local_vistoria'      => $local_vistoria,

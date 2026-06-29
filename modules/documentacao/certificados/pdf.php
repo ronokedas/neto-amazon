@@ -24,11 +24,11 @@ if (!empty($token_publico)) {
     }
     $id = $row['id'];
 } elseif (!empty($id)) {
-    // Modo admin
+    // Modo admin ou usuario autorizado
     require_once __DIR__ . '/../../../includes/auth.php';
     require_once __DIR__ . '/../../../includes/functions.php';
     verificar_sessao();
-    verificar_cargo('ADMIN');
+    verificar_cargo(['ADMIN', 'VENDEDOR', 'VISTORIADOR']);
 } else {
     die("ID ou token não informado.");
 }

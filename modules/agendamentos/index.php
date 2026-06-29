@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 // Exigir login e permissao
 verificar_sessao();
 $cargo = getCargo();
-if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
+if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'])) {
     setMensagem('error', 'Acesso negado.');
     redirecionar(APP_URL . 'dashboard');
 }
@@ -68,8 +68,10 @@ try {
                c.nome AS cliente_nome,
                e.nome AS embarcacao_nome,
                u.nome AS vistoriador_nome,
-               os.id AS os_id, os.numero AS os_numero, os.status AS os_status
+               os.id AS os_id, os.numero AS os_numero, os.status AS os_status,
+               v.status AS vistoria_status
         FROM agendamentos a
+        LEFT JOIN vistorias v ON v.agendamento_id = a.id
         INNER JOIN clientes c ON a.cliente_id = c.id
         INNER JOIN embarcacoes e ON a.embarcacao_id = e.id
         LEFT JOIN usuarios u ON a.vistoriador_id = u.id
@@ -218,24 +220,26 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         </td>
                         <td>
                             <div class="d-flex gap-1">
-                                <a href="<?php echo APP_URL; ?>agendamentos/form?id=<?php echo urlencode($a['id']); ?>" 
+                                <?php if ($cargo !== 'VISTORIADOR'): ?>
+<a href="<?php echo APP_URL; ?>agendamentos/form?id=<?php echo urlencode($a['id']); ?>" 
                                    class="btn btn-secondary btn-sm" title="Editar">
                                     <i class="fas fa-edit"></i>
                                 </a>
-                                <?php if ($a['status'] === 'pendente' && $cargo === 'ADMIN'): ?>
+                                <?php if ($a['status'] === 'pendente' && ($cargo === 'ADMIN' || $cargo === 'VENDEDOR')): ?>
                                 <a href="<?php echo APP_URL; ?>agendamentos/actions?action=confirmar&id=<?php echo urlencode($a['id']); ?>" 
                                    class="btn btn-primary btn-sm" 
                                    title="Confirmar e gerar OS"
                                    onclick="return confirm('Confirmar agendamento e gerar Ordem de Serviço?')">
                                     <i class="fas fa-check-double"></i>
                                 </a>
+<?php endif; ?>
                                 <?php endif; ?>
                                 <a href="<?php echo APP_URL; ?>vistorias/relatorio?agendamento_id=<?php echo urlencode($a['id']); ?>" 
                                    class="btn btn-success btn-sm" 
                                    title="Relatório Técnico">
                                     <i class="fas fa-clipboard-list"></i>
                                 </a>
-                                <?php if (in_array($a['status'], ['pendente', 'confirmado'])): ?>
+                                <?php if (in_array($a['status'], ['pendente', 'confirmado']) && $cargo !== 'VISTORIADOR'): ?>
                                 <a href="<?php echo APP_URL; ?>agendamentos/actions?action=cancelar&id=<?php echo urlencode($a['id']); ?>" 
                                    class="btn btn-danger btn-sm" 
                                    title="Cancelar"

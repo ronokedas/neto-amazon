@@ -17,6 +17,7 @@ if (!podeAcessar('vistorias')) {
 
 // Filtro de status
 $filtro_status = $_GET['status'] ?? '';
+$cargo = getCargo();
 
 // Buscar vistorias com JOINs para mostrar nomes
 try {
@@ -27,12 +28,26 @@ try {
             FROM vistorias v
             LEFT JOIN embarcacoes e ON v.embarcacao_id = e.id
             LEFT JOIN pessoas p ON v.pessoa_id = p.id
-            LEFT JOIN usuarios u ON v.criado_por = u.id";
+            LEFT JOIN usuarios u ON v.criado_por = u.id
+            LEFT JOIN agendamentos a ON v.agendamento_id = a.id";
 
     $params = [];
+    $where_extra = '';
+
+    if (getCargo() === 'VISTORIADOR') {
+        $where_extra = " AND a.vistoriador_id = :vistoriador_id";
+        $params[':vistoriador_id'] = $_SESSION['usuario_id'];
+    } elseif (getCargo() === 'VENDEDOR') {
+        $where_extra = " AND (a.vendedor_id = :vendedor_id OR a.id IN (SELECT id FROM agendamentos WHERE vendedor_id = :agend_vendedor_id))";
+        $params[':vendedor_id'] = $_SESSION['usuario_id'];
+        $params[':agend_vendedor_id'] = $_SESSION['usuario_id'];
+    }
+
     if (!empty($filtro_status) && in_array($filtro_status, ['PENDENTE', 'APROVADA', 'REPROVADA', 'CANCELADA'])) {
-        $sql .= " WHERE v.status = :status";
+        $sql .= " WHERE v.status = :status" . $where_extra;
         $params[':status'] = $filtro_status;
+    } elseif ($where_extra !== '') {
+        $sql .= " WHERE 1=1" . $where_extra;
     }
 
     $sql .= " ORDER BY v.criado_em DESC";
@@ -47,7 +62,19 @@ try {
 
 // Contadores para os cards de filtro
 try {
-    $contadores = $pdo->query("SELECT status, COUNT(*) as total FROM vistorias GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $sql_contadores = "SELECT v.status, COUNT(*) as total FROM vistorias v LEFT JOIN agendamentos a ON v.agendamento_id = a.id WHERE 1=1";
+    if ($cargo === 'VISTORIADOR') {
+        $sql_contadores .= " AND a.vistoriador_id = :vistoriador_id";
+        $stmt = $pdo->prepare($sql_contadores);
+        $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
+    } elseif ($cargo === 'VENDEDOR') {
+        $sql_contadores .= " AND (a.vendedor_id = :vendedor_id OR a.id IN (SELECT id FROM agendamentos WHERE vendedor_id = :agend_vendedor_id))";
+        $stmt = $pdo->prepare($sql_contadores);
+        $stmt->execute([':vendedor_id' => $_SESSION['usuario_id'], ':agend_vendedor_id' => $_SESSION['usuario_id']]);
+    } else {
+        $stmt = $pdo->query($sql_contadores);
+    }
+    $contadores = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 } catch (Exception $e) {
     $contadores = [];
 }
@@ -152,9 +179,17 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                             $badgeClass = 'badge-info';
                             $iconClass = 'fa-clock';
                             switch ($v['status']) {
-                                case 'PENDENTE':
+                                                                case 'PENDENTE':
                                     $badgeClass = 'badge-warning';
                                     $iconClass = 'fa-clock';
+                                    break;
+                                case 'AGUARDANDO_APROVACAO':
+                                    $badgeClass = 'badge-warning';
+                                    $iconClass = 'fa-hourglass-half';
+                                    break;
+                                case 'APROVADA_COM_EXIGENCIAS':
+                                    $badgeClass = 'badge-primary';
+                                    $iconClass = 'fa-clipboard-check';
                                     break;
                                 case 'APROVADA':
                                     $badgeClass = 'badge-success';

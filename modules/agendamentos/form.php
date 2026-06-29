@@ -10,7 +10,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 
 verificar_sessao();
 $cargo = getCargo();
-if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
+if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'])) {
     setMensagem('error', 'Acesso negado.');
     redirecionar(APP_URL . 'dashboard');
 }
@@ -36,6 +36,11 @@ $agendamento = [
 
 // Se editando, carregar dados
 if ($editando) {
+    // VISTORIADOR nao pode editar agendamentos existentes
+    if ($cargo === 'VISTORIADOR') {
+        setMensagem('error', 'Acesso negado. Vistoriadores nao podem editar agendamentos.');
+        redirecionar(APP_URL . 'agendamentos');
+    }
     try {
         $stmt = $pdo->prepare("SELECT * FROM agendamentos WHERE id = :id");
         $stmt->execute([':id' => $id]);
@@ -69,7 +74,7 @@ try {
 
     // Vistoriadores ativos (apenas ADMIN pode selecionar)
     $vistoriadores = [];
-    if ($cargo === 'ADMIN') {
+    if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR') {
         $vistoriadores = $pdo->query("SELECT id, nome FROM usuarios WHERE ativo = 1 AND cargo = 'VISTORIADOR' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -108,6 +113,9 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <form action="<?php echo APP_URL; ?>agendamentos/actions" method="POST" class="form-padrao">
             <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
             <input type="hidden" name="action" value="<?php echo $editando ? 'editar' : 'inserir'; ?>">
+            <?php if ($cargo === 'VENDEDOR'): ?>
+                <input type="hidden" name="vendedor_id" value="<?php echo h($_SESSION['usuario_id']); ?>">
+            <?php endif; ?>
             <?php if ($editando): ?>
                 <input type="hidden" name="id" value="<?php echo h($agendamento['id']); ?>">
             <?php endif; ?>
@@ -174,7 +182,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 </div>
                 <div class="form-group col-6">
                     <label for="vistoriador_id">Vistoriador Responsável</label>
-                    <?php if ($cargo === 'ADMIN'): ?>
+                    <?php if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR'): ?>
                         <select id="vistoriador_id" name="vistoriador_id">
                             <option value="">-- Selecione o vistoriador --</option>
                             <?php foreach ($vistoriadores as $v): ?>
@@ -254,6 +262,8 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
+var embarcacoesOriginais = null;
+
 function mascararTelefone(input) {
     let valor = input.value.replace(/\D/g, '');
     if (valor.length > 11) valor = valor.slice(0, 11);
@@ -268,28 +278,46 @@ function mascararTelefone(input) {
 }
 
 function carregarDadosProposta(propostaId) {
-    if (!propostaId) return;
-    
-    // Buscar dados da proposta via fetch
+    const selectEmbarcacao = document.getElementById('embarcacao_id');
+    const selectCliente = document.getElementById('cliente_id');
+    const campoVistoria = document.getElementById('tipo_vistoria');
+    if (!propostaId) {
+        if (selectCliente) selectCliente.value = '';
+        if (campoVistoria) campoVistoria.value = '';
+        restaurarEmbarcacoes();
+        return;
+    }
+    if (!embarcacoesOriginais && selectEmbarcacao) {
+        embarcacoesOriginais = selectEmbarcacao.innerHTML;
+    }
     fetch('<?php echo APP_URL; ?>agendamentos/actions?action=buscar_proposta&proposta_id=' + propostaId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Preencher cliente
-                if (data.cliente_id) {
-                    const selectCliente = document.getElementById('cliente_id');
+                if (data.cliente_id && selectCliente) {
                     selectCliente.value = data.cliente_id;
-                    carregarEmbarcacoesCliente(data.cliente_id, data.embarcacao_id);
+                }
+                if (selectEmbarcacao && data.embarcacoes && data.embarcacoes.length > 0) {
+                    let options = '<option value="">Selecione a embarcacao</option>';
+                    data.embarcacoes.forEach(function(emb) {
+                        const selected = (emb.id === data.embarcacao_id) ? ' selected' : '';
+                        options += '<option value="' + emb.id + '"' + selected + '>' + emb.nome + '</option>';
+                    });
+                    selectEmbarcacao.innerHTML = options;
+                }
+                if (campoVistoria && data.tipo_vistoria) {
+                    campoVistoria.value = data.tipo_vistoria;
                 }
             }
         })
         .catch(err => console.error('Erro ao carregar proposta:', err));
 }
 
-function carregarEmbarcacoesCliente(clienteId, embarcacaoSelecionada) {
-    // Simples: recarregar pagina com parametros seria complexo no form.
-    // A selecao manual da embarcacao ja funciona.
-    // O usuario pode selecionar manualmente.
+function restaurarEmbarcacoes() {
+    const selectEmbarcacao = document.getElementById('embarcacao_id');
+    if (selectEmbarcacao && embarcacoesOriginais) {
+        selectEmbarcacao.innerHTML = embarcacoesOriginais;
+    }
 }
 </script>
 

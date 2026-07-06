@@ -67,7 +67,7 @@ sudo chown -R $USER:$USER /opt/sistema-amazon
 cd /opt/sistema-amazon
 ```
 
-Como o repositório é privado, o GitHub pode pedir usuário e senha. Use seu usuário GitHub e um Personal Access Token como senha.
+Como o repositório está público, o clone deve baixar sem pedir login.
 
 ## 5. Configurar variáveis de ambiente
 
@@ -76,14 +76,19 @@ cp .env.example .env
 nano .env
 ```
 
-Altere principalmente:
+Para testar no VPS igual ao ambiente local, mantenha as credenciais abaixo. Ajuste apenas `APP_URL` para o IP ou domínio do VPS:
 
 ```env
 APP_URL=http://SEU_IP_OU_DOMINIO:8082/
-DB_PASS=uma_senha_forte
-MYSQL_ROOT_PASSWORD=outra_senha_forte
-MINIO_ROOT_PASSWORD=outra_senha_forte
+DB_NAME=erp_sistema
+DB_USER=erp_user
+DB_PASS=erp_pass_2026
+MYSQL_ROOT_PASSWORD=root_pass_2026
+MINIO_ROOT_USER=erp_minio_admin
+MINIO_ROOT_PASSWORD=erp_minio_pass_2026
 ```
+
+Essas são as mesmas credenciais usadas no ambiente Docker local. Para produção aberta ao público, o ideal é trocar depois, mas para teste/homologação no VPS pode manter assim para facilitar.
 
 Se futuramente usar domínio com HTTPS, altere:
 

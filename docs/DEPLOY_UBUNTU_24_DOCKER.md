@@ -123,7 +123,41 @@ Na primeira subida, o MySQL executa automaticamente estes arquivos:
 - `docker/02-erp_sistema_mysql.sql`
 - `docker/03-add_minio_columns.sql`
 
-Se quiser importar um dump completo, coloque o arquivo no servidor e rode:
+### Forma preferida: exportar pelo phpMyAdmin local e importar pelo phpMyAdmin do VPS
+
+Este e o fluxo recomendado para manter o VPS igual ao sistema local.
+
+No computador local:
+
+1. Acesse o phpMyAdmin local: `http://localhost:8083`
+2. Selecione o banco `erp_sistema`
+3. Clique em **Exportar**
+4. Use a opcao **Personalizado**
+5. Formato: **SQL**
+6. Exporte **estrutura e dados**
+7. Se aparecer a opcao, marque para incluir:
+   - `DROP TABLE / VIEW / PROCEDURE / FUNCTION / EVENT / TRIGGER`
+   - `CREATE TABLE`
+   - `IF NOT EXISTS`
+8. Baixe o arquivo `.sql`
+
+No VPS:
+
+1. Acesse o phpMyAdmin do VPS: `http://SEU_IP:8083`
+2. Entre usando:
+   - usuario: `root`
+   - senha: `root_pass_2026`
+3. Selecione o banco `erp_sistema`
+4. Limpe o banco antes de importar o novo arquivo
+5. Va em **Importar**
+6. Selecione o arquivo `.sql` exportado do phpMyAdmin local
+7. Execute a importacao
+
+Se o arquivo for maior que o limite do phpMyAdmin, aumente temporariamente o `UPLOAD_LIMIT` no `docker-compose.yml` ou use a importacao pelo terminal abaixo.
+
+### Alternativa pelo terminal
+
+Se quiser importar um dump completo pelo terminal, coloque o arquivo no servidor e rode:
 
 ```bash
 docker compose exec -T db mysql -u root -p erp_sistema < db.sql
@@ -177,8 +211,8 @@ docker compose exec app chmod -R 775 uploads logs storage temp_pdf
 
 Acesse `http://SEU_IP:9003` com:
 
-- usuário: valor de `MINIO_ROOT_USER`
-- senha: valor de `MINIO_ROOT_PASSWORD`
+- usuário: `erp_minio_admin`
+- senha: `erp_minio_pass_2026`
 
 Crie o bucket:
 
@@ -187,6 +221,22 @@ erp-storage
 ```
 
 Ou use o nome configurado em `MINIO_BUCKET`.
+
+### Criar/configurar o bucket sem entrar no MinIO Console
+
+Credenciais padrao do MinIO Console:
+
+- usuario: `erp_minio_admin`
+- senha: `erp_minio_pass_2026`
+
+Se preferir fazer tudo pelo terminal do VPS, rode este comando dentro da pasta do sistema:
+
+```bash
+cd /opt/sistema-amazon
+docker run --rm --network container:erp_minio --entrypoint sh minio/mc -c "mc alias set local http://127.0.0.1:9000 erp_minio_admin erp_minio_pass_2026 && mc mb -p local/erp-storage || true && mc anonymous set download local/erp-storage"
+```
+
+Esse comando conecta no MinIO, cria o bucket `erp-storage` se ele ainda nao existir e libera leitura dos arquivos salvos pelo sistema.
 
 ## 10. Comandos úteis
 

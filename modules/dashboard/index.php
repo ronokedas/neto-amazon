@@ -85,9 +85,11 @@ try {
 
         $stmt = $pdo->prepare("
             SELECT COUNT(*) as total
-            FROM agendamentos
-            WHERE vistoriador_id = :vistoriador_id
-              AND status IN ('pendente', 'confirmado', 'em_andamento')
+            FROM agendamentos a
+            LEFT JOIN vistorias v ON v.agendamento_id = a.id
+            WHERE a.vistoriador_id = :vistoriador_id
+              AND a.status IN ('pendente', 'confirmado', 'em_andamento')
+              AND v.id IS NULL
         ");
         $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
         $meus_agendamentos_abertos = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
@@ -246,8 +248,10 @@ try {
                 FROM agendamentos a
                 INNER JOIN embarcacoes e ON a.embarcacao_id = e.id
                 LEFT JOIN clientes cl ON a.cliente_id = cl.id
+                LEFT JOIN vistorias v ON v.agendamento_id = a.id
                 WHERE a.vistoriador_id = :vistoriador_id
                   AND a.status IN ('pendente', 'confirmado', 'em_andamento')
+                  AND v.id IS NULL
                 ORDER BY
                     CASE
                         WHEN a.data_vistoria IS NULL THEN 2
@@ -538,7 +542,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             <div class="card-header">
                 <div>
                     <div class="card-title"><?= $cargo === 'VISTORIADOR' ? 'Meus agendamentos' : 'Agendamentos pendentes' ?></div>
-                    <div class="card-subtitle"><?= $cargo === 'VISTORIADOR' ? 'Pendentes e confirmados' : 'Sem vistoriador ou data' ?></div>
+                    <div class="card-subtitle"><?= $cargo === 'VISTORIADOR' ? 'Ainda sem relatório' : 'Sem vistoriador ou data' ?></div>
                 </div>
                 <i class="fa-solid fa-calendar-times" style="color: var(--status-pending)"></i>
             </div>

@@ -207,8 +207,8 @@ try {
                 FROM vistorias v
                 INNER JOIN embarcacoes e ON v.embarcacao_id = e.id
                 LEFT JOIN clientes cl ON v.pessoa_id = cl.id
-                LEFT JOIN agendamentos a ON v.agendamento_id = a.id
-                LEFT JOIN usuarios u ON a.vistoriador_id = u.id
+                INNER JOIN agendamentos a ON v.agendamento_id = a.id
+                INNER JOIN usuarios u ON a.vistoriador_id = u.id
                 WHERE v.status = 'AGUARDANDO_APROVACAO'
                 ORDER BY COALESCE(v.atualizado_em, v.criado_em) ASC
                 LIMIT 5
@@ -217,7 +217,14 @@ try {
             $stmt->execute();
             $relatorios_aprovacao_lista = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $stmtCountAprovacao = $pdo->query("SELECT COUNT(*) FROM vistorias WHERE status = 'AGUARDANDO_APROVACAO'");
+            $stmtCountAprovacao = $pdo->query("
+                SELECT COUNT(*)
+                FROM vistorias v
+                INNER JOIN embarcacoes e ON v.embarcacao_id = e.id
+                INNER JOIN agendamentos a ON v.agendamento_id = a.id
+                INNER JOIN usuarios u ON a.vistoriador_id = u.id
+                WHERE v.status = 'AGUARDANDO_APROVACAO'
+            ");
             $total_relatorios_aprovacao = (int)$stmtCountAprovacao->fetchColumn();
         } catch (Exception $e) {
             $relatorios_aprovacao_lista = [];

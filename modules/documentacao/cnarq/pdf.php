@@ -1,64 +1,72 @@
 <?php
 /**
  * MÓDULO: Documentação > Certificados CNARQ
- * Geração de PDF — Certificado Nacional de Arqueação
- * Usa TCPDF (libs/tcpdf/tcpdf.php)
- * Layout conforme NORMAM-202/DPC (Anexo 7-A)
- * 
- * SUPORTA: ?id=UUID (requer login) ou ?token=TOKEN (público via assinatura)
+ * PDF fiel ao modelo oficial do Certificado Nacional de Arqueação.
  */
 
 require_once __DIR__ . '/../../../config.php';
+require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../vendor/autoload.php';
 
-// Verificar acesso: admin logado OU token público válido
 $token_publico = $_GET['token'] ?? '';
 $id = $_GET['id'] ?? '';
 
 if (!empty($token_publico)) {
-    require_once __DIR__ . '/../../../includes/functions.php';
     $stmt = $pdo->prepare("SELECT id FROM certificados_cnarq WHERE token_assinatura = :token AND ativo = 1");
     $stmt->execute([':token' => $token_publico]);
     $row = $stmt->fetch();
     if (!$row) {
-        die("Certificado não encontrado.");
+        die('Certificado não encontrado.');
     }
     $id = $row['id'];
-} elseif (!empty($id)) {
-    require_once __DIR__ . '/../../../includes/auth.php';
-    require_once __DIR__ . '/../../../includes/functions.php';
-    verificar_sessao();
-    verificar_cargo('ADMIN');
-} else {
-    die("ID ou token não informado.");
+} elseif (empty($id)) {
+    die('ID ou token não informado.');
 }
 
-// Buscar certificado
 $stmt = $pdo->prepare("SELECT * FROM certificados_cnarq WHERE id = :id AND ativo = 1");
 $stmt->execute([':id' => $id]);
 $c = $stmt->fetch(PDO::FETCH_ASSOC);
-
 if (!$c) {
-    die("Certificado não encontrado.");
+    die('Certificado não encontrado.');
 }
 
-// Buscar convalidações
-$stmt_conv = $pdo->prepare("SELECT * FROM cert_convalidacoes WHERE certificado_id = :cert_id AND tipo_certificado = 'CNARQ' ORDER BY id");
-$stmt_conv->execute([':cert_id' => $id]);
-$convalidacoes = $stmt_conv->fetchAll(PDO::FETCH_ASSOC);
-
-// Carregar autoloader do Composer
-$autoload_path = __DIR__ . '/../../../vendor/autoload.php';
-if (!file_exists($autoload_path)) {
-    die("Autoloader do Composer não encontrado.");
+if (!isset($salvar_pdf_caminho) && (int)($c['assinado'] ?? 0) === 1 && !empty($c['caminho_arquivo_pdf'])) {
+    $caminho_fisico = __DIR__ . '/../../../' . $c['caminho_arquivo_pdf'];
+    if (file_exists($caminho_fisico)) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($caminho_fisico) . '"');
+        header('Content-Length: ' . filesize($caminho_fisico));
+        readfile($caminho_fisico);
+        exit;
+    }
 }
-require_once $autoload_path;
 
-// ============================================
-// FUNÇÕES AUXILIARES
-// ============================================
+function cnarqText($valor, string $padrao = ''): string
+{
+    $valor = trim((string)$valor);
+    return $valor !== '' ? $valor : $padrao;
+}
 
-function dataPorExtenso($data) {
-    if (empty($data)) return '___/___/______';
+function cnarqPdfText($valor): string
+{
+    return strip_tags(html_entity_decode((string)$valor, ENT_QUOTES, 'UTF-8'));
+}
+
+function cnarqImgOk(string $path): bool
+{
+    return file_exists($path) && filesize($path) > 100;
+}
+
+function cnarqDataBR($data): string
+{
+    return empty($data) ? '' : date('d/m/Y', strtotime($data));
+}
+
+function cnarqDataExtenso($data): string
+{
+    if (empty($data)) {
+        return '__ de __________ de ____';
+    }
     $meses = [
         1 => 'janeiro', 2 => 'fevereiro', 3 => 'março', 4 => 'abril',
         5 => 'maio', 6 => 'junho', 7 => 'julho', 8 => 'agosto',
@@ -68,51 +76,47 @@ function dataPorExtenso($data) {
     return $dt->format('d') . ' de ' . $meses[(int)$dt->format('n')] . ' de ' . $dt->format('Y');
 }
 
-function formatarDataBR($data) {
-    if (empty($data)) return '';
-    return date('d/m/Y', strtotime($data));
-}
-
-function converterImagemParaJpeg($dados) {
-    if (!function_exists('imagecreatefromstring')) {
-        return $dados;
+function cnarqNumero($valor, int $decimais = 3, string $padrao = ''): string
+{
+    if ($valor === null || $valor === '') {
+        return $padrao;
     }
-    $img = @imagecreatefromstring($dados);
-    if ($img === false) {
-        $placeholder = imagecreatetruecolor(400, 80);
-        $branco = imagecolorallocate($placeholder, 255, 255, 255);
-        imagefill($placeholder, 0, 0, $branco);
-        ob_start();
-        imagejpeg($placeholder, null, 85);
-        $jpeg = ob_get_clean();
-        imagedestroy($placeholder);
-        return $jpeg;
+    return number_format((float)$valor, $decimais, ',', '');
+}
+
+function cnarqInteiro($valor, string $padrao = '0'): string
+{
+    if ($valor === null || $valor === '') {
+        return $padrao;
     }
-    $w = imagesx($img);
-    $h = imagesy($img);
-    $nova = imagecreatetruecolor($w, $h);
-    $branco = imagecolorallocate($nova, 255, 255, 255);
-    imagefill($nova, 0, 0, $branco);
-    imagecopy($nova, $img, 0, 0, 0, 0, $w, $h);
-    ob_start();
-    imagejpeg($nova, null, 90);
-    $jpeg = ob_get_clean();
-    imagedestroy($img);
-    imagedestroy($nova);
-    return $jpeg;
+    return (string)(int)$valor;
 }
 
-function imgOK($p) { 
-    return file_exists($p) && filesize($p) > 100; 
+function cnarqParseLinhas($texto): array
+{
+    $linhas = preg_split('/\r\n|\r|\n/', (string)$texto);
+    $dados = [];
+    foreach ($linhas as $linha) {
+        $linha = trim($linha);
+        if ($linha === '') {
+            continue;
+        }
+        $partes = array_map('trim', explode('|', $linha));
+        $dados[] = [
+            'nome' => $partes[0] ?? $linha,
+            'local' => $partes[1] ?? '',
+            'comp' => $partes[2] ?? '',
+        ];
+    }
+    return $dados;
 }
 
-// ============================================
-// CRIAR PDF
-// ============================================
-
-class CertificadoCNARQ extends TCPDF {
-    public function Header() {}
-    public function Footer() {}
+if (!class_exists('CertificadoCNARQ')) {
+    class CertificadoCNARQ extends TCPDF
+    {
+        public function Header() {}
+        public function Footer() {}
+    }
 }
 
 $pdf = new CertificadoCNARQ('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -121,394 +125,293 @@ $pdf->SetAuthor('Amazon Naval Ltda');
 $pdf->SetTitle('Certificado CNARQ - ' . $c['numero']);
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
-$pdf->SetMargins(15, 15, 15);
+$pdf->SetMargins(10, 10, 10);
 $pdf->SetAutoPageBreak(false, 0);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
+$pdf->SetDrawColor(0, 0, 0);
+$pdf->SetTextColor(0, 0, 0);
 
-// ============================================
-// PÁGINA 1 — FRENTE
-// ============================================
+$tipo = mb_strtoupper(cnarqText($c['tipo'] ?? '', 'Condicional'), 'UTF-8');
+$numero_limpo = str_replace('AM-CNARQ-', '', (string)$c['numero']);
+$data_quilha = cnarqText($c['data_quilha'] ?? '', cnarqText($c['ano_construcao'] ?? ''));
+$porto = cnarqText($c['porto_inscricao'] ?? '', cnarqText($c['local_emissao'] ?? ''));
+$comprimento_regra = cnarqNumero($c['comprimento_lpp'] ?? $c['comprimento_total'] ?? null, 3);
+$boca = cnarqNumero($c['boca_moldada'] ?? $c['boca_maxima'] ?? null, 3);
+$pontal = cnarqNumero($c['pontal_moldado'] ?? null, 3);
+$ab = cnarqText($c['arqueacao_bruta'] ?? '', '0');
+$al = cnarqText($c['arqueacao_liquida'] ?? '', '0');
+$calado = cnarqNumero($c['calado_moldado_m'] ?? null, 3, '');
+$espacosAB = cnarqParseLinhas($c['espacos_incluidos_ab'] ?? '');
+$espacosAL = cnarqParseLinhas($c['espacos_incluidos_al'] ?? '');
+$espacosExcluidos = cnarqNumero($c['espacos_excluidos_m3'] ?? 0, 2, '0,00') . ' m³';
+$dataLocalOriginal = cnarqText($c['data_local_arqueacao_original'] ?? '', cnarqText($c['local_emissao'] ?? '') . ' ' . cnarqDataExtenso($c['data_emissao']));
+$dataLocalRearq = cnarqText($c['data_local_ultima_rearqueacao'] ?? '', 'x-x-x-x-x-x');
+
+// =========================
+// PÁGINA 1
+// =========================
 $pdf->AddPage();
+$pdf->SetLineWidth(0.45);
 
-// --- Brasão da República ---
-$brasao_path = __DIR__ . '/../../../assets/img/brasao.png';
-if (imgOK($brasao_path)) {
-    $pdf->Image($brasao_path, 23, 18, 28, 28, 'PNG', '', '', true, 150);
-}
-
-// --- Número do certificado (topo direito) ---
-$pdf->SetY(14);
-$pdf->SetX(17);
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(240, 240, 240);
-$pdf->SetDrawColor(200, 200, 200);
-$pdf->Cell(90, 6, 'CERTIFICADO AM-CNARQ - ' . h($c['numero']), 1, 0, 'C', true);
-$pdf->SetFont('helvetica', 'I', 7);
-$pdf->SetTextColor(180, 80, 0);
-$pdf->Cell(0, 6, '(CONDICIONAL)', 0, 1, 'R');
-$pdf->SetTextColor(0, 0, 0);
-
-// --- Título ---
-$pdf->Ln(6);
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(0, 5, 'REPÚBLICA FEDERATIVA DO BRASIL', 0, 1, 'C');
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 4, 'MARINHA DO BRASIL', 0, 1, 'C');
-$pdf->Cell(0, 4, 'DIRETORIA DE PORTOS E COSTAS', 0, 1, 'C');
 $pdf->SetFont('helvetica', 'B', 10);
-$pdf->Cell(0, 6, 'AMAZON NAVAL LTDA', 0, 1, 'C');
-$pdf->Ln(2);
+$pdf->Rect(10, 14, 73, 5);
+$pdf->SetXY(10, 14.1);
+$pdf->Cell(73, 5, 'CERTIFICADO AM-CNARQ - ' . cnarqPdfText($numero_limpo), 0, 0, 'C');
 
-$pdf->SetFont('helvetica', 'B', 12);
-$pdf->Cell(0, 7, 'CERTIFICADO NACIONAL DE ARQUEAÇÃO', 0, 1, 'C');
-$pdf->SetFont('helvetica', '', 7);
-$pdf->Cell(0, 3, '(EMITIDO DE ACORDO COM A NORMAM-202)', 0, 1, 'C');
-$pdf->Ln(3);
+$brasao = __DIR__ . '/../../../assets/img/brasao.png';
+if (cnarqImgOk($brasao)) {
+    $pdf->Image($brasao, 25, 37, 31, 31, 'PNG', '', '', true, 150);
+}
 
-// --- Tabela 1: Identificação da Embarcação ---
-$w1 = 60; $w2 = 50; $w3 = 40; $w4 = 40;
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($w1, 5, 'Nome da Embarcação', 1, 0, 'C', true);
-$pdf->Cell($w2, 5, 'N° de Inscrição', 1, 0, 'C', true);
-$pdf->Cell($w3, 5, 'Porto de Inscrição', 1, 0, 'C', true);
-$pdf->Cell($w4, 5, 'Ano Construção', 1, 1, 'C', true);
+$pdf->SetFont('helvetica', 'B', 13);
+$pdf->SetXY(58, 29);
+$pdf->Cell(108, 7, 'CERTIFICADO NACIONAL DE ARQUEAÇÃO', 0, 1, 'C');
+$pdf->Line(70, 36, 156, 36);
+$pdf->SetFont('helvetica', 'BI', 10);
+$pdf->SetXY(164, 32);
+$pdf->Cell(35, 5, '(' . $tipo . ')', 0, 0, 'L');
 
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell($w1, 7, '"' . h($c['nome_embarcacao']) . '"', 1, 0, 'C');
-$pdf->Cell($w2, 7, h($c['numero_inscricao']), 1, 0, 'C');
-$pdf->Cell($w3, 7, h($c['porto_inscricao']), 1, 0, 'C');
-$pdf->Cell($w4, 7, h($c['ano_construcao']), 1, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 13);
+$pdf->SetXY(58, 45);
+$pdf->Cell(110, 6, 'REPÚBLICA FEDERATIVA DO BRASIL', 0, 1, 'C');
+$pdf->SetX(58);
+$pdf->Cell(110, 6, 'MARINHA DO BRASIL', 0, 1, 'C');
+$pdf->SetX(58);
+$pdf->Cell(110, 6, 'DIRETORIA DE PORTOS E COSTAS', 0, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 11);
+$pdf->SetXY(58, 69);
+$pdf->Cell(110, 5, 'AMAZON NAVAL LTDA', 0, 1, 'C');
 
-// --- Tabela 2: Tipo e Material ---
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->Cell($w1, 5, 'Tipo de Embarcação', 1, 0, 'C', true);
-$pdf->Cell($w2, 5, 'Material do Casco', 1, 0, 'C', true);
-$pdf->Cell($w3, 5, 'Local de Construção', 1, 0, 'C', true);
-$pdf->Cell($w4, 5, 'Indicativo Chamada', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($w1, 7, h($c['tipo_embarcacao']), 1, 0, 'C');
-$pdf->Cell($w2, 7, h($c['material_casco']), 1, 0, 'C');
-$pdf->Cell($w3, 7, h($c['local_construcao']), 1, 0, 'C');
-$pdf->Cell($w4, 7, h($c['indicativo_chamada']), 1, 1, 'C');
-
-$pdf->Ln(2);
-
-// --- CARACTERÍSTICAS PRINCIPAIS ---
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'CARACTERÍSTICAS PRINCIPAIS', 1, 1, 'C', true);
-$pdf->SetFillColor(220, 220, 220);
-
-$col_w_dims = [63.33, 63.33, 63.33];
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->Cell($col_w_dims[0], 5, 'Comprimento de Regra (m)', 1, 0, 'C', true);
-$pdf->Cell($col_w_dims[1], 5, 'Boca (m)', 1, 0, 'C', true);
-$pdf->Cell($col_w_dims[2], 5, 'Pontal moldado a meia-nau até o convés superior (m)', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell($col_w_dims[0], 7, $c['comprimento_total'] ? number_format($c['comprimento_total'], 3, ',', '') : '', 1, 0, 'C');
-$pdf->Cell($col_w_dims[1], 7, $c['boca_moldada'] ? number_format($c['boca_moldada'], 3, ',', '') : '', 1, 0, 'C');
-$pdf->Cell($col_w_dims[2], 7, $c['pontal_moldado'] ? number_format($c['pontal_moldado'], 3, ',', '') : '', 1, 1, 'C');
-
-$pdf->Ln(2);
-
-// --- Texto de certificação ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 5, 'A AMAZON NAVAL LTDA certifica:', 0, 1, 'L');
-
-$pdf->SetFont('helvetica', '', 8);
-$texto_cert = 'Certifico que as arqueações desta embarcação "' . h($c['nome_embarcacao']) . 
-    '" foram determinadas de acordo com as disposições da Convenção Internacional sobre Medidas de Arqueações de Embarcações (1969) e das Normas da Autoridade Marítima para Embarcações Empregadas na Navegação Interior.';
-$pdf->MultiCell(0, 5, $texto_cert, 0, 'J');
-
-$pdf->Ln(2);
-
-// --- NOTA ---
-$pdf->SetFont('helvetica', 'I', 7);
-$pdf->MultiCell(0, 4, 'NOTA: data na qual a quilha foi batida ou estágio equivalente de construção, ou data na qual o navio sofreu alterações ou modificações de maior vulto.', 0, 'J');
-
-$pdf->Ln(2);
-
-// --- AS ARQUEAÇÕES DA EMBARCAÇÃO SÃO ---
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'AS ARQUEAÇÕES DA EMBARCAÇÃO SÃO:', 1, 1, 'C', true);
-
-// Linha AB / AL
-$col_w_ab = [95, 95];
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w_ab[0], 5, 'ARQUEAÇÃO BRUTA (AB)', 1, 0, 'C', true);
-$pdf->Cell($col_w_ab[1], 5, 'ARQUEAÇÃO LÍQUIDA (AL)', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell($col_w_ab[0], 7, $c['arqueacao_bruta'] !== null ? number_format($c['arqueacao_bruta'], 2, ',', '') . ' m³' : '_____________', 1, 0, 'C');
-$pdf->Cell($col_w_ab[1], 7, $c['arqueacao_liquida'] !== null ? number_format($c['arqueacao_liquida'], 2, ',', '') . ' m³' : '_____________', 1, 1, 'C');
-
-$pdf->Ln(1);
-
-// --- Calado moldado e Comp ---
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$col_w_cl = [63.33, 63.33, 63.33];
-$pdf->Cell($col_w_cl[0], 5, 'CALADO MOLDADO', 1, 0, 'C', true);
-$pdf->Cell($col_w_cl[1], 5, 'COMP.', 1, 0, 'C', true);
-$pdf->Cell($col_w_cl[2], 5, 'NÚMERO DE PASSAGEIROS', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 7);
-$pdf->Cell($col_w_cl[0], 5, !empty($c['calado_maximo_m']) ? number_format($c['calado_maximo_m'], 3, ',', '') . ' m' : '', 1, 0, 'C');
-$pdf->Cell($col_w_cl[1], 5, '______________', 1, 0, 'C');
-$pdf->Cell($col_w_cl[2], 5, '', 1, 1, 'C');
-
-$pdf->Ln(1);
-
-// --- Método de Arqueação ---
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->Cell(0, 5, 'Método de Arqueação', 1, 0, 'C', true);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, h($c['metodo_arqueacao'] ?: 'Convenção Internacional (1969)'), 1, 1, 'C');
-
-$pdf->Ln(2);
-
-// --- Data e Local da Arqueação ---
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w_ab[0], 5, 'DATA E LOCAL DA ARQUEAÇÃO ORIGINAL', 1, 0, 'C', true);
-$pdf->Cell($col_w_ab[1], 5, 'DATA E LOCAL DA ÚLTIMA REARQUEAÇÃO', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 7);
-$pdf->Cell($col_w_ab[0], 7, formatarDataBR($c['data_emissao']) . ' - ' . h($c['local_emissao']), 1, 0, 'C');
-$pdf->Cell($col_w_ab[1], 7, h($c['local_emissao']), 1, 1, 'C');
-
-$pdf->Ln(2);
-
-// --- Data de emissão ---
-$pdf->SetFont('helvetica', '', 9);
-$pdf->Cell(0, 5, 'Expedido em ' . h($c['local_emissao']) . ', em ' . dataPorExtenso($c['data_emissao']), 0, 1, 'R');
-
-$pdf->Ln(3);
-
-// --- Validade ---
+// Identificação
+$x = 10; $y = 82; $w = 190;
+$cols = [80, 37, 36, 37];
+$pdf->Rect($x, $y, $w, 23);
+$pdf->Line($x, $y + 10, $x + $w, $y + 10);
+$cx = $x;
+for ($i = 0; $i < 3; $i++) {
+    $cx += $cols[$i];
+    $pdf->Line($cx, $y, $cx, $y + 23);
+}
+$pdf->SetFont('helvetica', '', 9.2);
+$headers = ['Nome da Embarcação', 'N° de Inscrição', 'Porto de Inscrição', "Data em que a quilha foi\nbatida (ver nota)"];
+$cx = $x;
+foreach ($headers as $i => $header) {
+    $pdf->SetXY($cx + 1, $y + 2);
+    $pdf->MultiCell($cols[$i] - 2, 5, $header, 0, 'C');
+    $cx += $cols[$i];
+}
 $pdf->SetFont('helvetica', 'B', 10);
-$pdf->Cell(0, 6, 'VÁLIDO até: ' . dataPorExtenso($c['data_validade']), 0, 1, 'C');
-
-$pdf->Ln(4);
-
-// --- Área de assinatura (QUADRO) ---
-$sig_y = $pdf->GetY();
-
-if ($sig_y > 230) {
-    $pdf->AddPage();
-    $sig_y = $pdf->GetY();
+$values = [
+    '"' . mb_strtoupper(cnarqText($c['nome_embarcacao'] ?? '', 'Não informado'), 'UTF-8') . '"',
+    cnarqText($c['numero_inscricao'] ?? '', 'Não Fornecido'),
+    $porto,
+    $data_quilha,
+];
+$cx = $x;
+foreach ($values as $i => $value) {
+    $pdf->SetXY($cx + 1, $y + 14);
+    $pdf->Cell($cols[$i] - 2, 5, cnarqPdfText($value), 0, 0, 'C');
+    $cx += $cols[$i];
 }
 
-$pdf->SetDrawColor(8, 145, 178);
-$pdf->SetLineWidth(0.5);
-$pdf->Rect(35, $sig_y, 140, 40);
-$pdf->SetDrawColor(200, 200, 200);
-$pdf->SetLineWidth(0.2);
-$pdf->Rect(36, $sig_y + 1, 138, 38);
+$pdf->SetFont('helvetica', '', 12);
+$pdf->SetXY(10, 113);
+$pdf->Cell(190, 6, 'CARACTERÍSTICAS PRINCIPAIS', 0, 1, 'C');
 
-$logo_path = __DIR__ . '/../../../assets/img/logo.png';
-if (imgOK($logo_path)) {
-    $pdf->Image($logo_path, 42, $sig_y + 7, 22, 22, 'PNG', '', '', true, 150);
+$y = 123;
+$colsDim = [66, 58, 66];
+$pdf->Rect(10, $y, 190, 25);
+$pdf->Line(10, $y + 12, 200, $y + 12);
+$pdf->Line(10 + $colsDim[0], $y, 10 + $colsDim[0], $y + 25);
+$pdf->Line(10 + $colsDim[0] + $colsDim[1], $y, 10 + $colsDim[0] + $colsDim[1], $y + 25);
+$pdf->SetFont('helvetica', '', 9.5);
+$pdf->SetXY(10, $y + 3);
+$pdf->Cell($colsDim[0], 5, 'Comprimento de Regra (m)', 0, 0, 'C');
+$pdf->Cell($colsDim[1], 5, 'Boca (m)', 0, 0, 'C');
+$pdf->MultiCell($colsDim[2], 4.2, "Pontal moldado a meia-nau\naté o convés superior (m)", 0, 'C');
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY(10, $y + 17);
+$pdf->Cell($colsDim[0], 5, cnarqPdfText($comprimento_regra), 0, 0, 'C');
+$pdf->Cell($colsDim[1], 5, cnarqPdfText($boca), 0, 0, 'C');
+$pdf->Cell($colsDim[2], 5, cnarqPdfText($pontal), 0, 0, 'C');
+
+$pdf->SetFont('helvetica', '', 12);
+$pdf->SetXY(10, 158);
+$pdf->Cell(190, 6, 'AS ARQUEAÇÕES DA EMBARCAÇÃO SÃO:', 0, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY(60, 171);
+$pdf->Cell(90, 5, 'ARQUEAÇÃO BRUTA (AB): ' . cnarqPdfText($ab), 0, 1, 'L');
+$pdf->SetX(60);
+$pdf->Cell(90, 5, 'ARQUEAÇÃO LÍQUIDA (AL): ' . cnarqPdfText($al), 0, 1, 'L');
+
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetXY(10, 192);
+$pdf->MultiCell(190, 15, 'Certifico que as arqueações desta embarcação foram determinadas de acordo com as disposições da Convenção Internacional sobre Medidas de Arqueações de Embarcações (1969) e das Normas da Autoridade Marítima para Embarcações Empregadas na Navegação Interior.', 0, 'L');
+$pdf->SetXY(10, 213);
+$pdf->MultiCell(190, 12, 'NOTA: data na qual a quilha foi batida ou estágio equivalente de construção, ou data na qual o navio sofreu alterações ou modificações de maior vulto.', 0, 'L');
+
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY(10, 240);
+$pdf->Cell(190, 6, 'Expedido em ' . cnarqPdfText(cnarqText($c['local_emissao'] ?? '', 'Belém-PA')) . ', em ' . cnarqDataExtenso($c['data_emissao']), 0, 1, 'C');
+
+// Assinatura
+$sigX = 25; $sigY = 252; $sigW = 160; $sigH = 36;
+$pdf->SetLineWidth(0.45);
+$pdf->Rect($sigX, $sigY, $sigW, $sigH);
+$logo = __DIR__ . '/../../../assets/img/logo.png';
+if (cnarqImgOk($logo)) {
+    $pdf->Image($logo, $sigX + 12, $sigY + 8, 24, 23.2, '', '', '', true, 150);
 }
-
-$pdf->SetDrawColor(100, 100, 100);
-$pdf->SetLineWidth(0.3);
-$pdf->Line(75, $sig_y + 25, 168, $sig_y + 25);
-
-$pdf->SetXY(75, $sig_y + 27);
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(93, 4, h($c['assinante_nome']), 0, 1, 'C');
-
-$pdf->SetX(75);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(93, 4, h($c['assinante_titulo']), 0, 1, 'C');
-
-$pdf->SetX(75);
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetTextColor(8, 145, 178);
-$pdf->Cell(93, 4, h($c['assinante_registro']), 0, 1, 'C');
-$pdf->SetTextColor(0, 0, 0);
-
 if (!empty($c['assinatura_imagem'])) {
-    $img_data = $c['assinatura_imagem'];
-    if (preg_match('/^data:image\/(\w+);base64,/', $img_data, $type)) {
-        $img_data = substr($img_data, strpos($img_data, ',') + 1);
+    $imgData = $c['assinatura_imagem'];
+    if (preg_match('/^data:image\/(\w+);base64,/', $imgData)) {
+        $imgData = substr($imgData, strpos($imgData, ',') + 1);
     }
-    $decoded = base64_decode($img_data);
-    if ($decoded !== false) {
-        $decoded = converterImagemParaJpeg($decoded);
-        $tmp_file = tempnam(sys_get_temp_dir(), 'sig_') . '.jpg';
-        file_put_contents($tmp_file, $decoded);
-        $pdf->Image($tmp_file, 75, $sig_y + 7, 55, 16);
-        @unlink($tmp_file);
+    $decoded = base64_decode($imgData);
+    if ($decoded !== false && strlen($decoded) > 100) {
+        $tmp = tempnam(sys_get_temp_dir(), 'cnarq_sig_') . '.png';
+        file_put_contents($tmp, $decoded);
+        if (cnarqImgOk($tmp)) {
+            $pdf->Image($tmp, $sigX + 58, $sigY + 13, 58, 12, 'PNG', '', '', true, 150);
+        }
+        @unlink($tmp);
     }
 }
-
-$pdf->SetY($sig_y + 44);
-
-// --- QR Code + Link (rodapé) ---
-$link_assinatura = APP_URL . 'assinar/' . $c['token_assinatura'];
-
-$qr_y = $pdf->GetY();
-try {
-    $qr = new TCPDF2DBarcode($link_assinatura, 'QRCODE,M');
-    $qr_png = $qr->getBarcodePngData(3, 3, array(0, 0, 0));
-    $qr_file = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
-    file_put_contents($qr_file, $qr_png);
-    $pdf->Image($qr_file, 10, $qr_y, 15, 15, 'PNG');
-    @unlink($qr_file);
-    $pdf->SetXY(27, $qr_y);
-} catch (Exception $e) {
-    $pdf->SetXY(10, $qr_y);
-}
-$pdf->SetFont('helvetica', '', 6);
-$pdf->Cell(80, 5, 'Link de assinatura: ' . $link_assinatura, 0, 1, 'L');
-
-if ($c['assinado']) {
-    $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->SetX(27);
-    $pdf->SetTextColor(0, 100, 0);
-    $pdf->Cell(0, 5, 'Documento assinado por ' . h($c['assinante_nome']) . ' em ' . 
-        formatarDataCompleta($c['assinatura_em']), 0, 1, 'L');
-    $pdf->SetTextColor(0, 0, 0);
-} else {
-    $pdf->SetFont('helvetica', 'I', 7);
-    $pdf->SetX(27);
-    $pdf->Cell(0, 5, 'Acesse o link para assinar este documento.', 0, 1, 'L');
-}
-
-// ============================================
-// PÁGINA 2 — VERSO
-// ============================================
-$pdf->AddPage();
-$pdf->SetY(10);
-
-// --- Título ---
-$pdf->SetFont('helvetica', 'B', 14);
-$pdf->Cell(0, 8, 'ANEXO 7-A - NORMAM 202/DPC', 0, 1, 'C');
-$pdf->Ln(3);
-
-// --- Observações ---
+$pdf->SetLineWidth(0.25);
+$pdf->Line($sigX + 51, $sigY + 23, $sigX + 118, $sigY + 23);
+$pdf->SetFont('helvetica', 'B', 9);
+$pdf->SetXY($sigX + 51, $sigY + 23.1);
+$pdf->Cell(67, 4, cnarqPdfText(cnarqText($c['assinante_nome'] ?? '', 'Responsável Técnico')), 0, 1, 'C');
 $pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 5, 'Observações:', 0, 1, 'L');
+$pdf->SetX($sigX + 51);
+$pdf->Cell(67, 4, cnarqPdfText(cnarqText($c['assinante_titulo'] ?? '', '')), 0, 1, 'C');
+$pdf->SetX($sigX + 51);
+$pdf->Cell(67, 4, cnarqPdfText(cnarqText($c['assinante_registro'] ?? '', '')), 0, 1, 'C');
 
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, '1. Este Certificado Condicional foi emitido com base no Relatório de Vistorias n.º ' . 
-    h($c['relatorio_numero']) . '.', 0, 1, 'L');
-$pdf->Cell(0, 5, '2. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . 
-    formatarDataBR($c['data_vistoria']) . ' em ' . h($c['local_vistoria']) . '.', 0, 1, 'L');
+// =========================
+// PÁGINA 2
+// =========================
+$pdf->AddPage();
+$pdf->SetLineWidth(0.45);
 
-$pdf->Ln(3);
+$boxX = 10; $boxY = 18; $boxW = 190; $boxH = 226;
+$pdf->Rect($boxX, $boxY, $boxW, $boxH);
+$pdf->Line($boxX, $boxY + 12, $boxX + $boxW, $boxY + 12);
+$pdf->SetFont('helvetica', 'B', 11);
+$pdf->SetXY($boxX, $boxY + 3);
+$pdf->Cell($boxW, 6, 'ESPAÇOS INCLUÍDOS NA ARQUEAÇÃO', 0, 0, 'C');
 
-// --- ESPAÇOS INCLUÍDOS NA ARQUEAÇÃO ---
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'ESPAÇOS INCLUÍDOS NA ARQUEAÇÃO', 1, 1, 'C', true);
+$topY = $boxY + 12;
+$pdf->Line($boxX + 95, $topY, $boxX + 95, $boxY + 122);
+$pdf->Line($boxX, $topY + 9, $boxX + $boxW, $topY + 9);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY($boxX, $topY + 2);
+$pdf->Cell(95, 5, 'ARQUEAÇÃO BRUTA', 0, 0, 'C');
+$pdf->Cell(95, 5, 'ARQUEAÇÃO LÍQUIDA', 0, 0, 'C');
 
-$col_w_esp = [95, 47.5, 47.5];
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w_esp[0], 5, 'NOME DO ESPAÇO', 1, 0, 'C', true);
-$pdf->Cell($col_w_esp[1], 5, 'LOCAL', 1, 0, 'C', true);
-$pdf->Cell($col_w_esp[2], 5, 'COMP. (m³)', 1, 1, 'C', true);
-
-// Linhas de espaços incluídos
-$pdf->SetFont('helvetica', '', 7);
-for ($i = 0; $i < 6; $i++) {
-    $pdf->Cell($col_w_esp[0], 5, '', 1, 0, 'L');
-    $pdf->Cell($col_w_esp[1], 5, '', 1, 0, 'C');
-    $pdf->Cell($col_w_esp[2], 5, '', 1, 1, 'C');
+$headerY = $topY + 9;
+$pdf->Line($boxX, $headerY + 5, $boxX + $boxW, $headerY + 5);
+$leftWidths = [36, 29, 30];
+$rightWidths = [36, 29, 30];
+$pdf->SetFont('helvetica', '', 9);
+$pdf->SetXY($boxX, $headerY + 0.8);
+foreach (['NOME DO ESPAÇO', 'LOCAL', 'COMP.'] as $i => $h) {
+    $pdf->Cell($leftWidths[$i], 4, $h, 0, 0, 'C');
+}
+foreach (['NOME DO ESPAÇO', 'LOCAL', 'COMP.'] as $i => $h) {
+    $pdf->Cell($rightWidths[$i], 4, $h, 0, 0, 'C');
+}
+$vxs = [$boxX + 36, $boxX + 65, $boxX + 95, $boxX + 131, $boxX + 160];
+foreach ($vxs as $vx) {
+    $pdf->Line($vx, $headerY, $vx, $boxY + 122);
 }
 
-$pdf->Ln(2);
-
-// --- ESPAÇOS EXCLUÍDOS ---
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'ESPAÇOS EXCLUÍDOS', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w_esp[0], 5, 'NOME DO ESPAÇO', 1, 0, 'C', true);
-$pdf->Cell($col_w_esp[1], 5, 'LOCAL', 1, 0, 'C', true);
-$pdf->Cell($col_w_esp[2], 5, 'COMP. (m³)', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 7);
-for ($i = 0; $i < 4; $i++) {
-    $pdf->Cell($col_w_esp[0], 5, '', 1, 0, 'L');
-    $pdf->Cell($col_w_esp[1], 5, '', 1, 0, 'C');
-    $pdf->Cell($col_w_esp[2], 5, '', 1, 1, 'C');
+$rowStartY = $headerY + 5;
+$rowH = 8;
+$maxRows = 9;
+$pdf->SetFont('helvetica', '', 8);
+for ($i = 0; $i < $maxRows; $i++) {
+    $yy = $rowStartY + ($i * $rowH) + 1.4;
+    $abRow = $espacosAB[$i] ?? ['nome' => '', 'local' => '', 'comp' => ''];
+    $alRow = $espacosAL[$i] ?? ['nome' => '', 'local' => '', 'comp' => ''];
+    $pdf->SetXY($boxX + 1, $yy);
+    $pdf->Cell(34, 4, cnarqPdfText($abRow['nome']), 0, 0, 'L');
+    $pdf->Cell(29, 4, cnarqPdfText($abRow['local']), 0, 0, 'C');
+    $pdf->Cell(30, 4, cnarqPdfText($abRow['comp']), 0, 0, 'C');
+    $pdf->Cell(36, 4, cnarqPdfText($alRow['nome']), 0, 0, 'L');
+    $pdf->Cell(29, 4, cnarqPdfText($alRow['local']), 0, 0, 'C');
+    $pdf->Cell(30, 4, cnarqPdfText($alRow['comp']), 0, 0, 'C');
 }
 
-$pdf->Ln(2);
+$pdf->Line($boxX, $boxY + 122, $boxX + $boxW, $boxY + 122);
+$pdf->Line($boxX + 95, $boxY + 122, $boxX + 95, $boxY + 170);
 
-$pdf->SetFont('helvetica', 'I', 7);
-$pdf->MultiCell(0, 4, 'NOTA: um asterisco (*) deve ser feito naqueles espaços acima discriminados que sejam simultaneamente considerados espaços fechados e excluídos.', 0, 'J');
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY($boxX, $boxY + 122.5);
+$pdf->Cell(95, 5, 'ESPAÇOS EXCLUÍDOS', 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetX($boxX);
+$pdf->Cell(95, 5, cnarqPdfText($espacosExcluidos), 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 8);
+$pdf->SetXY($boxX + 1, $boxY + 145);
+$pdf->MultiCell(93, 12, 'um asterisco (*) deve ser feito naqueles espaços acima discriminados que sejam simultaneamente considerados espaços fechados e excluídos.', 0, 'L');
 
-$pdf->Ln(2);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY($boxX + 95, $boxY + 122.5);
+$pdf->Cell(95, 5, 'NÚMERO DE PASSAGEIROS', 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 8);
+$pdf->SetXY($boxX + 96, $boxY + 132);
+$pdf->Cell(93, 4, 'Número total de passageiros em camarotes com até 8 beliches', 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetX($boxX + 96);
+$pdf->Cell(93, 5, cnarqInteiro($c['passageiros_camarotes'] ?? 0), 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 8);
+$pdf->SetXY($boxX + 96, $boxY + 147);
+$pdf->Cell(93, 4, 'Número total dos demais passageiros', 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetX($boxX + 96);
+$pdf->Cell(93, 5, cnarqInteiro($c['passageiros_outros'] ?? 0), 0, 1, 'C');
 
-// --- Passageiros ---
+$pdf->Line($boxX + 95, $boxY + 170, $boxX + $boxW, $boxY + 170);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY($boxX + 95, $boxY + 171);
+$pdf->Cell(95, 5, 'CALADO MOLDADO', 0, 1, 'C');
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetX($boxX + 95);
+$pdf->Cell(95, 5, $calado !== '' ? cnarqPdfText($calado . ' m') : '', 0, 1, 'C');
+
+$infoY = $boxY + 182;
+$pdf->Line($boxX, $infoY, $boxX + $boxW, $infoY);
+$pdf->Line($boxX, $infoY + 5, $boxX + $boxW, $infoY + 5);
+$pdf->Line($boxX, $infoY + 10, $boxX + $boxW, $infoY + 10);
 $pdf->SetFont('helvetica', 'B', 9);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'NÚMERO DE PASSAGEIROS', 1, 1, 'C', true);
+$pdf->SetXY($boxX + 1, $infoY + 0.6);
+$pdf->Cell($boxW - 2, 4, 'DATA E LOCAL DA ARQUEAÇÃO ORIGINAL: ' . cnarqPdfText($dataLocalOriginal), 0, 1, 'L');
+$pdf->SetX($boxX + 1);
+$pdf->Cell($boxW - 2, 4, 'DATA E LOCAL DA ÚLTIMA REARQUEAÇÃO: ' . cnarqPdfText($dataLocalRearq), 0, 1, 'L');
 
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell(190, 5, 'Número total de passageiros em camarotes com até 8 beliches', 1, 0, 'L', true);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, '0', 1, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 8);
+$pdf->SetXY($boxX + 1, $infoY + 10.8);
+$pdf->Cell(188, 4, 'Observações:', 0, 1, 'L');
+$pdf->SetFont('helvetica', '', 8.5);
+$obs1 = '1. Este Certificado ' . ucfirst(mb_strtolower($tipo, 'UTF-8')) . ' foi emitido com base no Relatório de Vistorias n.º ' . cnarqText($c['relatorio_numero'] ?? '') . '.';
+$obs2 = '2. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . cnarqDataBR($c['data_vistoria']) . ' em ' . cnarqText($c['local_vistoria'] ?? '') . '.';
+$pdf->SetX($boxX + 1);
+$pdf->MultiCell(188, 5, cnarqPdfText($obs1), 0, 'L');
+$pdf->SetX($boxX + 1);
+$pdf->MultiCell(188, 5, cnarqPdfText($obs2), 0, 'L');
 
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell(190, 5, 'Número total dos demais passageiros', 1, 0, 'L', true);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, '0', 1, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY(10, 266);
+$pdf->Cell(190, 6, 'VÁLIDO até: ' . cnarqDataExtenso($c['data_validade']), 0, 1, 'C');
+$pdf->Rect(10, 281, 73, 5);
+$pdf->SetXY(10, 281.2);
+$pdf->Cell(73, 5, 'ANEXO 7-A - NORMAM 202/DPC', 0, 0, 'C');
 
-$pdf->Ln(3);
-
-// --- Convalidações (se houver) ---
-if (!empty($convalidacoes)) {
-    $pdf->SetFont('helvetica', 'B', 9);
-    $pdf->Cell(0, 6, 'CONVALIDAÇÕES', 0, 1, 'L');
-    $pdf->Ln(1);
-
-    $col_w = [35, 30, 30, 55, 40];
-    $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->SetFillColor(220, 220, 220);
-    $pdf->Cell($col_w[0], 5, 'CONVALIDAÇÕES', 1, 0, 'C', true);
-    $pdf->Cell($col_w[1], 5, 'A REALIZAR ENTRE', 1, 0, 'C', true);
-    $pdf->Cell($col_w[2], 5, 'E', 1, 0, 'C', true);
-    $pdf->Cell($col_w[3], 5, 'LUGAR E DATA DA REALIZAÇÃO', 1, 0, 'C', true);
-    $pdf->Cell($col_w[4], 5, 'VISTORIADOR', 1, 1, 'C', true);
-
-    $vistorias_nomes = ['1ª VIST. ANUAL', '2ª VIST. ANUAL', '3ª VIST. ANUAL', '4ª VIST. ANUAL'];
-    $conv_map = [];
-    foreach ($convalidacoes as $conv) {
-        $conv_map[$conv['numero_vistoria']] = $conv;
-    }
-
-    for ($i = 0; $i < 4; $i++) {
-        $nome_vistoria = $vistorias_nomes[$i];
-        $conv = $conv_map[$nome_vistoria] ?? $convalidacoes[$i] ?? null;
-        
-        $pdf->SetFont('helvetica', 'B', 7);
-        $pdf->Cell($col_w[0], 7, $nome_vistoria, 1, 0, 'L');
-        $pdf->SetFont('helvetica', '', 7);
-        $pdf->Cell($col_w[1], 7, formatarDataBR($conv['data_inicio'] ?? ''), 1, 0, 'C');
-        $pdf->Cell($col_w[2], 7, formatarDataBR($conv['data_fim'] ?? ''), 1, 0, 'C');
-        $pdf->Cell($col_w[3], 7, h($conv['local_data'] ?? ''), 1, 0, 'L');
-        $pdf->Cell($col_w[4], 7, h($conv['vistoriador'] ?? ''), 1, 1, 'L');
-    }
-}
-
-// ============================================
-// SAÍDA DO PDF
-// ============================================
 $nome_arquivo = 'CNARQ_' . str_replace('/', '-', $c['numero']) . '.pdf';
-$pdf->Output($nome_arquivo, 'I');
-exit;
+if (isset($salvar_pdf_caminho) && !empty($salvar_pdf_caminho)) {
+    $pdf->Output($salvar_pdf_caminho, 'F');
+} else {
+    $pdf->Output($nome_arquivo, 'I');
+    exit;
+}

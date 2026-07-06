@@ -86,6 +86,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
             ':id'   => $cert['id'],
         ]);
 
+        // Gerar e salvar PDF imediatamente
+        $dir_ano = date('Y');
+        $nome_arquivo_pdf = 'CNARQ_' . str_replace('/', '-', $cert['numero']) . '.pdf';
+        $caminho_relativo = 'storage/certificados/' . $dir_ano . '/cnarq/' . $nome_arquivo_pdf;
+        $salvar_pdf_caminho = __DIR__ . '/../../../' . $caminho_relativo;
+        
+        $dir_pdf = dirname($salvar_pdf_caminho);
+        if (!is_dir($dir_pdf)) {
+            mkdir($dir_pdf, 0777, true);
+        }
+
+        // Variáveis para o pdf.php
+        $_GET['id'] = $cert['id'];
+        $id = $cert['id'];
+        
+        // Fazer include para gerar o PDF
+        ob_start();
+        require __DIR__ . '/pdf.php';
+        ob_end_clean();
+
+        // Salvar hash e caminho no banco
+        if (file_exists($salvar_pdf_caminho)) {
+            $hash_pdf = hash_file('sha256', $salvar_pdf_caminho);
+            $stmt_pdf = $pdo->prepare("UPDATE certificados_cnarq SET caminho_arquivo_pdf = :caminho, hash_arquivo_pdf = :hash WHERE id = :id");
+            $stmt_pdf->execute([
+                ':caminho' => $caminho_relativo,
+                ':hash' => $hash_pdf,
+                ':id' => $cert['id']
+            ]);
+        }
+
         if (function_exists('log_atividade')) {
             log_atividade('certificado_cnarq_assinado', "Certificado {$cert['numero']} assinado por {$cert['assinante_nome']} via link público");
         }
@@ -285,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                         <p><strong>IP:</strong> <?php echo h($cert['assinatura_ip']); ?></p>
                     </div>
                     <div style="margin-top: 20px;">
-                        <a href="<?php echo APP_URL; ?>documentacao/cnarq/pdf?id=<?php echo h($cert['id']); ?>" 
+                        <a href="<?php echo APP_URL; ?>documentacao/cnarq/pdf?token=<?php echo h($token); ?>" 
                            class="btn btn-success" target="_blank" style="text-decoration:none;">
                             <i class="fas fa-file-pdf"></i> Ver PDF Assinado
                         </a>
@@ -314,7 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                     <p>O certificado foi assinado com sucesso.</p>
                     <div id="detalhesAssinatura" style="margin-top: 15px;"></div>
                     <div style="margin-top: 20px;">
-                        <a href="<?php echo APP_URL; ?>documentacao/cnarq/pdf?id=<?php echo h($cert['id']); ?>" 
+                        <a href="<?php echo APP_URL; ?>documentacao/cnarq/pdf?token=<?php echo h($token); ?>" 
                            class="btn btn-success" target="_blank" style="text-decoration:none;">
                             <i class="fas fa-file-pdf"></i> Ver PDF Assinado
                         </a>

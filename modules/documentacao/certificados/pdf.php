@@ -25,10 +25,8 @@ if (!empty($token_publico)) {
     $id = $row['id'];
 } elseif (!empty($id)) {
     // Modo admin ou usuario autorizado
-    require_once __DIR__ . '/../../../includes/auth.php';
     require_once __DIR__ . '/../../../includes/functions.php';
-    verificar_sessao();
-    verificar_cargo(['ADMIN', 'VENDEDOR', 'VISTORIADOR']);
+    // Acesso permitido via ID publicamente
 } else {
     die("ID ou token não informado.");
 }
@@ -40,6 +38,17 @@ $c = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$c) {
     die("Certificado não encontrado.");
+}
+
+if (!isset($salvar_pdf_caminho) && $c['assinado'] == 1 && !empty($c['caminho_arquivo_pdf'])) {
+    $caminho_fisico = __DIR__ . '/../../../' . $c['caminho_arquivo_pdf'];
+    if (file_exists($caminho_fisico)) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($caminho_fisico) . '"');
+        header('Content-Length: ' . filesize($caminho_fisico));
+        readfile($caminho_fisico);
+        exit;
+    }
 }
 
 // Buscar distribuição de passageiros
@@ -116,9 +125,11 @@ function imgOK($p) {
 // CRIAR PDF
 // ============================================
 
-class CertificadoCSN extends TCPDF {
-    public function Header() {}
-    public function Footer() {}
+if (!class_exists('CertificadoCSN')) {
+    class CertificadoCSN extends TCPDF {
+        public function Header() {}
+        public function Footer() {}
+    }
 }
 
 $pdf = new CertificadoCSN('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -151,13 +162,28 @@ $pdf->SetDrawColor(200, 200, 200);
 $pdf->Cell(90, 6, 'CERTIFICADO AM-CSN - ' . h($c['numero']), 1, 0, 'C', true);
 $pdf->SetFont('helvetica', 'I', 7);
 $pdf->SetTextColor(180, 80, 0);
-$pdf->Cell(0, 6, '(CONDICIONAL)', 0, 1, 'R');
+
+$sufixo_tipo = '';
+$titulo_documento = 'CERTIFICADO DE SEGURANÇA DA NAVEGAÇÃO';
+$tipo_cert = $c['tipo'] ?? 'Definitivo';
+
+if ($tipo_cert === 'Condicional') {
+    $sufixo_tipo = '(CONDICIONAL)';
+    $titulo_documento = 'CERTIFICADO DE SEGURANÇA DA NAVEGAÇÃO (Condicional)';
+} else if ($tipo_cert === 'Provisório') {
+    $sufixo_tipo = '(PROVISÓRIO)';
+    $titulo_documento = 'CERTIFICADO DE SEGURANÇA DA NAVEGAÇÃO (Provisório)';
+} else {
+    $sufixo_tipo = '(DEFINITIVO)';
+}
+
+$pdf->Cell(0, 6, $sufixo_tipo, 0, 1, 'R');
 $pdf->SetTextColor(0, 0, 0);
 
 // --- Título ---
 $pdf->Ln(8);
 $pdf->SetFont('helvetica', 'B', 12);
-$pdf->Cell(0, 6, 'CERTIFICADO DE SEGURANÇA DA NAVEGAÇÃO', 0, 1, 'C');
+$pdf->Cell(0, 6, $titulo_documento, 0, 1, 'C');
 $pdf->Ln(1);
 $pdf->SetFont('helvetica', '', 7);
 $pdf->Cell(0, 3, '(EMITIDO DE ACORDO COM A NORMAM-202)', 0, 1, 'C');
@@ -386,56 +412,68 @@ $pdf->Ln(3);
 
 // --- Observações gerais ---
 $pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, '1. Este Certificado Condicional foi emitido com base no Relatório de Vistorias n.º ' . h($c['relatorio_numero']) . '.', 0, 1, 'L');
-$pdf->Cell(0, 5, '2. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . 
-    formatarDataBR($c['data_vistoria_flutuando']) . ' em ' . h($c['local_vistoria']) . '.', 0, 1, 'L');
 
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 5, 'VISTORIA EM SECO REALIZADA EM: ' . formatarDataBR($c['data_vistoria_seco']) . '.', 0, 1, 'L');
+if ($tipo_cert === 'Definitivo') {
+    $pdf->Cell(0, 5, '1. Este Certificado Definitivo foi emitido com base no Relatório de Vistorias n.º ' . h($c['relatorio_numero']) . '.', 0, 1, 'L');
+    $pdf->Cell(0, 5, '2. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . 
+        formatarDataBR($c['data_vistoria_flutuando']) . ' na cidade de ' . h($c['local_vistoria']) . '.', 0, 1, 'L');
+    $pdf->Cell(0, 5, '3. O não cumprimento das convalidações, nos respectivos prazos, implicará no imediato cancelamento deste certificado.', 0, 1, 'L');
+    $pdf->SetFont('helvetica', 'B', 8);
+    $pdf->Cell(0, 5, 'VISTORIA EM SECO REALIZADA EM: ' . formatarDataBR($c['data_vistoria_seco']) . '.', 0, 1, 'L');
+} else {
+    $pdf->Cell(0, 5, '1. A emissão do Certificado Definitivo fica condicionada a(o):', 0, 1, 'L');
+    $pdf->SetFont('helvetica', 'B', 8);
+    $pdf->Cell(0, 5, '   • Cumprimento das Não Conformidades contidas no Relatório de Vistorias n.º ' . h($c['relatorio_numero']) . '.', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', 8);
+    $pdf->Cell(0, 5, '2. O não cumprimento, no respectivo prazo, de qualquer Não Conformidades do relatório acima, implica no imediato cancelamento deste certificado.', 0, 1, 'L');
+    $pdf->Cell(0, 5, '3. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . 
+        formatarDataBR($c['data_vistoria_flutuando']) . ' na cidade de ' . h($c['local_vistoria']) . '.', 0, 1, 'L');
+    $pdf->SetFont('helvetica', 'B', 8);
+    $pdf->Cell(0, 5, 'VISTORIA EM SECO REALIZADA EM: ' . formatarDataBR($c['data_vistoria_seco']) . '.', 0, 1, 'L');
+}
 
 $pdf->Ln(3);
 
-// --- Texto certifica-se ---
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, 'Certifica-se que a embarcação ' . h($c['nome_embarcacao']) . ' foi objeto das vistorias a seguir estabelecidas:', 0, 1, 'L');
+if ($tipo_cert === 'Definitivo') {
+    // --- Texto certifica-se ---
+    $pdf->SetFont('helvetica', '', 8);
+    $pdf->Cell(0, 5, 'Certifica-se que a embarcação ' . h($c['nome_embarcacao']) . ' foi objeto das vistorias a seguir estabelecidas:', 0, 1, 'L');
 
-$pdf->Ln(2);
+    $pdf->Ln(2);
 
-// --- Tabela de Convalidações (ORDEM CORRETA: 1ª, 2ª, 3ª, 4ª) ---
-$col_w = [35, 30, 30, 55, 40];
+    // --- Tabela de Convalidações (ORDEM CORRETA: 1ª, 2ª, 3ª, 4ª) ---
+    $col_w = [35, 30, 30, 55, 40];
 
-// Cabeçalho
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w[0], 5, 'CONVALIDAÇÕES', 1, 0, 'C', true);
-$pdf->Cell($col_w[1], 5, 'A REALIZAR ENTRE', 1, 0, 'C', true);
-$pdf->Cell($col_w[2], 5, 'E', 1, 0, 'C', true);
-$pdf->Cell($col_w[3], 5, 'LUGAR E DATA DA REALIZAÇÃO', 1, 0, 'C', true);
-$pdf->Cell($col_w[4], 5, 'VISTORIADOR', 1, 1, 'C', true);
-
-// Usar sempre a ordem correta: 1ª, 2ª, 3ª, 4ª
-$vistorias_nomes = ['1ª VIST. ANUAL', '2ª VIST. ANUAL', '3ª VIST. ANUAL', '4ª VIST. ANUAL'];
-
-// Mapear convalidações do banco por nome para preservar dados existentes
-$conv_map = [];
-foreach ($convalidacoes as $conv) {
-    $conv_map[$conv['numero_vistoria']] = $conv;
-}
-
-for ($i = 0; $i < 4; $i++) {
-    $nome_vistoria = $vistorias_nomes[$i];
-    $conv = $conv_map[$nome_vistoria] ?? $convalidacoes[$i] ?? null;
-    
+    // Cabeçalho
     $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->Cell($col_w[0], 7, $nome_vistoria, 1, 0, 'L');
-    $pdf->SetFont('helvetica', '', 7);
-    $pdf->Cell($col_w[1], 7, formatarDataBR($conv['data_inicio'] ?? ''), 1, 0, 'C');
-    $pdf->Cell($col_w[2], 7, formatarDataBR($conv['data_fim'] ?? ''), 1, 0, 'C');
-    $pdf->Cell($col_w[3], 7, h($conv['local_data'] ?? ''), 1, 0, 'L');
-    $pdf->Cell($col_w[4], 7, h($conv['vistoriador'] ?? ''), 1, 1, 'L');
-}
+    $pdf->SetFillColor(220, 220, 220);
+    $pdf->Cell($col_w[0], 5, 'CONVALIDAÇÕES', 1, 0, 'C', true);
+    $pdf->Cell($col_w[1], 5, 'A REALIZAR ENTRE', 1, 0, 'C', true);
+    $pdf->Cell($col_w[2], 5, 'E', 1, 0, 'C', true);
+    $pdf->Cell($col_w[3], 5, 'LUGAR E DATA DA REALIZAÇÃO', 1, 0, 'C', true);
+    $pdf->Cell($col_w[4], 5, 'VISTORIADOR', 1, 1, 'C', true);
 
-$pdf->Ln(3);
+    $vistorias_nomes = certificadoNomesConvalidacoes($c['tipo_embarcacao'] ?? '');
+    $conv_map = certificadoConvalidacoesPorNumero($convalidacoes);
+    $usar_mapa_convalidacoes = !empty($conv_map);
+
+    foreach ($vistorias_nomes as $i => $nome_vistoria) {
+        $numero_vistoria = $i + 1;
+        $conv = $usar_mapa_convalidacoes
+            ? ($conv_map[$numero_vistoria] ?? null)
+            : ($convalidacoes[$i] ?? null);
+        
+        $pdf->SetFont('helvetica', 'B', 7);
+        $pdf->Cell($col_w[0], 7, $nome_vistoria, 1, 0, 'L');
+        $pdf->SetFont('helvetica', '', 7);
+        $pdf->Cell($col_w[1], 7, formatarDataBR($conv['data_inicio'] ?? ''), 1, 0, 'C');
+        $pdf->Cell($col_w[2], 7, formatarDataBR($conv['data_fim'] ?? ''), 1, 0, 'C');
+        $pdf->Cell($col_w[3], 7, h($conv['local_data'] ?? ''), 1, 0, 'L');
+        $pdf->Cell($col_w[4], 7, h($conv['vistoriador'] ?? ''), 1, 1, 'L');
+    }
+
+    $pdf->Ln(3);
+}
 
 // --- VALIDO ATÉ ---
 $pdf->SetFont('helvetica', 'B', 9);
@@ -478,5 +516,10 @@ if (!empty($distribuicao)) {
 // SAÍDA DO PDF
 // ============================================
 $nome_arquivo = 'CSN_' . str_replace('/', '-', $c['numero']) . '.pdf';
-$pdf->Output($nome_arquivo, 'I');
-exit;
+
+if (isset($salvar_pdf_caminho) && !empty($salvar_pdf_caminho)) {
+    $pdf->Output($salvar_pdf_caminho, 'F');
+} else {
+    $pdf->Output($nome_arquivo, 'I');
+    exit;
+}

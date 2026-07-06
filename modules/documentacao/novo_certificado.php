@@ -4,7 +4,10 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $agendamento_id = $_GET['agendamento_id'] ?? '';
 
@@ -14,8 +17,15 @@ if (empty($agendamento_id)) {
 }
 
 $stmt = $pdo->prepare("
-    SELECT a.*, e.nome as emb_nome, e.registro, e.tipo_embarcacao, 
-           e.arqueacao_bruta, e.indicativo_chamada, v.id as vistoria_id, v.status, v.numero as relatorio_numero
+    SELECT a.*,
+           e.nome AS emb_nome,
+           e.registro,
+           e.tipo_embarcacao,
+           e.arqueacao_bruta,
+           e.indicativo_chamada,
+           v.id AS vistoria_id,
+           v.status,
+           v.numero AS relatorio_numero
     FROM agendamentos a
     JOIN embarcacoes e ON a.embarcacao_id = e.id
     LEFT JOIN vistorias v ON v.agendamento_id = a.id
@@ -31,76 +41,76 @@ if (!$dados) {
 }
 
 $status = $dados['status'] ?? '';
-$pode_etapa2 = in_array($status, ['APROVADA', 'APROVADA_COM_EXIGENCIAS']);
+$pode_etapa2 = in_array($status, ['APROVADA', 'APROVADA_COM_EXIGENCIAS'], true);
 if (!$pode_etapa2) {
     setMensagem('error', 'Este relatório não está aprovado para emissão de certificado.');
     redirecionar(APP_URL . 'vistorias/relatorio?agendamento_id=' . urlencode($agendamento_id));
 }
 
+$tipos = [
+    'CSN'   => ['label' => 'Certificado de Segurança da Navegação', 'icone' => 'fa-ship', 'url' => APP_URL . 'documentacao/certificados/form?agendamento_id=' . urlencode($agendamento_id)],
+    'CNBL'  => ['label' => 'Certificado Nacional de Borda Livre', 'icone' => 'fa-water', 'url' => APP_URL . 'documentacao/cnbl/form?agendamento_id=' . urlencode($agendamento_id)],
+    'CNARQ' => ['label' => 'Certificado Nacional de Arqueação', 'icone' => 'fa-ruler-combined', 'url' => APP_URL . 'documentacao/cnarq/form?agendamento_id=' . urlencode($agendamento_id)],
+    'LP'    => ['label' => 'Licença Provisória', 'icone' => 'fa-file-alt', 'url' => APP_URL . 'documentacao/lp/form?agendamento_id=' . urlencode($agendamento_id)],
+    'LC'    => ['label' => 'Licença de Construção', 'icone' => 'fa-helmet-safety', 'url' => APP_URL . 'documentacao/lc/form?agendamento_id=' . urlencode($agendamento_id)],
+    'CHT'   => ['label' => 'Certificado de Homologação Técnica', 'icone' => 'fa-check-double', 'url' => APP_URL . 'documentacao/cht/form?agendamento_id=' . urlencode($agendamento_id)],
+];
+
 $titulo_page = 'Emitir Certificado - ' . APP_NAME;
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
-<div class="conteudo-principal">
-    <div class="etapas-fluxo" style="display:flex; align-items:center; padding: 20px 0;">
-        <div class="etapa">
-            <span class="etapa-numero" style="background:#2ECC71;color:#000">1</span>
-            <span class="etapa-label" style="font-size:12px;color:#ccc">Relatório</span>
+
+<div class="conteudo-principal flow-shell">
+    <div class="flow-hero">
+        <div>
+            <span class="flow-eyebrow"><i class="fas fa-route"></i> Etapa 5 do fluxo</span>
+            <h1><i class="fas fa-certificate"></i> Emitir Certificado</h1>
+            <p>O relatório já foi aprovado. Escolha o documento correto para gerar o certificado com os dados da vistoria.</p>
         </div>
-        <div class="etapa-linha" style="flex:1;height:3px;background:#2ECC71;margin:0 8px;margin-bottom:20px"></div>
-        <div class="etapa">
-            <span class="etapa-numero" style="background:#2ECC71;color:#000">2</span>
-            <span class="etapa-label" style="font-size:12px;color:#fff;font-weight:bold">Certificado</span>
-        </div>
-        <div class="etapa-linha" style="flex:1;height:3px;background:#444;margin:0 8px;margin-bottom:20px"></div>
-        <div class="etapa">
-            <span class="etapa-numero" style="background:#444;color:#888">3</span>
-            <span class="etapa-label" style="font-size:12px;color:#ccc">Exigências</span>
+        <div class="flow-actions">
+            <a href="<?= APP_URL ?>vistorias/relatorio?agendamento_id=<?= urlencode($agendamento_id) ?>" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Voltar ao relatório
+            </a>
         </div>
     </div>
-    
-    <div class="tabela-header">
-        <h2><i class="fas fa-certificate"></i> Emitir Certificado</h2>
-        <p class="text-muted">
-            Embarcação: <strong><?= h($dados['emb_nome']) ?></strong> 
-            · Registro: <?= h($dados['registro']) ?>
+
+    <div class="flow-track">
+        <div class="flow-track-step"><span>01</span>Proposta</div>
+        <div class="flow-track-step"><span>02</span>Agendamento</div>
+        <div class="flow-track-step"><span>03</span>Vistoria</div>
+        <div class="flow-track-step"><span>04</span>Aprovação</div>
+        <div class="flow-track-step is-active"><span>05</span>Certificados</div>
+    </div>
+
+    <div class="smart-callout smart-callout--success" style="margin-bottom: 18px;">
+        <strong><?= h($dados['emb_nome']) ?></strong>
+        <span class="text-muted">
+            · Registro: <?= h($dados['registro'] ?: 'S/N') ?>
             · Relatório: <?= h($dados['relatorio_numero'] ?? 'S/N') ?>
             · Status: <?= h($status) ?>
-        </p>
+        </span>
     </div>
-    
-    <div class="card mb-4">
-        <div class="card-header"><h4>Selecione o Tipo de Certificado</h4></div>
-        <div class="card-body">
-            <div class="row g-3">
-                <?php
-                $tipos = [
-                    'CSN'  => ['label' => 'Certificado de Segurança de Navegação', 'icone' => 'fa-ship',      'url' => APP_URL . 'documentacao/certificados/form?agendamento_id=' . urlencode($agendamento_id)],
-                    'CNBL' => ['label' => 'Certificado Nacional de Borda Livre', 'icone' => 'fa-water',      'url' => APP_URL . 'documentacao/cnbl/form?agendamento_id=' . urlencode($agendamento_id)],
-                    'CNARQ'=> ['label' => 'Certificado Nacional de Arqueação',   'icone' => 'fa-ruler',      'url' => APP_URL . 'documentacao/cnarq/form?agendamento_id=' . urlencode($agendamento_id)],
-                    'LP'   => ['label' => 'Licença Provisória',                 'icone' => 'fa-file-alt',   'url' => APP_URL . 'documentacao/lp/form?agendamento_id=' . urlencode($agendamento_id)],
-                    'LC'   => ['label' => 'Licença de Construção',             'icone' => 'fa-hard-hat',   'url' => APP_URL . 'documentacao/lc/form?agendamento_id=' . urlencode($agendamento_id)],
-                    'CHT'  => ['label' => 'Cert. de Homologação Técnica',      'icone' => 'fa-check-double','url' => APP_URL . 'documentacao/cht/form?agendamento_id=' . urlencode($agendamento_id)],
-                ];
-                foreach ($tipos as $tipo => $info):
-                ?>
-                <div class="col-md-4">
-                    <a href="<?= $info['url'] ?>" 
-                       class="card text-center p-3 text-decoration-none"
-                       style="border: 2px solid #444; display:block; border-radius:8px; background: var(--cor-card-bg, #1e1e2e);">
-                        <i class="fas <?= $info['icone'] ?> fa-2x mb-2" style="color:#2ECC71"></i>
-                        <strong><?= $tipo ?></strong>
-                        <small class="d-block text-muted"><?= $info['label'] ?></small>
+
+    <div class="form-container">
+        <div class="form-header">
+            <h3><i class="fas fa-file-signature"></i> Selecione o tipo de certificado</h3>
+            <span class="help-text">A próxima tela virá pré-preenchida pelo agendamento e relatório.</span>
+        </div>
+
+        <div class="smart-form-body">
+            <div class="certificate-choice-grid">
+                <?php foreach ($tipos as $tipo => $info): ?>
+                    <a href="<?= APP_URL ?>certificados/wizard?modelo=<?= urlencode($tipo) ?>&agendamento_id=<?= urlencode($agendamento_id) ?>" class="certificate-choice-card">
+                        <span class="certificate-choice-icon"><i class="fas <?= h($info['icone']) ?>"></i></span>
+                        <strong><?= h($tipo) ?></strong>
+                        <small><?= h($info['label']) ?></small>
+                        <span class="certificate-choice-action">Gerar <i class="fas fa-arrow-right"></i></span>
                     </a>
-                </div>
                 <?php endforeach; ?>
             </div>
         </div>
     </div>
-
-    <a href="<?= APP_URL ?>vistorias/relatorio?agendamento_id=<?= urlencode($agendamento_id) ?>" class="btn btn-secondary">
-        <i class="fas fa-arrow-left"></i> Voltar ao Relatório
-    </a>
 </div>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

@@ -19,12 +19,10 @@
     <?php endif; ?>
 
     <!-- Botão Mobile para Sidebar -->
+    <?php if (estaLogado()): ?>
     <button class="sidebar-mobile-toggle" onclick="toggleSidebarMobile()" title="Menu">
         <i class="fa-solid fa-bars"></i>
     </button>
-
-    <!-- Toast Container -->
-    <div id="toast-container" style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none"></div>
 
     <!-- Drawer Overlay -->
     <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
@@ -42,9 +40,6 @@
         </div>
     </div>
 
-    <!-- JavaScript -->
-    <script src="<?php echo APP_URL; ?>assets/js/app.js"></script>
-    
     <!-- Toggle Sidebar -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -122,6 +117,13 @@
         }
     });
     </script>
+    <?php endif; ?>
+
+    <!-- Toast Container -->
+    <div id="toast-container" style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none"></div>
+
+    <!-- JavaScript -->
+    <script src="<?php echo APP_URL; ?>assets/js/app.js"></script>
     
     <!-- Toast Notification Function -->
     <script>
@@ -150,69 +152,5 @@
     }
     </script>
     
-    <!-- Chart.js - Gráfico Receitas vs Despesas -->
-    <?php if (isset($labels_6meses) && !empty($labels_6meses)): ?>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const ctx = document.getElementById('chartReceitasDespesas');
-        if (!ctx) return; // segurança
-        
-        const labels = <?= json_encode($labels_6meses) ?>;
-        const receitas = <?= json_encode($receitas_6meses) ?>;
-        const despesas = <?= json_encode($despesas_6meses) ?>;
-
-        new Chart(ctx.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Receitas',
-                        data: receitas,
-                        borderColor: '#39d353',
-                        backgroundColor: 'rgba(57,211,83,0.10)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#39d353'
-                    },
-                    {
-                        label: 'Despesas',
-                        data: despesas,
-                        borderColor: '#f85149',
-                        backgroundColor: 'rgba(248,81,73,0.07)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#f85149'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 600 },
-                plugins: { 
-                    legend: { display: false } 
-                },
-                scales: {
-                    x: { 
-                        grid: { color: 'rgba(255,255,255,0.04)' },
-                        ticks: { color: '#6e7681', font: { size: 11 } } 
-                    },
-                    y: { 
-                        grid: { color: 'rgba(255,255,255,0.04)' },
-                        ticks: { 
-                            color: '#6e7681', 
-                            font: { size: 11 },
-                            callback: function(v) { return 'R$ ' + v.toLocaleString('pt-BR'); }
-                        } 
-                    }
-                }
-            }
-        });
-    });
-    </script>
-    <?php endif; ?>
 </body>
 </html>

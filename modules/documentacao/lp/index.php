@@ -12,7 +12,10 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 // Filtros
 $busca = $_GET['busca'] ?? '';

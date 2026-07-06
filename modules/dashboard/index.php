@@ -4,7 +4,6 @@
  * Arquivo: index.php - Painel inicial com cards de resumo
  */
 
-// Headers anti-cache para garantir dados atualizados
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
 header('Pragma: no-cache');
@@ -13,20 +12,11 @@ require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
-// Verificar autenticacao
 requireLogin();
-
-$usuario = [
-    'id'    => $_SESSION['usuario_id'],
-    'nome'  => $_SESSION['usuario_nome'],
-    'email' => $_SESSION['usuario_email'],
-    'cargo' => $_SESSION['usuario_cargo']
-];
 
 $cargo = getCargo();
 $is_admin = ($cargo === 'ADMIN');
 
-// Garantir que a tabela configuracoes existe (cria se nao existir)
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
         chave VARCHAR(100) NOT NULL PRIMARY KEY,
@@ -35,9 +25,9 @@ try {
         atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
     $pdo->exec("INSERT IGNORE INTO configuracoes (chave, valor, descricao) VALUES ('meta_mensal', '50000.00', 'Meta mensal de faturamento comercial em R$')");
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 
-// Buscar valor da meta da tabela configuracoes (para todos os usuarios, antes de qualquer if)
 $meta_mensal_valor = 50000.00;
 try {
     $stmtMeta = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'meta_mensal'");
@@ -50,18 +40,38 @@ try {
     $meta_mensal_valor = 50000.00;
 }
 
-// Buscar estatisticas
+$total_embarcacoes = 0;
+$total_proprietarios = 0;
+$total_vistorias_mes = 0;
+$vistorias_pendentes = 0;
+$total_receitas = 0.00;
+$total_despesas = 0.00;
+$propostas_mes = 0;
+$valor_propostas_mes = 0.00;
+$perc_meta = 0;
+$vistorias_recentes = [];
+$vistorias_pendentes_lista = [];
+$agendamentos_pendentes_lista = [];
+$relatorios_aprovacao_lista = [];
+$total_relatorios_aprovacao = 0;
+$labels_6meses = [];
+$receitas_6meses = [];
+$despesas_6meses = [];
+
 try {
-    // Total de embarcacoes
     $stmt = $pdo->query("SELECT COUNT(*) as total FROM embarcacoes WHERE ativo = 1");
-    $total_embarcacoes = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    // Total de pessoas
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM pessoas WHERE ativo = 1");
-    $total_pessoas = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    // Total de vistorias (este mes)
-    $sql_vistorias_mes = "SELECT COUNT(*) as total FROM vistorias v LEFT JOIN agendamentos a ON v.agendamento_id = a.id WHERE MONTH(v.data_vistoria) = MONTH(CURRENT_DATE()) AND YEAR(v.data_vistoria) = YEAR(CURRENT_DATE())";
+    $total_embarcacoes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM clientes WHERE perfil = 'proprietario' AND status = 'ATIVO'");
+    $total_proprietarios = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    $sql_vistorias_mes = "
+        SELECT COUNT(*) as total
+        FROM vistorias v
+        LEFT JOIN agendamentos a ON v.agendamento_id = a.id
+        WHERE MONTH(v.data_vistoria) = MONTH(CURRENT_DATE())
+          AND YEAR(v.data_vistoria) = YEAR(CURRENT_DATE())
+    ";
     if ($cargo === 'VISTORIADOR') {
         $sql_vistorias_mes .= " AND a.vistoriador_id = :vistoriador_id";
         $stmt = $pdo->prepare($sql_vistorias_mes);
@@ -69,10 +79,14 @@ try {
     } else {
         $stmt = $pdo->query($sql_vistorias_mes);
     }
-    $total_vistorias_mes = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    // Vistorias pendentes
-    $sql_pendentes = "SELECT COUNT(*) as total FROM vistorias v LEFT JOIN agendamentos a ON v.agendamento_id = a.id WHERE v.status = 'PENDENTE'";
+    $total_vistorias_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+    $sql_pendentes = "
+        SELECT COUNT(*) as total
+        FROM vistorias v
+        LEFT JOIN agendamentos a ON v.agendamento_id = a.id
+        WHERE v.status = 'PENDENTE'
+    ";
     if ($cargo === 'VISTORIADOR') {
         $sql_pendentes .= " AND a.vistoriador_id = :vistoriador_id";
         $stmt = $pdo->prepare($sql_pendentes);
@@ -80,138 +94,215 @@ try {
     } else {
         $stmt = $pdo->query($sql_pendentes);
     }
-    $vistorias_pendentes = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    // Variaveis padrao
-    $total_receitas = 0.00;
-    $total_despesas = 0.00;
-    $propostas_mes = 0;
-    $valor_propostas_mes = 0.00;
-    $perc_meta = 0;
-    
-    // Vistorias recentes (últimas 5)
-    $vistorias_recentes = [];
+    $vistorias_pendentes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
     try {
         $sql_recentes = "
-            SELECT v.data_vistoria as data, e.nome as embarcacao, 
-                   p.nome_completo as pessoa, v.status, u.nome as vistoriador
+            SELECT v.data_vistoria AS data,
+                   e.nome AS embarcacao,
+                   cl.nome AS proprietario,
+                   v.status,
+                   u.nome AS vistoriador
             FROM vistorias v
             INNER JOIN embarcacoes e ON v.embarcacao_id = e.id
-            LEFT JOIN pessoas p ON v.pessoa_id = p.id
+            LEFT JOIN clientes cl ON v.pessoa_id = cl.id
             LEFT JOIN usuarios u ON v.criado_por = u.id
         ";
         if ($cargo === 'VISTORIADOR') {
-            $sql_recentes .= " WHERE EXISTS (SELECT 1 FROM agendamentos a WHERE a.id = v.agendamento_id AND a.vistoriador_id = :vistoriador_id)";
+            $sql_recentes .= " WHERE EXISTS (
+                SELECT 1
+                FROM agendamentos a
+                WHERE a.id = v.agendamento_id
+                  AND a.vistoriador_id = :vistoriador_id
+            )";
         }
         $sql_recentes .= " ORDER BY v.criado_em DESC LIMIT 5";
-        
+
         $stmt = $pdo->prepare($sql_recentes);
-        if ($cargo === 'VISTORIADOR') {
-            $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
-        } else {
-            $stmt->execute();
-        }
+        $stmt->execute($cargo === 'VISTORIADOR' ? [':vistoriador_id' => $_SESSION['usuario_id']] : []);
         $vistorias_recentes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         $vistorias_recentes = [];
     }
-    
-    // Lista de vistorias pendentes (top 5 mais antigas)
-    $vistorias_pendentes_lista = [];
+
     try {
         $sql_pendentes_lista = "
-            SELECT v.id, e.nome as embarcacao, p.nome_completo as pessoa,
-                   DATEDIFF(NOW(), v.criado_em) as dias
+            SELECT v.id,
+                   v.data_vistoria,
+                   e.nome AS embarcacao,
+                   cl.nome AS proprietario,
+                   v.status
             FROM vistorias v
             INNER JOIN embarcacoes e ON v.embarcacao_id = e.id
-            LEFT JOIN pessoas p ON v.pessoa_id = p.id
+            LEFT JOIN clientes cl ON v.pessoa_id = cl.id
             WHERE v.status = 'PENDENTE'
         ";
         if ($cargo === 'VISTORIADOR') {
-            $sql_pendentes_lista .= " AND EXISTS (SELECT 1 FROM agendamentos a WHERE a.id = v.agendamento_id AND a.vistoriador_id = :vistoriador_id)";
+            $sql_pendentes_lista = str_replace(
+                "WHERE v.status = 'PENDENTE'",
+                "WHERE v.status IN ('PENDENTE', 'AGUARDANDO_APROVACAO')",
+                $sql_pendentes_lista
+            );
+            $sql_pendentes_lista .= " AND EXISTS (
+                SELECT 1
+                FROM agendamentos a
+                WHERE a.id = v.agendamento_id
+                  AND a.vistoriador_id = :vistoriador_id
+            )";
         }
-        $sql_pendentes_lista .= " ORDER BY v.criado_em ASC LIMIT 5";
-        
+        $sql_pendentes_lista .= " ORDER BY v.data_vistoria ASC LIMIT 5";
+
         $stmt = $pdo->prepare($sql_pendentes_lista);
-        if ($cargo === 'VISTORIADOR') {
-            $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
-        } else {
-            $stmt->execute();
-        }
+        $stmt->execute($cargo === 'VISTORIADOR' ? [':vistoriador_id' => $_SESSION['usuario_id']] : []);
         $vistorias_pendentes_lista = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Adicionar campo urgencia
-        foreach ($vistorias_pendentes_lista as &$v) {
-            $dias = (int)$v['dias'];
-            if ($dias <= 2) {
-                $v['urgencia'] = 'ok';
-            } elseif ($dias <= 5) {
-                $v['urgencia'] = 'warn';
-            } else {
-                $v['urgencia'] = 'critical';
-            }
-        }
     } catch (Exception $e) {
         $vistorias_pendentes_lista = [];
     }
-    
-    // Propostas do mes (para todos — usado no card de meta)
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
-    $propostas_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    $stmt = $pdo->query("SELECT COALESCE(SUM(valor_total), 0) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
-    $valor_propostas_mes = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
-    // Percentual da meta
-    $perc_meta = ($meta_mensal_valor > 0) ? round(($valor_propostas_mes / $meta_mensal_valor) * 100, 1) : 0;
-    
-// Dados financeiros (apenas ADMIN)
+
     if ($is_admin) {
-        $stmt = $pdo->query("SELECT COALESCE(SUM(valor), 0) as total FROM financeiro_lancamentos WHERE tipo = 'RECEITA' AND MONTH(data) = MONTH(CURRENT_DATE()) AND YEAR(data) = YEAR(CURRENT_DATE())");
-        $total_receitas = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-        
-        $stmt = $pdo->query("SELECT COALESCE(SUM(valor), 0) as total FROM financeiro_lancamentos WHERE tipo = 'DESPESA' AND MONTH(data) = MONTH(CURRENT_DATE()) AND YEAR(data) = YEAR(CURRENT_DATE())");
-        $total_despesas = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        try {
+            $sql_aprovacao_lista = "
+                SELECT v.id,
+                       v.numero,
+                       v.agendamento_id,
+                       v.data_vistoria,
+                       COALESCE(v.atualizado_em, v.criado_em) AS data_envio,
+                       e.nome AS embarcacao,
+                       cl.nome AS proprietario,
+                       u.nome AS vistoriador
+                FROM vistorias v
+                INNER JOIN embarcacoes e ON v.embarcacao_id = e.id
+                LEFT JOIN clientes cl ON v.pessoa_id = cl.id
+                LEFT JOIN agendamentos a ON v.agendamento_id = a.id
+                LEFT JOIN usuarios u ON a.vistoriador_id = u.id
+                WHERE v.status = 'AGUARDANDO_APROVACAO'
+                ORDER BY COALESCE(v.atualizado_em, v.criado_em) ASC
+                LIMIT 5
+            ";
+            $stmt = $pdo->prepare($sql_aprovacao_lista);
+            $stmt->execute();
+            $relatorios_aprovacao_lista = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtCountAprovacao = $pdo->query("SELECT COUNT(*) FROM vistorias WHERE status = 'AGUARDANDO_APROVACAO'");
+            $total_relatorios_aprovacao = (int)$stmtCountAprovacao->fetchColumn();
+        } catch (Exception $e) {
+            $relatorios_aprovacao_lista = [];
+            $total_relatorios_aprovacao = 0;
+        }
     }
-    
-    // Dados para gráfico dos últimos 6 meses (apenas ADMIN)
-    $labels_6meses = [];
-    $receitas_6meses = [];
-    $despesas_6meses = [];
-    
+
+    try {
+        if ($cargo === 'VISTORIADOR') {
+            $sql_ag_pendentes = "
+                SELECT a.id,
+                       a.created_at,
+                       a.data_vistoria,
+                       a.hora_vistoria,
+                       a.vistoriador_id,
+                       e.nome AS embarcacao,
+                       cl.nome AS proprietario,
+                       a.status
+                FROM agendamentos a
+                INNER JOIN embarcacoes e ON a.embarcacao_id = e.id
+                LEFT JOIN clientes cl ON a.cliente_id = cl.id
+                WHERE a.vistoriador_id = :vistoriador_id
+                  AND a.status IN ('pendente', 'confirmado', 'em_andamento')
+                ORDER BY
+                    CASE
+                        WHEN a.data_vistoria IS NULL THEN 2
+                        WHEN a.data_vistoria < CURDATE() THEN 1
+                        ELSE 0
+                    END,
+                    a.data_vistoria ASC,
+                    a.hora_vistoria ASC,
+                    a.created_at DESC
+                LIMIT 10
+            ";
+            $stmt = $pdo->prepare($sql_ag_pendentes);
+            $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
+        } else {
+            $sql_ag_pendentes = "
+                SELECT a.id,
+                       a.created_at,
+                       a.data_vistoria,
+                       a.hora_vistoria,
+                       a.vistoriador_id,
+                       e.nome AS embarcacao,
+                       cl.nome AS proprietario,
+                       a.status
+                FROM agendamentos a
+                INNER JOIN embarcacoes e ON a.embarcacao_id = e.id
+                LEFT JOIN clientes cl ON a.cliente_id = cl.id
+                WHERE a.status = 'pendente'
+                  AND (a.vistoriador_id IS NULL OR a.data_vistoria IS NULL)
+                ORDER BY a.created_at DESC
+                LIMIT 10
+            ";
+            $stmt = $pdo->prepare($sql_ag_pendentes);
+            $stmt->execute();
+        }
+        $agendamentos_pendentes_lista = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $agendamentos_pendentes_lista = [];
+    }
+
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+        $propostas_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+        $stmt = $pdo->query("SELECT COALESCE(SUM(valor_total), 0) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+        $valor_propostas_mes = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    } catch (Exception $e) {
+        $propostas_mes = 0;
+        $valor_propostas_mes = 0.00;
+    }
+
+    $perc_meta = ($meta_mensal_valor > 0) ? round(($valor_propostas_mes / $meta_mensal_valor) * 100, 1) : 0;
+
     if ($is_admin) {
+        try {
+            $stmt = $pdo->query("SELECT COALESCE(SUM(valor), 0) as total FROM financeiro_lancamentos WHERE tipo = 'RECEITA' AND MONTH(data) = MONTH(CURRENT_DATE()) AND YEAR(data) = YEAR(CURRENT_DATE())");
+            $total_receitas = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+            $stmt = $pdo->query("SELECT COALESCE(SUM(valor), 0) as total FROM financeiro_lancamentos WHERE tipo = 'DESPESA' AND MONTH(data) = MONTH(CURRENT_DATE()) AND YEAR(data) = YEAR(CURRENT_DATE())");
+            $total_despesas = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        } catch (Exception $e) {
+            $total_receitas = 0.00;
+            $total_despesas = 0.00;
+        }
+
         try {
             for ($i = 5; $i >= 0; $i--) {
                 $mes = date('m', strtotime("-$i months"));
                 $ano = date('Y', strtotime("-$i months"));
                 $labels_6meses[] = date('M/Y', strtotime("-$i months"));
-                
+
                 $stmt = $pdo->prepare("SELECT COALESCE(SUM(valor), 0) as total FROM financeiro_lancamentos WHERE tipo = 'RECEITA' AND MONTH(data) = :mes AND YEAR(data) = :ano");
                 $stmt->execute([':mes' => $mes, ':ano' => $ano]);
                 $receitas_6meses[] = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
-                
+
                 $stmt = $pdo->prepare("SELECT COALESCE(SUM(valor), 0) as total FROM financeiro_lancamentos WHERE tipo = 'DESPESA' AND MONTH(data) = :mes AND YEAR(data) = :ano");
                 $stmt->execute([':mes' => $mes, ':ano' => $ano]);
                 $despesas_6meses[] = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
             }
         } catch (Exception $e) {
-            $labels_6meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-            $receitas_6meses = [0, 0, 0, 0, 0, 0];
-            $despesas_6meses = [0, 0, 0, 0, 0, 0];
+            $labels_6meses = [];
+            $receitas_6meses = [];
+            $despesas_6meses = [];
         }
     }
-    
 } catch (Exception $e) {
-    $total_embarcacoes = 0;
-    $total_pessoas = 0;
-    $total_vistorias_mes = 0;
-    $vistorias_pendentes = 0;
-    $total_receitas = 0.00;
-    $total_despesas = 0.00;
-    $propostas_mes = 0;
-    $valor_propostas_mes = 0.00;
-    $perc_meta = 0;
 }
+
+$dias_portugues = [
+    'Sunday' => 'Domingo',
+    'Monday' => 'Segunda-feira',
+    'Tuesday' => 'Terça-feira',
+    'Wednesday' => 'Quarta-feira',
+    'Thursday' => 'Quinta-feira',
+    'Friday' => 'Sexta-feira',
+    'Saturday' => 'Sábado',
+];
 
 $titulo_page = 'Dashboard - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
@@ -219,42 +310,85 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
 
 <div class="main-content" id="mainContent">
-    <!-- Cabecalho da pagina -->
     <div class="page-header">
         <div>
             <h1 class="page-title">Dashboard</h1>
             <p class="page-subtitle">
-                Bem-vindo, <?= h($_SESSION['usuario_nome'] ?? 'Usuário') ?> · <?php
-                $dias_portugues = ['Sunday' => 'Domingo', 'Monday' => 'Segunda-feira', 'Tuesday' => 'Terça-feira', 'Wednesday' => 'Quarta-feira', 'Thursday' => 'Quinta-feira', 'Friday' => 'Sexta-feira', 'Saturday' => 'Sábado'];
-                echo $dias_portugues[date('l')] . date(', d/m/Y');
-                ?>
+                Bem-vindo, <?= h($_SESSION['usuario_nome'] ?? 'Usuário') ?> ·
+                <?= $dias_portugues[date('l')] ?? date('l') ?>, <?= date('d/m/Y') ?>
             </p>
         </div>
         <div class="page-actions">
-            <a href="<?php echo APP_URL; ?>agendamentos/form" class="btn-secondary">
+            <a href="<?= APP_URL ?>agendamentos/form" class="btn-secondary">
                 <i class="fa-solid fa-plus"></i> Novo Agendamento
             </a>
-            <a href="<?php echo APP_URL; ?>vistorias/nova" class="btn-primary">
+            <a href="<?= APP_URL ?>vistorias/nova" class="btn-primary">
                 Nova Vistoria <i class="fa-solid fa-arrow-right"></i>
             </a>
         </div>
     </div>
 
-    <!-- KPI Cards Principais -->
+    <?php if ($is_admin && $total_relatorios_aprovacao > 0): ?>
+        <section class="approval-priority-card" style="margin-bottom: 24px; padding: 18px 20px; border: 1px solid rgba(248, 81, 73, 0.55); border-left: 5px solid #f85149; border-radius: 14px; background: linear-gradient(135deg, rgba(248, 81, 73, 0.18), rgba(243, 156, 18, 0.10)); box-shadow: 0 18px 45px rgba(248, 81, 73, 0.14);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap;">
+                <div style="display: flex; gap: 14px; align-items: flex-start; min-width: 260px; flex: 1;">
+                    <div style="width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(248, 81, 73, 0.18); color: #ff8b81; flex-shrink: 0;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #ff8b81; margin-bottom: 4px;">Prioridade máxima</div>
+                        <h2 style="margin: 0; color: var(--cor-texto); font-size: 1.25rem; line-height: 1.25;">
+                            <?= $total_relatorios_aprovacao ?> relatório<?= $total_relatorios_aprovacao === 1 ? '' : 's' ?> aguardando aprovação do admin
+                        </h2>
+                        <p style="margin: 6px 0 0; color: var(--cor-texto-secundario);">
+                            Revise estes relatórios antes de seguir para certificados e assinatura.
+                        </p>
+                    </div>
+                </div>
+                <a href="<?= APP_URL ?>documentacao/aprovacao_relatorios" class="btn-primary" style="white-space: nowrap; text-decoration: none;">
+                    Aprovar relatórios <i class="fa-solid fa-arrow-right"></i>
+                </a>
+            </div>
+
+            <div style="display: grid; gap: 10px; margin-top: 16px;">
+                <?php foreach ($relatorios_aprovacao_lista as $rel): ?>
+                    <a href="<?= APP_URL ?>documentacao/aprovacao_relatorios" style="display: grid; grid-template-columns: minmax(160px, 1.4fr) minmax(120px, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(0,0,0,0.16); color: inherit; text-decoration: none;">
+                        <div>
+                            <strong style="display: block; color: var(--cor-texto);"><?= h($rel['embarcacao'] ?? 'Embarcação não informada') ?></strong>
+                            <small style="color: var(--cor-texto-secundario);"><?= h($rel['proprietario'] ?? 'Proprietário não informado') ?></small>
+                        </div>
+                        <div>
+                            <small style="display: block; color: var(--cor-texto-secundario);">Vistoriador</small>
+                            <span style="color: var(--cor-texto);"><?= h($rel['vistoriador'] ?? 'Não informado') ?></span>
+                        </div>
+                        <div style="text-align: right;">
+                            <small style="display: block; color: #f39c12;">Enviado</small>
+                            <span style="color: var(--cor-texto);"><?= !empty($rel['data_envio']) ? formatarDataCompleta($rel['data_envio']) : '-' ?></span>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+
     <div class="kpi-grid">
-        <!-- Card 1: Receitas -->
-        <div class="kpi-card">
-            <div class="kpi-label">RECEITAS DO MÊS</div>
+        <div class="kpi-card kpi-card--revenue">
+            <div class="kpi-topline">
+                <div class="kpi-label">RECEITAS DO MÊS</div>
+                <div class="kpi-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+            </div>
             <div class="kpi-value">R$ <?= number_format($total_receitas, 2, ',', '.') ?></div>
             <div class="kpi-delta kpi-delta--up">
                 <i class="fa-solid fa-arrow-trend-up"></i>
-                +12,4% vs mês anterior
+                Receita registrada no mês
             </div>
         </div>
 
-        <!-- Card 2: Vistorias -->
-        <div class="kpi-card">
-            <div class="kpi-label">VISTORIAS DO MÊS</div>
+        <div class="kpi-card kpi-card--inspections">
+            <div class="kpi-topline">
+                <div class="kpi-label">VISTORIAS DO MÊS</div>
+                <div class="kpi-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+            </div>
             <div class="kpi-value"><?= number_format($total_vistorias_mes, 0, ',', '.') ?></div>
             <div class="kpi-delta kpi-delta--warn">
                 <i class="fa-solid fa-clock"></i>
@@ -262,9 +396,11 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
 
-        <!-- Card 3: Propostas -->
-        <div class="kpi-card">
-            <div class="kpi-label">PROPOSTAS EM ABERTO</div>
+        <div class="kpi-card kpi-card--proposals">
+            <div class="kpi-topline">
+                <div class="kpi-label">PROPOSTAS DO MÊS</div>
+                <div class="kpi-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+            </div>
             <div class="kpi-value">R$ <?= number_format($valor_propostas_mes, 2, ',', '.') ?></div>
             <div class="kpi-delta kpi-delta--up">
                 <i class="fa-solid fa-arrow-trend-up"></i>
@@ -272,263 +408,240 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
 
-        <!-- Card 4: Meta -->
-        <div class="kpi-card">
-            <div class="kpi-label">META ATINGIDA</div>
+        <div class="kpi-card kpi-card--goal">
+            <div class="kpi-topline">
+                <div class="kpi-label">META ATINGIDA</div>
+                <div class="kpi-icon"><i class="fa-solid fa-bullseye"></i></div>
+            </div>
             <div class="kpi-value"><?= $perc_meta ?>%</div>
             <div class="kpi-meta-bar">
                 <div class="kpi-meta-fill" style="width: <?= min($perc_meta, 100) ?>%"></div>
             </div>
-            <div class="kpi-delta kpi-delta--up">
-                <i class="fa-solid fa-arrow-trend-up"></i>
-                Meta R$ <?= number_format($meta_mensal_valor, 0, ',', '.') ?>
-            </div>
+            <?php if (!in_array($cargo, ['VISTORIADOR', 'VENDEDOR'], true)): ?>
+                <div class="kpi-delta kpi-delta--up">
+                    <i class="fa-solid fa-arrow-trend-up"></i>
+                    Meta R$ <?= number_format($meta_mensal_valor, 0, ',', '.') ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
-    <!-- Linha de stats secundários -->
     <div class="stats-secondary">
         <span>Embarcações <strong><?= number_format($total_embarcacoes, 0, ',', '.') ?></strong></span>
         <span class="dot">·</span>
-        <span>Pessoas <strong><?= number_format($total_pessoas, 0, ',', '.') ?></strong></span>
+        <span>Proprietários <strong><?= number_format($total_proprietarios, 0, ',', '.') ?></strong></span>
         <span class="dot">·</span>
         <span>Despesas <strong>R$ <?= number_format($total_despesas, 2, ',', '.') ?></strong></span>
         <span class="dot">·</span>
         <span>Valor propostas <strong>R$ <?= number_format($valor_propostas_mes, 2, ',', '.') ?></strong></span>
     </div>
 
-    <?php if ($is_admin && !empty($labels_6meses)): ?>
-    <!-- Dashboard Grid: Gráfico + Pendentes -->
-    <div class="dashboard-grid">
-        <!-- Gráfico Receitas vs Despesas -->
-        <div class="chart-card">
-            <div class="card-header">
-                <div>
-                    <div class="card-title">Receitas vs Despesas</div>
-                    <div class="card-subtitle">Últimos 6 meses</div>
+    <div class="dashboard-grid <?= $is_admin && !empty($labels_6meses) ? 'dashboard-grid--admin' : 'dashboard-grid--compact' ?>">
+        <?php if ($is_admin && !empty($labels_6meses)): ?>
+            <div class="chart-card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Receitas vs Despesas</div>
+                        <div class="card-subtitle">Últimos 6 meses</div>
+                    </div>
+                    <div class="chart-legend">
+                        <span class="legend-dot" style="background:#39d353"></span> Receitas
+                        <span class="legend-dot" style="background:#f85149"></span> Despesas
+                    </div>
                 </div>
-                <div class="chart-legend">
-                    <span class="legend-dot" style="background:#39d353"></span> Receitas
-                    <span class="legend-dot" style="background:#f85149"></span> Despesas
-                </div>
+                <canvas id="chartReceitasDespesas" style="display:block; width:100%; height:220px; max-height:220px;"></canvas>
             </div>
-            <canvas id="chartReceitasDespesas"
-                style="display:block; width:100%; height:220px; max-height:220px;">
-            </canvas>
-        </div>
+        <?php endif; ?>
 
-        <!-- Card de Pendentes (Top 5 mais antigas) -->
         <div class="pending-card">
             <div class="card-header">
                 <div>
-                    <div class="card-title">Vistorias pendentes</div>
-                    <div class="card-subtitle">Top 5 mais antigas</div>
+                    <div class="card-title"><?= $cargo === 'VISTORIADOR' ? 'Meus agendamentos' : 'Agendamentos pendentes' ?></div>
+                    <div class="card-subtitle"><?= $cargo === 'VISTORIADOR' ? 'Pendentes e confirmados' : 'Sem vistoriador ou data' ?></div>
                 </div>
-                <i class="fa-solid fa-circle-exclamation" style="color: var(--status-pending)"></i>
+                <i class="fa-solid fa-calendar-times" style="color: var(--status-pending)"></i>
             </div>
 
             <div class="pending-list">
+                <?php if (empty($agendamentos_pendentes_lista)): ?>
+                    <div class="pending-empty">Nenhum agendamento pendente.</div>
+                <?php endif; ?>
+
+                <?php foreach ($agendamentos_pendentes_lista as $ag): ?>
+                    <?php
+                    $linkAgendamento = $cargo === 'VISTORIADOR'
+                        ? APP_URL . 'vistorias/relatorio?agendamento_id=' . urlencode($ag['id'])
+                        : APP_URL . 'agendamentos/form?id=' . urlencode($ag['id']);
+                    $tituloAgendamento = $cargo === 'VISTORIADOR'
+                        ? 'Abrir relatório deste agendamento'
+                        : 'Clique para definir data e vistoriador';
+                    ?>
+                    <a href="<?= $linkAgendamento ?>" class="pending-item" title="<?= h($tituloAgendamento) ?>">
+                        <div class="pending-info">
+                            <span class="pending-embarcacao"><?= h($ag['embarcacao'] ?? 'Embarcação não informada') ?></span>
+                            <span class="pending-pessoa"><?= h($ag['proprietario'] ?? 'Não informado') ?></span>
+                            <?php
+                            if ($cargo === 'VISTORIADOR' && !empty($ag['data_vistoria'])) {
+                                $textoAgendamento = 'Agendado para ' . formatarData($ag['data_vistoria']);
+                                if (!empty($ag['hora_vistoria'])) {
+                                    $textoAgendamento .= ' às ' . substr($ag['hora_vistoria'], 0, 5);
+                                }
+                            } else {
+                                $faltasAgendamento = [];
+                                if (empty($ag['vistoriador_id'])) {
+                                    $faltasAgendamento[] = 'vistoriador';
+                                }
+                                if (empty($ag['data_vistoria'])) {
+                                    $faltasAgendamento[] = 'data';
+                                }
+                                $textoAgendamento = !empty($faltasAgendamento)
+                                    ? 'Definir ' . implode(' e ', $faltasAgendamento)
+                                    : 'Pendente';
+                            }
+                            ?>
+                            <span style="font-size: 11px; color: #f39c12; margin-top: 4px; display: block;">
+                                <i class="fas fa-calendar"></i> <?= h($textoAgendamento) ?>
+                            </span>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <div class="pending-card">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Vistorias em andamento</div>
+                    <div class="card-subtitle">Top 5 mais antigas</div>
+                </div>
+                <i class="fa-solid fa-clipboard-list" style="color: var(--status-pending)"></i>
+            </div>
+
+            <div class="pending-list">
+                <?php if (empty($vistorias_pendentes_lista)): ?>
+                    <div class="pending-empty">Nenhuma vistoria pendente.</div>
+                <?php endif; ?>
+
                 <?php foreach ($vistorias_pendentes_lista as $v): ?>
-                <a href="?page=vistorias&action=detalhe&id=<?= $v['id'] ?>" class="pending-item">
-                    <div class="pending-info">
-                        <span class="pending-embarcacao"><?= htmlspecialchars($v['embarcacao']) ?></span>
-                        <span class="pending-pessoa"><?= htmlspecialchars($v['pessoa']) ?></span>
-                    </div>
-                    <span class="pending-days pending-days--<?= $v['urgencia'] ?>">
-                        <?= $v['dias'] ?>d
-                    </span>
-                </a>
+                    <a href="<?= APP_URL ?>vistorias/detalhe?id=<?= urlencode($v['id']) ?>" class="pending-item" title="Ver vistoria">
+                        <div class="pending-info">
+                            <span class="pending-embarcacao"><?= h($v['embarcacao'] ?? 'Embarcação não informada') ?></span>
+                            <span class="pending-pessoa"><?= h($v['proprietario'] ?? 'Não informado') ?></span>
+                            <span style="font-size: 11px; color: #17a2b8; margin-top: 4px; display: block;">
+                                <i class="fas fa-clock"></i> <?= h($v['status'] ?? 'PENDENTE') ?>
+                            </span>
+                        </div>
+                    </a>
                 <?php endforeach; ?>
             </div>
         </div>
     </div>
-    <?php endif; ?>
 
-    <!-- RELATORIOS AGUARDANDO APROVACAO (apenas para ADMIN) -->
-<?php if ($cargo === 'ADMIN'):
-    try {
-        $stmtRel = $pdo->prepare("
-            SELECT v.*, e.nome AS embarcacao_nome, u.nome AS vistoriador_nome
-            FROM vistorias v
-            INNER JOIN embarcacoes e ON v.embarcacao_id = e.id
-            LEFT JOIN agendamentos a ON v.agendamento_id = a.id
-            LEFT JOIN usuarios u ON a.vistoriador_id = u.id
-            WHERE v.status = 'AGUARDANDO_APROVACAO'
-            ORDER BY v.atualizado_em ASC
-            LIMIT 5
-        ");
-        $stmtRel->execute();
-        $relatorios_pendentes = $stmtRel->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        $relatorios_pendentes = [];
-    }
-    if (!empty($relatorios_pendentes)):
-?>
-<div class="card mb-4" style="border-left: 4px solid #e74c3c; border-radius: 8px; background: linear-gradient(135deg, rgba(231,76,60,0.08) 0%, rgba(231,76,60,0.02) 100%);">
-    <div class="card-header" style="border-bottom: 1px solid rgba(231,76,60,0.3);">
-        <h4 style="margin: 0; color: #e74c3c;">
-            <i class="fas fa-exclamation-circle" style="color: #e74c3c;"></i> Relatórios Aguardando Aprovação
-            <span class="badge" style="background: #e74c3c; color: #fff; font-size: 14px; margin-left: 10px;">
-                <?php echo count($relatorios_pendentes); ?> pendente(s)
-            </span>
-        </h4>
-    </div>
-    <div class="card-body" style="padding: 16px;">
-        <div class="table-responsive">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="border-bottom: 2px solid rgba(231,76,60,0.3);">
-                        <th style="padding: 10px 8px; text-align: left; color: #e74c3c;">Data Vistoria</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #e74c3c;">Vistoriador</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #e74c3c;">Embarcação</th>
-                        <th style="padding: 10px 8px; text-align: center; color: #e74c3c;">Ação</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($relatorios_pendentes as $rel): ?>
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 12px 8px;"><?php echo formatarData($rel['data_vistoria']); ?></td>
-                            <td style="padding: 12px 8px;"><?php echo h($rel['vistoriador_nome'] ?? '-'); ?></td>
-                            <td style="padding: 12px 8px;"><?php echo h($rel['embarcacao_nome'] ?? '-'); ?></td>
-                            <td style="padding: 12px 8px; text-align: center;">
-                                <a href="<?php echo APP_URL; ?>documentacao/aprovacao_relatorios" class="btn btn-sm btn-danger">
-                                    <i class="fas fa-gavel"></i> Analisar
-                                </a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+    <section class="table-section">
+        <div class="table-header">
+            <div>
+                <div class="card-title">Vistorias recentes</div>
+                <div class="card-subtitle">Últimas atividades do mês</div>
+            </div>
+            <a href="<?= APP_URL ?>vistorias" class="btn-link">
+                Ver todas <i class="fa-solid fa-arrow-right"></i>
+            </a>
         </div>
-    </div>
-</div>
-<?php endif; endif; ?>
 
-    <!-- AGENDAMENTOS EM DESTAQUE (apenas para VISTORIADOR) -->
-<?php if ($cargo === 'VISTORIADOR'): 
-    try {
-        $stmtAg = $pdo->prepare("
-            SELECT a.*, c.nome AS cliente_nome, e.nome AS embarcacao_nome
-            FROM agendamentos a
-            INNER JOIN clientes c ON a.cliente_id = c.id
-            INNER JOIN embarcacoes e ON a.embarcacao_id = e.id
-            WHERE a.vistoriador_id = :vistoriador_id
-              AND a.status IN ('pendente', 'confirmado')
-              AND (a.data_vistoria >= CURDATE() OR (a.data_vistoria = CURDATE() AND a.hora_vistoria >= CURTIME()))
-            ORDER BY a.data_vistoria ASC, a.hora_vistoria ASC
-            LIMIT 5
-        ");
-        $stmtAg->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
-        $meus_agendamentos = $stmtAg->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        $meus_agendamentos = [];
-    }
-    if (!empty($meus_agendamentos)): 
-?>
-<div class="card mb-4" style="border-left: 4px solid #f39c12; border-radius: 8px; background: linear-gradient(135deg, rgba(243,156,18,0.08) 0%, rgba(243,156,18,0.02) 100%);">
-    <div class="card-header" style="border-bottom: 1px solid rgba(243,156,18,0.3);">
-        <h4 style="margin: 0; color: #f39c12;">
-            <i class="fas fa-star" style="color: #f39c12;"></i> Próximos Agendamentos
-            <span class="badge" style="background: #f39c12; color: #000; font-size: 14px; margin-left: 10px;">
-                <i class="fas fa-calendar"></i> <?php echo count($meus_agendamentos); ?> agendamento(s)
-            </span>
-        </h4>
-    </div>
-    <div class="card-body" style="padding: 16px;">
-        <div class="table-responsive">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="border-bottom: 2px solid rgba(243,156,18,0.3);">
-                        <th style="padding: 10px 8px; text-align: left; color: #f39c12;">Data</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #f39c12;">Hora</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #f39c12;">Cliente</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #f39c12;">Embarcação</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #f39c12;">Tipo</th>
-                        <th style="padding: 10px 8px; text-align: left; color: #f39c12;">Status</th>
-                        <th style="padding: 10px 8px; text-align: center; color: #f39c12;">Ação</th>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>EMBARCAÇÃO</th>
+                    <th>PROPRIETÁRIO</th>
+                    <th>STATUS</th>
+                    <th>VISTORIADOR</th>
+                    <th>DATA</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($vistorias_recentes)): ?>
+                    <tr>
+                        <td colspan="5" class="td-secondary">Nenhuma vistoria recente encontrada.</td>
                     </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($meus_agendamentos as $ag): 
-                        $status_class = match($ag['status']) {
-                            'pendente' => 'badge-warning',
-                            'confirmado' => 'badge-primary',
-                            default => 'badge-secondary'
-                        };
-                    ?>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                        <td style="padding: 10px 8px;"><?php echo date('d/m/Y', strtotime($ag['data_vistoria'])); ?></td>
-                        <td style="padding: 10px 8px;"><?php echo $ag['hora_vistoria'] ? date('H:i', strtotime($ag['hora_vistoria'])) : '-'; ?></td>
-                        <td style="padding: 10px 8px; font-weight: 600;"><?php echo h($ag['cliente_nome'] ?? '-'); ?></td>
-                        <td style="padding: 10px 8px;"><?php echo h($ag['embarcacao_nome'] ?? '-'); ?></td>
-                        <td style="padding: 10px 8px;"><?php echo h($ag['tipo_vistoria'] ?? '-'); ?></td>
-                        <td style="padding: 10px 8px;"><span class="badge <?php echo $status_class; ?>"><?php echo ucfirst($ag['status']); ?></span></td>
-                        <td style="padding: 10px 8px; text-align: center;">
-                            <a href="<?php echo APP_URL; ?>vistorias/relatorio?agendamento_id=<?php echo urlencode($ag['id']); ?>"
-                               class="btn btn-success btn-sm" title="Abrir Relatório Técnico"
-                               style="padding: 4px 12px; font-size: 12px;">
-                                <i class="fas fa-clipboard-list"></i> Iniciar
-                            </a>
+                <?php endif; ?>
+
+                <?php foreach ($vistorias_recentes as $v): ?>
+                    <tr>
+                        <td class="td-primary"><?= h($v['embarcacao'] ?? '-') ?></td>
+                        <td><?= !empty($v['proprietario']) ? h($v['proprietario']) : '<span class="em-dash">—</span>' ?></td>
+                        <td>
+                            <span class="badge badge--<?= h(strtolower($v['status'] ?? 'pendente')) ?>">
+                                <span class="badge-dot"></span>
+                                <?= h(ucfirst(strtolower($v['status'] ?? 'pendente'))) ?>
+                            </span>
+                        </td>
+                        <td>
+                            <div class="user-cell">
+                                <div class="user-avatar"><?= !empty($v['vistoriador']) ? h(strtoupper(substr($v['vistoriador'], 0, 1))) : '-' ?></div>
+                                <span><?= h($v['vistoriador'] ?? 'Não definido') ?></span>
+                            </div>
+                        </td>
+                        <td class="td-secondary">
+                            <?= !empty($v['data']) ? date('d/m/Y', strtotime($v['data'])) : '-' ?>
                         </td>
                     </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <div class="card-footer" style="padding: 10px 16px; border-top: 1px solid rgba(243,156,18,0.15); text-align: right;">
-        <a href="<?php echo APP_URL; ?>agendamentos" class="btn btn-sm" style="background: #f39c12; color: #000;">
-            <i class="fas fa-arrow-right"></i> Ver todos os agendamentos
-            </a>
-    </div>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </section>
 </div>
-<?php endif; ?>
-<?php endif; ?>
-<!-- Tabela de Vistorias Recentes -->
-<section class="table-section">
-    <div class="table-header">
-        <div>
-            <div class="card-title">Vistorias recentes</div>
-            <div class="card-subtitle">Últimas atividades do mês</div>
-        </div>
-        <a href="<?php echo APP_URL; ?>vistorias" class="btn-link">
-            Ver todas <i class="fa-solid fa-arrow-right"></i>
-        </a>
-    </div>
 
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>EMBARCAÇÃO</th>
-                <th>PESSOA</th>
-                <th>STATUS</th>
-                <th>VISTORIADOR</th>
-                <th>DATA</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($vistorias_recentes as $v): ?>
-            <tr>
-                <td class="td-primary"><?= htmlspecialchars($v['embarcacao']) ?></td>
-                <td><?= $v['pessoa'] ? htmlspecialchars($v['pessoa']) : '<span class="em-dash">—</span>' ?></td>
-                <td>
-                    <span class="badge badge--<?= strtolower($v['status']) ?>">
-                        <span class="badge-dot"></span>
-                        <?= ucfirst(strtolower($v['status'])) ?>
-                    </span>
-                </td>
-                <td>
-                    <div class="user-cell">
-                        <div class="user-avatar"><?= strtoupper(substr($v['vistoriador'],0,1)) ?></div>
-                        <span><?= htmlspecialchars($v['vistoriador']) ?></span>
-                    </div>
-                </td>
-                <td class="td-secondary"><?= date('d/m/Y', strtotime($v['data'])) ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-</section>
-</div>
+<?php if ($is_admin && !empty($labels_6meses)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const canvas = document.getElementById('chartReceitasDespesas');
+    if (!canvas || typeof Chart === 'undefined') {
+        return;
+    }
+
+    new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: <?= json_encode($labels_6meses, JSON_UNESCAPED_UNICODE) ?>,
+            datasets: [
+                {
+                    label: 'Receitas',
+                    data: <?= json_encode($receitas_6meses) ?>,
+                    borderColor: '#56e0ad',
+                    backgroundColor: 'rgba(86, 224, 173, 0.12)',
+                    tension: 0.35,
+                    fill: true
+                },
+                {
+                    label: 'Despesas',
+                    data: <?= json_encode($despesas_6meses) ?>,
+                    borderColor: '#f85149',
+                    backgroundColor: 'rgba(248, 81, 73, 0.08)',
+                    tension: 0.35,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                    ticks: { color: 'rgba(230,237,243,0.62)' }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                    ticks: { color: 'rgba(230,237,243,0.62)' }
+                }
+            }
+        }
+    });
+});
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

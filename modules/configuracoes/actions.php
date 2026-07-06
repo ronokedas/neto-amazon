@@ -14,22 +14,24 @@ verificar_cargo('ADMIN');
 
 $action = $_POST['action'] ?? '';
 
+$redirect_to = $_POST['redirect_to'] ?? 'configuracoes';
+
 if ($action !== 'salvar' || $_SERVER['REQUEST_METHOD'] !== 'POST') {
     setMensagem('error', 'Ação inválida.');
-    redirecionar(APP_URL . 'configuracoes');
+    redirecionar(APP_URL . $redirect_to);
 }
 
 // Verificar CSRF
 if (!isset($_POST['csrf_token']) || !verificarCSRF($_POST['csrf_token'])) {
     setMensagem('error', 'Token de segurança inválido.');
-    redirecionar(APP_URL . 'configuracoes');
+    redirecionar(APP_URL . $redirect_to);
 }
 
 $configs = $_POST['cfg'] ?? [];
 
 if (empty($configs)) {
     setMensagem('error', 'Nenhuma configuração enviada.');
-    redirecionar(APP_URL . 'configuracoes');
+    redirecionar(APP_URL . $redirect_to);
 }
 
 try {
@@ -52,7 +54,7 @@ try {
             $valor = floatval($valor);
             if ($valor <= 0) {
                 setMensagem('error', 'O valor da meta mensal deve ser um número positivo.');
-                redirecionar(APP_URL . 'configuracoes');
+                redirecionar(APP_URL . $redirect_to);
             }
             $valor = number_format($valor, 2, '.', '');
         }
@@ -66,4 +68,4 @@ try {
     setMensagem('error', 'Erro ao salvar configurações. Tente novamente.');
 }
 
-redirecionar(APP_URL . 'configuracoes');
+redirecionar(APP_URL . $redirect_to);

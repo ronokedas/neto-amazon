@@ -24,6 +24,49 @@ if (!function_exists('sanitize')) {
     }
 }
 
+function certificadoTipoEmbarcacaoEhBalsa($tipo_embarcacao) {
+    $tipo = trim((string)$tipo_embarcacao);
+    if ($tipo === '') {
+        return false;
+    }
+
+    if (function_exists('mb_strtolower')) {
+        $tipo = mb_strtolower($tipo, 'UTF-8');
+    } else {
+        $tipo = strtolower($tipo);
+    }
+
+    return $tipo === 'balsa';
+}
+
+function certificadoAnosValidadePorTipoEmbarcacao($tipo_embarcacao) {
+    return certificadoTipoEmbarcacaoEhBalsa($tipo_embarcacao) ? 10 : 5;
+}
+
+function certificadoNomesConvalidacoes($tipo_embarcacao) {
+    $qtd = certificadoAnosValidadePorTipoEmbarcacao($tipo_embarcacao) - 1;
+    $nomes = [];
+
+    for ($i = 1; $i <= $qtd; $i++) {
+        $nomes[] = "{$i}ª VIST. ANUAL";
+    }
+
+    return $nomes;
+}
+
+function certificadoConvalidacoesPorNumero(array $convalidacoes) {
+    $mapa = [];
+
+    foreach ($convalidacoes as $conv) {
+        if (preg_match('/\d+/', (string)($conv['numero_vistoria'] ?? ''), $m)) {
+            $mapa[(int)$m[0]] = $conv;
+        }
+    }
+
+    ksort($mapa);
+    return $mapa;
+}
+
 
 // Gerar CSRF token
 function gerarCSRF() {
@@ -44,12 +87,38 @@ function redirecionar($url) {
     exit;
 }
 
-// Definir mensagem de sucesso/erro
-function setMensagem($tipo, $mensagem) {
+// Remover dados sensiveis antes de preservar um formulario com erro.
+function filtrarDadosFormulario($dados) {
+    $bloqueados = [
+        'csrf_token', 'action', 'senha', 'senha_confirma', 'senha_atual',
+        'nova_senha', 'confirmar_senha', 'password', 'token', 'assinatura_imagem'
+    ];
+    $resultado = [];
+
+    foreach ((array)$dados as $chave => $valor) {
+        if (in_array((string)$chave, $bloqueados, true)) {
+            continue;
+        }
+        $resultado[$chave] = is_array($valor)
+            ? filtrarDadosFormulario($valor)
+            : (string)$valor;
+    }
+
+    return $resultado;
+}
+
+// Definir mensagem e, em erros de POST, preservar valores e erros por campo.
+// $campos aceita ['email' => 'Informe um e-mail valido.'] ou ['email', 'nome'].
+function setMensagem($tipo, $mensagem, $campos = []) {
     $_SESSION['mensagem'] = [
         'tipo' => $tipo, // success, error, warning, info
-        'texto' => $mensagem
+        'texto' => $mensagem,
+        'campos' => $campos,
     ];
+
+    if ($tipo === 'error' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        $_SESSION['mensagem']['valores'] = filtrarDadosFormulario($_POST);
+    }
 }
 
 // Obter e limpar mensagem
@@ -144,6 +213,88 @@ function uploadArquivo($arquivo, $pasta = 'uploads/') {
     }
     
     return ['success' => false, 'mensagem' => 'Erro ao fazer upload.'];
+}
+
+// Upload para Storage S3/MinIO
+function upload_to_storage($base64_string, $folder = 'assinaturas') {
+    // Retorna string vazia se não for base64
+    if (empty($base64_string) || strpos($base64_string, 'data:image') !== 0) {
+        return '';
+    }
+
+    // Extrair extensão e binário
+    preg_match('/^data:image\/(\w+);base64,/', $base64_string, $matches);
+    $ext = isset($matches[1]) ? $matches[1] : 'png';
+    $binary = base64_decode(substr($base64_string, strpos($base64_string, ',') + 1));
+
+    if (!$binary) return '';
+
+    $filename = $folder . '/' . uniqid() . '_' . time() . '.' . $ext;
+
+    // Se estivermos usando AWS SDK
+    if (class_exists('Aws\S3\S3Client')) {
+        try {
+            $s3 = new Aws\S3\S3Client([
+                'version' => 'latest',
+                'region'  => 'us-east-1', // MinIO default
+                'endpoint' => defined('MINIO_ENDPOINT') ? MINIO_ENDPOINT : 'http://minio:9000',
+                'use_path_style_endpoint' => true,
+                'credentials' => [
+                    'key'    => defined('MINIO_ACCESS_KEY') ? MINIO_ACCESS_KEY : 'erp_minio_admin',
+                    'secret' => defined('MINIO_SECRET_KEY') ? MINIO_SECRET_KEY : 'erp_minio_pass_2026',
+                ],
+            ]);
+
+            $bucket = defined('MINIO_BUCKET') ? MINIO_BUCKET : 'erp-storage';
+
+            // Criar bucket se não existir
+            try {
+                $s3->headBucket(['Bucket' => $bucket]);
+            } catch (\Aws\S3\Exception\S3Exception $e) {
+                if ($e->getStatusCode() === 404) {
+                    $s3->createBucket(['Bucket' => $bucket]);
+                    $s3->putBucketPolicy([
+                        'Bucket' => $bucket,
+                        'Policy' => json_encode([
+                            'Version' => '2012-10-17',
+                            'Statement' => [
+                                [
+                                    'Effect' => 'Allow',
+                                    'Principal' => '*',
+                                    'Action' => 's3:GetObject',
+                                    'Resource' => "arn:aws:s3:::$bucket/*"
+                                ]
+                            ]
+                        ])
+                    ]);
+                }
+            }
+
+            $result = $s3->putObject([
+                'Bucket'      => $bucket,
+                'Key'         => $filename,
+                'Body'        => $binary,
+                'ContentType' => 'image/' . $ext,
+            ]);
+
+            // Se quisermos a URL pública, pegamos do endpoint e do bucket
+            // Usando o APP_URL para proxy ou o IP direto se for local
+            // No caso docker: http://localhost:9002/erp-storage/...
+            $publicUrl = str_replace('http://minio:9000', 'http://localhost:9002', $result['ObjectURL']);
+            return $publicUrl;
+
+        } catch (Exception $e) {
+            error_log('Erro no upload para S3/MinIO: ' . $e->getMessage());
+        }
+    }
+
+    // Fallback: salvar localmente em storage local (UPLOADS_PATH)
+    if (!is_dir(UPLOADS_PATH . $folder)) {
+        mkdir(UPLOADS_PATH . $folder, 0755, true);
+    }
+    $local_path = UPLOADS_PATH . $filename;
+    file_put_contents($local_path, $binary);
+    return APP_URL . 'uploads/' . $filename;
 }
 
 // Data em português

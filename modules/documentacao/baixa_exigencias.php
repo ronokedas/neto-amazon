@@ -4,7 +4,10 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/auth.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $vistoria_id = $_GET['vistoria_id'] ?? '';
 

@@ -9,21 +9,26 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $busca = $_GET['busca'] ?? '';
 $filtro_status = $_GET['status'] ?? '';
 
-$sql = "SELECT c.id, c.numero_relatorio_ht, c.profissional_empresa, c.cpf_cnpj,
-               c.atividade_homologada, c.data_emissao, c.status, c.assinado, c.criado_em
+$sql = "SELECT c.id, c.numero_certificado, c.numero_relatorio_ht, c.relatorio_homologacao_numero,
+               c.profissional_empresa, c.cpf_cnpj, c.atividade_homologada,
+               c.data_emissao, c.data_validade, c.status, c.assinado, c.criado_em
         FROM certificados_cht c WHERE c.ativo = 1";
 
 $params = [];
 if (!empty($busca)) {
-    $sql .= " AND (c.numero_relatorio_ht LIKE :busca OR c.profissional_empresa LIKE :busca2 OR c.cpf_cnpj LIKE :busca3)";
+    $sql .= " AND (c.numero_certificado LIKE :busca OR c.numero_relatorio_ht LIKE :busca2 OR c.profissional_empresa LIKE :busca3 OR c.cpf_cnpj LIKE :busca4)";
     $params[':busca'] = "%{$busca}%";
     $params[':busca2'] = "%{$busca}%";
     $params[':busca3'] = "%{$busca}%";
+    $params[':busca4'] = "%{$busca}%";
 }
 if (!empty($filtro_status) && in_array($filtro_status, ['rascunho','emitido','assinado','cancelado'])) {
     $sql .= " AND c.status = :status";
@@ -44,7 +49,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
     <div class="tabela-header">
         <h2><i class="fas fa-file-certificate"></i> Certificados de Homologação Técnica (CHT)</h2>
         <div class="d-flex gap-2">
-            <a href="<?php echo APP_URL; ?>documentacao/cht/form" class="btn btn-success"><i class="fas fa-plus"></i> Novo Certificado</a>
+            <a href="<?php echo APP_URL; ?>certificados/wizard?modelo=CHT" class="btn btn-success"><i class="fas fa-plus"></i> Novo Certificado</a>
         </div>
     </div>
 
@@ -78,20 +83,20 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
             <div class="tabela-vazia">
                 <i class="fas fa-file-certificate" style="font-size:3rem;opacity:0.3;"></i>
                 <p>Nenhum certificado CHT encontrado.</p>
-                <a href="<?php echo APP_URL; ?>documentacao/cht/form" class="btn btn-success btn-sm"><i class="fas fa-plus"></i> Criar Primeiro</a>
+                <a href="<?php echo APP_URL; ?>certificados/wizard?modelo=CHT" class="btn btn-success btn-sm"><i class="fas fa-plus"></i> Criar Primeiro</a>
             </div>
         <?php else: ?>
             <table class="tabela">
                 <thead>
-                    <tr><th>Nº Relatório</th><th>Profissional/Empresa</th><th>CPF/CNPJ</th><th>Emissão</th><th>Status</th><th>Assinado</th><th>Ações</th></tr>
+                    <tr><th>Nº Certificado</th><th>Profissional/Empresa</th><th>Relatório HT</th><th>Validade</th><th>Status</th><th>Assinado</th><th>Ações</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($certificados as $c): ?>
                     <tr>
-                        <td><strong><?php echo h($c['numero_relatorio_ht']); ?></strong></td>
+                        <td><strong><?php echo h($c['numero_certificado'] ?: $c['numero_relatorio_ht']); ?></strong></td>
                         <td><?php echo h($c['profissional_empresa']); ?></td>
-                        <td><?php echo h($c['cpf_cnpj']); ?></td>
-                        <td><?php echo formatarData($c['data_emissao']); ?></td>
+                        <td><?php echo h($c['relatorio_homologacao_numero'] ?: $c['numero_relatorio_ht']); ?></td>
+                        <td><?php echo formatarData($c['data_validade']); ?></td>
                         <td><?php $bc=['rascunho'=>'badge-secondary','emitido'=>'badge-warning','assinado'=>'badge-success','cancelado'=>'badge-danger']; echo '<span class="badge '.($bc[$c['status']]??'badge-secondary').'">'.h(ucfirst($c['status'])).'</span>'; ?></td>
                         <td><?php echo $c['assinado']?'<span class="badge badge-success"><i class="fas fa-check"></i> Sim</span>':'<span class="badge badge-secondary">Não</span>'; ?></td>
                         <td>

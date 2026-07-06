@@ -87,6 +87,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+function validarCamposAgendamento(string $data_vistoria, string $embarcacao_id, string $cliente_id, string $tipo_vistoria): array
+{
+    $errosCampos = [];
+
+    if (empty($cliente_id)) {
+        $errosCampos['cliente_id'] = 'Selecione o cliente.';
+    }
+
+    if (empty($embarcacao_id)) {
+        $errosCampos['embarcacao_id'] = 'Selecione a embarcação.';
+    }
+
+    if (empty($tipo_vistoria)) {
+        $errosCampos['tipo_vistoria'] = 'Informe o tipo de vistoria.';
+    }
+
+    if (empty($data_vistoria)) {
+        $errosCampos['data_vistoria'] = 'Informe a data da vistoria.';
+    } elseif ($data_vistoria < date('Y-m-d')) {
+        $errosCampos['data_vistoria'] = 'A data da vistoria não pode ser no passado.';
+    }
+
+    return $errosCampos;
+}
+
 switch ($action) {
 
     // ==================== INSERIR ====================
@@ -104,6 +129,12 @@ switch ($action) {
             $observacoes     = sanitizar($_POST['observacoes'] ?? '');
             $vistoriador_id  = $_POST['vistoriador_id'] ?? null;
             $vendedor_id     = $_POST['vendedor_id'] ?? null;
+
+            $errosCampos = validarCamposAgendamento($data_vistoria, $embarcacao_id, $cliente_id, $tipo_vistoria);
+            if (!empty($errosCampos)) {
+                setMensagem('error', 'Revise os campos destacados e tente novamente.', $errosCampos);
+                redirecionar(APP_URL . 'agendamentos/form');
+            }
 
             if (empty($embarcacao_id) || empty($cliente_id) || empty($tipo_vistoria) || empty($data_vistoria)) {
                 setMensagem('error', 'Preencha todos os campos obrigatórios (cliente, embarcação, tipo e data).');
@@ -186,6 +217,19 @@ switch ($action) {
             $vistoriador_id  = $_POST['vistoriador_id'] ?? null;
             $vendedor_id     = $_POST['vendedor_id'] ?? null;
 
+            $errosCampos = validarCamposAgendamento($data_vistoria, $embarcacao_id, $cliente_id, $tipo_vistoria);
+            if (empty($id)) {
+                $errosCampos['id'] = 'Agendamento não informado.';
+            }
+
+            if (!empty($errosCampos)) {
+                setMensagem('error', 'Revise os campos destacados e tente novamente.', $errosCampos);
+                $destino = !empty($id)
+                    ? APP_URL . 'agendamentos/form?id=' . urlencode($id)
+                    : APP_URL . 'agendamentos';
+                redirecionar($destino);
+            }
+
             if (empty($id) || empty($embarcacao_id) || empty($cliente_id) || empty($tipo_vistoria) || empty($data_vistoria)) {
                 setMensagem('error', 'Dados incompletos para atualização.');
                 redirecionar(APP_URL . 'agendamentos');
@@ -195,12 +239,25 @@ switch ($action) {
                 $vistoriador_id = $_SESSION['usuario_id'];
             }
 
+            if (!empty($_POST['marcar_pago']) && $_POST['marcar_pago'] == '1' && !empty($proposta_id)) {
+                $stmtProp = $pdo->prepare("SELECT numero FROM propostas WHERE id = :id");
+                $stmtProp->execute([':id' => $proposta_id]);
+                $numero_proposta = $stmtProp->fetchColumn();
+
+                if ($numero_proposta) {
+                    $desc = 'Referente à Proposta Comercial nº ' . $numero_proposta;
+                    $stmtFin = $pdo->prepare("UPDATE financeiro_lancamentos SET status = 'PAGO', data = CURDATE() WHERE tipo = 'RECEITA' AND status = 'PENDENTE' AND descricao = :descricao");
+                    $stmtFin->execute([':descricao' => $desc]);
+                }
+            }
+
             $stmt = $pdo->prepare("
                 UPDATE agendamentos 
                 SET proposta_id = :proposta_id,
                     embarcacao_id = :embarcacao_id,
                     cliente_id = :cliente_id,
                     vistoriador_id = :vistoriador_id,
+                    vendedor_id = :vendedor_id,
                     tipo_vistoria = :tipo_vistoria,
                     data_vistoria = :data_vistoria,
                     hora_vistoria = :hora_vistoria,
@@ -240,7 +297,12 @@ switch ($action) {
     // ==================== CONFIRMAR E GERAR OS ====================
     case 'confirmar':
         try {
-            $id = $_GET['id'] ?? '';
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                setMensagem('error', 'Requisicao invalida.');
+                redirecionar(APP_URL . 'agendamentos');
+            }
+
+            $id = $_POST['id'] ?? '';
 
             if (empty($id)) {
                 setMensagem('error', 'ID do agendamento não informado.');
@@ -407,12 +469,17 @@ switch ($action) {
     // ==================== CANCELAR ====================
     case 'cancelar':
         try {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            setMensagem('error', 'Requisicao invalida.');
+            redirecionar(APP_URL . 'agendamentos');
+        }
+
         // VISTORIADOR nao pode cancelar agendamentos
         if ($cargo === 'VISTORIADOR') {
             setMensagem('error', 'Acesso negado. Vistoriadores nao podem cancelar agendamentos.');
             redirecionar(APP_URL . 'agendamentos');
         }
-                    $id = $_GET['id'] ?? '';
+                    $id = $_POST['id'] ?? '';
 
             if (empty($id)) {
                 setMensagem('error', 'ID do agendamento não informado.');

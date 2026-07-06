@@ -10,7 +10,10 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $action = $_POST['action'] ?? '';
 
@@ -58,6 +61,9 @@ if ($action === 'salvar') {
     $assinante_titulo = trim($_POST['assinante_titulo'] ?? '');
     $assinante_registro = trim($_POST['assinante_registro'] ?? '');
     
+    $despachante_id = $_POST['despachante_id'] ?? null;
+    if(empty($despachante_id)) $despachante_id = null;
+
     $status = $_POST['status'] ?? 'rascunho';
     if (!in_array($status, ['rascunho','emitido','cancelado'])) $status = 'rascunho';
     
@@ -74,6 +80,20 @@ if ($action === 'salvar') {
         redirecionar(APP_URL . 'documentacao/lc/form' . ($editando ? "?id={$id}" : ''));
     }
 
+    $vistoria_id = $_POST['vistoria_id'] ?? null;
+    if (empty($vistoria_id)) {
+        setMensagem('error', 'É obrigatório selecionar um relatório aprovado para emitir o certificado.');
+        redirecionar(APP_URL . 'documentacao/lc/form' . ($editando ? "?id={$id}" : ''));
+    } else {
+        $stmtStatus = $pdo->prepare("SELECT status FROM vistorias WHERE id = :vid");
+        $stmtStatus->execute([':vid' => $vistoria_id]);
+        $vistData = $stmtStatus->fetch(PDO::FETCH_ASSOC);
+        if (!$vistData || !in_array($vistData['status'], ['APROVADA', 'APROVADA_COM_EXIGENCIAS'])) {
+            setMensagem('error', 'Não é possível emitir certificado. O relatório selecionado não está aprovado.');
+            redirecionar(APP_URL . 'documentacao/lc/form' . ($editando ? "?id={$id}" : ''));
+        }
+    }
+    
     try {
         if ($editando) {
             $sql = "UPDATE certificados_lc SET
@@ -108,8 +128,7 @@ if ($action === 'salvar') {
                         assinante_nome = :assinante_nome,
                         assinante_titulo = :assinante_titulo,
                         assinante_registro = :assinante_registro,
-                        status = :status
-                    WHERE id = :id";
+                        status = :status, vistoria_id = :vistoria_id, despachante_id = :despachante_id WHERE id = :id";
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
@@ -145,6 +164,8 @@ if ($action === 'salvar') {
                 ':assinante_titulo' => $assinante_titulo,
                 ':assinante_registro' => $assinante_registro,
                 ':status' => $status,
+                ':vistoria_id' => $vistoria_id,
+                ':despachante_id' => $despachante_id,
                 ':id' => $id,
             ]);
             
@@ -152,8 +173,8 @@ if ($action === 'salvar') {
             $numero->execute([':id' => $id]);
             $numero_lc = $numero->fetch()['numero_lc'];
         } else {
-            $tipo_seq = ($tipo_licenca === 'LCEC') ? 'EC' : 'LC';
-            $prefixo = ($tipo_licenca === 'LCEC') ? 'AM-EC' : 'AM-LC';
+            $tipo_seq = ($tipo_licenca === 'LCEC') ? 'EC' : $tipo_licenca;
+            $prefixo = 'AM-' . $tipo_seq;
             $numero_lc = gerarNumeroDocumento($tipo_seq, $prefixo);
             $token = bin2hex(random_bytes(32));
             $id = gerarUUID();
@@ -169,8 +190,7 @@ if ($action === 'salvar') {
                         estaleiro_nome, estaleiro_cpf_cnpj, estaleiro_endereco,
                         data_emissao, data_validade, data_termino_construcao, local_emissao,
                         assinante_nome, assinante_titulo, assinante_registro,
-                        status, criado_por
-                    ) VALUES (
+                        status, criado_por, vistoria_id, despachante_id) VALUES (
                         :id, :numero_lc, :token_assinatura,
                         :tipo_licenca, :nome_embarcacao, :tipo_embarcacao, :numero_casco,
                         :material_casco, :sociedade_classificadora,
@@ -181,8 +201,7 @@ if ($action === 'salvar') {
                         :estaleiro_nome, :estaleiro_cpf_cnpj, :estaleiro_endereco,
                         :data_emissao, :data_validade, :data_termino_construcao, :local_emissao,
                         :assinante_nome, :assinante_titulo, :assinante_registro,
-                        :status, :criado_por
-                    )";
+                        :status, :criado_por, :vistoria_id, :despachante_id)";
 
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
@@ -221,7 +240,9 @@ if ($action === 'salvar') {
                 ':assinante_titulo' => $assinante_titulo,
                 ':assinante_registro' => $assinante_registro,
                 ':status' => $status,
+                ':vistoria_id' => $vistoria_id,
                 ':criado_por' => $_SESSION['usuario_id'] ?? null,
+                ':despachante_id' => $despachante_id,
             ]);
         }
 

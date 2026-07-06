@@ -11,7 +11,10 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $busca = $_GET['busca'] ?? '';
 $filtro_status = $_GET['status'] ?? '';
@@ -55,7 +58,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
     <div class="tabela-header">
         <h2><i class="fas fa-file-certificate"></i> Licenças de Construção / LCEC</h2>
         <div class="d-flex gap-2">
-            <a href="<?php echo APP_URL; ?>documentacao/lc/form" class="btn btn-success">
+            <a href="<?php echo APP_URL; ?>certificados/wizard?modelo=LC" class="btn btn-success">
                 <i class="fas fa-plus"></i> Nova Licença
             </a>
         </div>
@@ -103,7 +106,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
             <div class="tabela-vazia">
                 <i class="fas fa-file-certificate" style="font-size: 3rem; opacity: 0.3;"></i>
                 <p>Nenhuma licença encontrada.</p>
-                <a href="<?php echo APP_URL; ?>documentacao/lc/form" class="btn btn-success btn-sm">
+                <a href="<?php echo APP_URL; ?>certificados/wizard?modelo=LC" class="btn btn-success btn-sm">
                     <i class="fas fa-plus"></i> Criar Primeira Licença
                 </a>
             </div>

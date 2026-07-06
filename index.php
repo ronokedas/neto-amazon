@@ -26,23 +26,29 @@ $rotas = [
     ''              => 'modules/login/index.php',
     'login'         => 'modules/login/index.php',
     'dashboard'     => 'modules/dashboard/index.php',
-    'clientes'          => 'modules/clientes/index.php',
-    'clientes/form'     => 'modules/clientes/form.php',
-    'clientes/actions'  => 'modules/clientes/actions.php',
+    'armadores'          => 'modules/armadores/index.php',
+    'armadores/form'     => 'modules/armadores/form.php',
+    'armadores/actions'  => 'modules/armadores/actions.php',
+    'proprietarios'          => 'modules/proprietarios/index.php',
+    'proprietarios/form'     => 'modules/proprietarios/form.php',
+    'proprietarios/actions'  => 'modules/proprietarios/actions.php',
+    'despachantes'          => 'modules/despachantes/index.php',
+    'despachantes/form'     => 'modules/despachantes/form.php',
+    'despachantes/actions'  => 'modules/despachantes/actions.php',
     'embarcacoes'          => 'modules/embarcacoes/index.php',
     'embarcacoes/form'     => 'modules/embarcacoes/form.php',
     'embarcacoes/actions'  => 'modules/embarcacoes/actions.php',
-    'pessoas'          => 'modules/pessoas/index.php',
-    'pessoas/form'     => 'modules/pessoas/form.php',
-    'pessoas/actions'  => 'modules/pessoas/actions.php',
     'vistorias'          => 'modules/vistorias/index.php',
     'vistorias/nova'     => 'modules/vistorias/nova.php',
     'vistorias/detalhe'  => 'modules/vistorias/detalhe.php',
     'vistorias/actions'  => 'modules/vistorias/actions.php',
     'vistorias/relatorio' => 'modules/vistorias/relatorio.php',
+    'vistorias/relatorio_pdf' => 'modules/vistorias/relatorio_pdf.php',
+    'vistorias/relatorio_pdf.php' => 'modules/vistorias/relatorio_pdf.php',
     'financeiro'          => 'modules/financeiro/index.php',
     'financeiro/form'     => 'modules/financeiro/form.php',
     'financeiro/actions'  => 'modules/financeiro/actions.php',
+    'financeiro/relatorios' => 'modules/financeiro/relatorios.php',
     'usuarios'      => 'modules/usuarios/index.php',
     'usuarios/form' => 'modules/usuarios/form.php',
     'usuarios/actions' => 'modules/usuarios/actions.php',
@@ -74,6 +80,9 @@ $rotas = [
     'documentacao/aprovacao_relatorios' => 'modules/documentacao/aprovacao_relatorios.php',
     'documentacao/novo_certificado'     => 'modules/documentacao/novo_certificado.php',
     'documentacao/baixa_exigencias'     => 'modules/documentacao/baixa_exigencias.php',
+    'certificados'                  => 'modules/certificados/index.php',
+    'certificados/wizard'           => 'modules/certificados/wizard.php',
+    'certificados/wizard_step2'     => 'modules/certificados/wizard_step2.php',
     'comercial'                     => 'modules/comercial/index.php',
     'comercial/servicos'            => 'modules/comercial/servicos/index.php',
     'comercial/servicos/form'       => 'modules/comercial/servicos/form.php',
@@ -83,6 +92,9 @@ $rotas = [
     'comercial/propostas'           => 'modules/comercial/propostas/index.php',
     'comercial/propostas/actions'   => 'modules/comercial/propostas/actions.php',
     'contratos'                     => 'modules/contratos/index.php',
+    'contratos/form'                => 'modules/contratos/form.php',
+    'contratos/actions'             => 'modules/contratos/actions.php',
+    'contratos/view'                => 'modules/contratos/view.php',
     'relatorios'                    => 'modules/relatorios/index.php',
     'agendamentos'          => 'modules/agendamentos/index.php',
     'agendamentos/form'     => 'modules/agendamentos/form.php',
@@ -90,8 +102,16 @@ $rotas = [
     'agendamentos/os'       => 'modules/agendamentos/os.php',
     'emails'                => 'modules/emails/index.php',
     'configuracoes'             => 'modules/configuracoes/index.php',
+    'configuracoes/geral'       => 'modules/configuracoes/geral.php',
+    'configuracoes/basicas'     => 'modules/configuracoes/basicas.php',
+    'configuracoes/backup'      => 'modules/configuracoes/backup.php',
     'configuracoes/actions'     => 'modules/configuracoes/actions.php',
+    'configuracoes/backup_actions' => 'modules/configuracoes/backup_actions.php',
+    'responsaveis_assinatura'         => 'modules/responsaveis_assinatura/index.php',
+    'responsaveis_assinatura/form'    => 'modules/responsaveis_assinatura/form.php',
+    'responsaveis_assinatura/actions' => 'modules/responsaveis_assinatura/actions.php',
     'busca-global'              => 'ajax/busca_global.php',
+    'ajax/busca_cidades.php'    => 'ajax/busca_cidades.php',
     'perfil'                    => 'modules/perfil/index.php',
 ];
 
@@ -99,6 +119,12 @@ $rotas = [
 if (!isset($_SESSION['usuario_logado']) && $path !== '' && $path !== 'login') {
     // Verificar se é rota pública de assinatura
     $is_rota_publica = (strpos($path, 'assinar/') === 0);
+    
+    // Verificar se é rota pública de visualização de PDF via token ou ID
+    if (!$is_rota_publica && (strpos($path, '/pdf') !== false || strpos($path, 'relatorio_pdf') !== false) && (!empty($_GET['token']) || !empty($_GET['id']))) {
+        $is_rota_publica = true;
+    }
+    
     if (!$is_rota_publica) {
         $path = '';
     }
@@ -119,6 +145,15 @@ if (isset($rotas[$path])) {
 } elseif (strpos($path, 'assinar/') === 0) {
     // Rota pública de assinatura: assinar/{token_assinatura}
     $_GET['token'] = substr($path, 8); // Remover "assinar/"
+    // Verificar se o token pertence a propostas
+    $stmt_check_prop = $pdo->prepare("SELECT COUNT(*) as total FROM propostas WHERE token_assinatura = :token");
+    $stmt_check_prop->execute([':token' => $_GET['token']]);
+    $check_prop = $stmt_check_prop->fetch(PDO::FETCH_ASSOC);
+    if ($check_prop && $check_prop['total'] > 0) {
+        require_once __DIR__ . '/modules/comercial/propostas/assinar.php';
+        exit;
+    }
+
     // Verificar se o token pertence ao CHT, LC, LP, CNBL, CNARQ ou CSN
     $stmt_check_cht = $pdo->prepare("SELECT COUNT(*) as total FROM certificados_cht WHERE token_assinatura = :token AND ativo = 1");
     $stmt_check_cht->execute([':token' => $_GET['token']]);

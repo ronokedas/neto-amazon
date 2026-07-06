@@ -11,7 +11,10 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $editando = false;
 $licenca = null;
@@ -99,6 +102,12 @@ $stmt_emb = $pdo->prepare("SELECT id, nome, tipo, registro, proprietario
                            FROM embarcacoes WHERE ativo = 1 ORDER BY nome");
 $stmt_emb->execute();
 $embarcacoes = $stmt_emb->fetchAll(PDO::FETCH_ASSOC);
+
+
+// Buscar lista de despachantes ativos
+$stmt_desp = $pdo->prepare("SELECT id, nome FROM clientes WHERE perfil = 'despachante' AND status = 'ATIVO' ORDER BY nome");
+$stmt_desp->execute();
+$despachantes_list = $stmt_desp->fetchAll(PDO::FETCH_ASSOC);
 
 $titulo_page = ($editando ? 'Editar' : 'Nova') . ' Licença Provisória - ' . APP_NAME;
 require_once __DIR__ . '/../../../includes/header.php';
@@ -373,6 +382,28 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                placeholder="Ex: CREA: 22.482"
                                value="<?php echo $editando ? h($licenca['assinante_registro']) : ''; ?>">
                     </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <!-- SEÇÃO: Despachante -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3><i class="fas fa-briefcase"></i> Responsável pelo Trâmite (Despachante) - Opcional</h3>
+            </div>
+            <div class="card-body">
+                <div class="form-group col-md-6">
+                    <label for="despachante_id">Despachante</label>
+                    <select name="despachante_id" id="despachante_id" class="form-control">
+                        <option value="">-- Sem Despachante / Não se aplica --</option>
+                        <?php foreach ($despachantes_list as $desp): ?>
+                            <option value="<?php echo h($desp['id']); ?>" <?php echo ($editando && ($certificado['despachante_id'] ?? '') === $desp['id']) ? 'selected' : ''; ?>>
+                                <?php echo h($desp['nome']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">Selecione quem será responsável por protocolar ou retirar este certificado junto ao órgão.</small>
                 </div>
             </div>
         </div>

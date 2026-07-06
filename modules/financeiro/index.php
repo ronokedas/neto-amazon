@@ -10,7 +10,10 @@ require_once __DIR__ . '/../../includes/auth.php';
 
 // Exigir login e cargo ADMIN
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('financeiro')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 // Filtros
 $filtro_tipo      = $_GET['tipo'] ?? '';
@@ -19,7 +22,7 @@ $filtro_data_fim  = $_GET['data_fim'] ?? '';
 $filtro_categoria = $_GET['categoria'] ?? '';
 
 // Construir query com filtros
-$sql = "SELECT id, tipo, descricao, valor, data, categoria, observacoes, criado_em, atualizado_em FROM financeiro_lancamentos WHERE 1=1";
+$sql = "SELECT id, tipo, descricao, valor, data, categoria, observacoes, criado_em, atualizado_em FROM financeiro_lancamentos WHERE ativo = 1";
 $params = [];
 
 if (!empty($filtro_tipo) && in_array($filtro_tipo, ['RECEITA', 'DESPESA'])) {
@@ -55,7 +58,7 @@ try {
 
 // Calcular totais (usando os mesmos filtros)
 try {
-    $sqlTotais = "SELECT tipo, SUM(valor) as total FROM financeiro_lancamentos WHERE 1=1";
+    $sqlTotais = "SELECT tipo, SUM(valor) as total FROM financeiro_lancamentos WHERE ativo = 1 AND status != 'CANCELADO'";
     $paramsTotais = [];
 
     if (!empty($filtro_tipo) && in_array($filtro_tipo, ['RECEITA', 'DESPESA'])) {

@@ -37,7 +37,7 @@ try {
                e.nome AS embarcacao_nome, e.tipo AS embarcacao_tipo, 
                e.registro AS embarcacao_registro, e.proprietario AS embarcacao_proprietario,
                e.ano AS embarcacao_ano,
-               p.nome_completo AS pessoa_nome, p.cpf AS pessoa_cpf,
+               p.nome AS pessoa_nome, p.cpf_cnpj AS pessoa_cpf,
                p.telefone AS pessoa_telefone, p.email AS pessoa_email,
                p.endereco AS pessoa_endereco,
                u.nome AS criado_por_nome,
@@ -46,7 +46,7 @@ try {
                os.id AS os_id, os.numero AS os_numero, os.status AS os_status
         FROM vistorias v
         LEFT JOIN embarcacoes e ON v.embarcacao_id = e.id
-        LEFT JOIN pessoas p ON v.pessoa_id = p.id
+        LEFT JOIN clientes p ON v.pessoa_id = p.id
         LEFT JOIN usuarios u ON v.criado_por = u.id
         LEFT JOIN agendamentos a ON v.agendamento_id = a.id
         LEFT JOIN usuarios usr_vist ON a.vistoriador_id = usr_vist.id
@@ -100,6 +100,13 @@ if ($cargo === 'VENDEDOR' && !empty($vistoria['agendamento_id'])) {
         setMensagem('error', 'Acesso negado. Voce nao tem permissao para visualizar esta vistoria.');
         redirecionar(APP_URL . 'vistorias');
     }
+}
+
+// Buscar vistoriadores ativos se for ADMIN
+$vistoriadores = [];
+if ($cargo === 'ADMIN') {
+    $stmtVist = $pdo->query("SELECT id, nome FROM usuarios WHERE cargo = 'VISTORIADOR' AND ativo = 1 ORDER BY nome ASC");
+    $vistoriadores = $stmtVist->fetchAll(PDO::FETCH_ASSOC);
 }
 
 // Gerar CSRF para o form de alteracao de status
@@ -395,6 +402,48 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     </a>
                 </div>
                 <?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- Atribuir Vistoriador e Data (apenas ADMIN) -->
+            <?php if ($cargo === 'ADMIN' && in_array($vistoria['status'], ['PENDENTE', 'AGUARDANDO_APROVACAO'])): ?>
+            <div style="background: var(--cor-sidebar); padding: 15px 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #f39c12;">
+                <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: #f39c12;">
+                    <i class="fas fa-calendar-alt"></i> Agendar Vistoria e Atribuir Vistoriador
+                </h4>
+                <form method="POST" action="<?php echo APP_URL; ?>vistorias/actions?action=atribuir_vistoriador">
+                    <input type="hidden" name="csrf_token" value="<?php echo h($csrf); ?>">
+                    <input type="hidden" name="id" value="<?php echo h($vistoria['id']); ?>">
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label for="data_vistoria">
+                                <i class="fas fa-calendar"></i> Data da Vistoria
+                            </label>
+                            <input type="date" id="data_vistoria" name="data_vistoria" required 
+                                   value="<?php echo h($vistoria['data_vistoria'] ?? ''); ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="vistoriador_id">
+                                <i class="fas fa-user-check"></i> Vistoriador
+                            </label>
+                            <select id="vistoriador_id" name="vistoriador_id" required>
+                                <option value="">-- Selecione um Vistoriador --</option>
+                                <?php foreach ($vistoriadores as $v): ?>
+                                    <option value="<?php echo h($v['id']); ?>" 
+                                        <?php echo ($vistoria['vistoriador_id'] == $v['id']) ? 'selected' : ''; ?>>
+                                        <?php echo h($v['nome']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salvar Agendamento
+                    </button>
+                </form>
             </div>
             <?php endif; ?>
 

@@ -22,6 +22,7 @@ if ($passo < 1 || $passo > 3) $passo = 1;
 // Dados do wizard preservados na sessao
 $embarcacao_id = $_SESSION['wizard_embarcacao_id'] ?? '';
 $pessoa_id     = $_SESSION['wizard_pessoa_id'] ?? '';
+$armador_id    = $_SESSION['wizard_armador_id'] ?? '';
 $data_vistoria = $_SESSION['wizard_data_vistoria'] ?? date('Y-m-d');
 $observacoes   = $_SESSION['wizard_observacoes'] ?? '';
 
@@ -39,10 +40,12 @@ if ($passo === 2 && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($passo === 3 && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $embarcacao_id = trim($_POST['embarcacao_id'] ?? $embarcacao_id);
     $pessoa_id     = trim($_POST['pessoa_id'] ?? $pessoa_id);
+    $armador_id    = trim($_POST['armador_id'] ?? $armador_id);
     $data_vistoria = trim($_POST['data_vistoria'] ?? $data_vistoria);
     $observacoes   = trim($_POST['observacoes'] ?? $observacoes);
     $_SESSION['wizard_embarcacao_id'] = $embarcacao_id;
     $_SESSION['wizard_pessoa_id'] = $pessoa_id;
+    $_SESSION['wizard_armador_id'] = $armador_id;
     $_SESSION['wizard_data_vistoria'] = $data_vistoria;
     $_SESSION['wizard_observacoes'] = $observacoes;
 }
@@ -72,11 +75,22 @@ if (!empty($embarcacao_id)) {
 $pessoa = null;
 if (!empty($pessoa_id)) {
     try {
-        $stmt = $pdo->prepare("SELECT id, nome_completo, cpf, telefone, email FROM pessoas WHERE id = :id AND ativo = 1");
+        $stmt = $pdo->prepare("SELECT id, nome AS nome_completo, cpf_cnpj AS cpf, telefone, email FROM clientes WHERE id = :id AND status = 'ATIVO'");
         $stmt->execute([':id' => $pessoa_id]);
         $pessoa = $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log('Erro ao buscar pessoa: ' . $e->getMessage());
+    }
+}
+
+$armador = null;
+if (!empty($armador_id)) {
+    try {
+        $stmt = $pdo->prepare("SELECT id, nome, cpf_cnpj FROM clientes WHERE id = :id AND status = 'ATIVO'");
+        $stmt->execute([':id' => $armador_id]);
+        $armador = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log('Erro ao buscar armador: ' . $e->getMessage());
     }
 }
 
@@ -251,7 +265,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <!-- Lista de pessoas ativas -->
                 <?php
                 try {
-                    $stmtPes = $pdo->query("SELECT id, nome_completo, cpf, telefone, email FROM pessoas WHERE ativo = 1 ORDER BY nome_completo ASC");
+                    $stmtPes = $pdo->query("SELECT id, nome AS nome_completo, cpf_cnpj AS cpf, telefone, email, perfil FROM clientes WHERE status = 'ATIVO' AND perfil = 'proprietario' ORDER BY nome ASC");
                     $pessoas = $stmtPes->fetchAll(PDO::FETCH_ASSOC);
                 } catch (Exception $e) {
                     $pessoas = [];
@@ -262,7 +276,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <div class="tabela-vazia" style="padding: 30px;">
                         <i class="fas fa-users"></i>
                         <h3>Nenhuma pessoa ativa</h3>
-                        <p>Cadastre uma pessoa antes de criar uma vistoria.</p>
+                        <p>Cadastre um proprietário antes de criar uma vistoria.</p>
                     </div>
                 <?php else: ?>
                     <div id="listaPessoas" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--cor-borda, #dee2e6); border-radius: 8px;">
@@ -281,9 +295,12 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                    style="width: 18px; height: 18px; cursor: pointer;">
                             <div style="flex: 1;">
                                 <strong><?php echo h($pes['nome_completo']); ?></strong>
+                                <?php if (!empty($pes['perfil'])): ?>
+                                    <span class="badge bg-secondary" style="margin-left: 8px; font-size: 0.7rem;"><?php echo h(strtoupper($pes['perfil'])); ?></span>
+                                <?php endif; ?>
                                 <?php if (!empty($pes['cpf'])): ?>
                                     <span style="color: var(--cor-texto-secundario, #6c757d); margin-left: 8px;">
-                                        CPF: <?php echo h(formatarCPF($pes['cpf'])); ?>
+                                        CPF/CNPJ: <?php echo h($pes['cpf']); ?>
                                     </span>
                                 <?php endif; ?>
                                 <br>
@@ -317,6 +334,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <input type="hidden" name="csrf_token" value="<?php echo h($csrf); ?>">
                 <input type="hidden" name="embarcacao_id" value="<?php echo h($embarcacao_id); ?>">
                 <input type="hidden" name="pessoa_id" value="<?php echo h($pessoa_id); ?>">
+                <input type="hidden" name="armador_id" value="<?php echo h($armador_id); ?>">
 
                 <h4 style="margin-bottom: 15px;">
                     <i class="fas fa-check-double"></i> Passo 3: Revisao e Confirmacao
@@ -358,7 +376,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         <div style="margin-left: 30px;">
                             <strong><?php echo h($pessoa['nome_completo']); ?></strong>
                             <?php if (!empty($pessoa['cpf'])): ?>
-                                <span style="color: var(--cor-texto-secundario, #6c757d); margin-left: 8px;">CPF: <?php echo h(formatarCPF($pessoa['cpf'])); ?></span>
+                                <span style="color: var(--cor-texto-secundario, #6c757d); margin-left: 8px;">CPF/CNPJ: <?php echo h($pessoa['cpf']); ?></span>
                             <?php endif; ?>
                             <br>
                             <small style="color: var(--cor-texto-secundario, #6c757d);">
@@ -371,6 +389,24 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                             <i class="fas fa-exclamation-triangle"></i> Pessoa nao encontrada
                         </div>
                     <?php endif; ?>
+                </div>
+
+                <!-- Seleção do Armador -->
+                <div class="form-group" style="background: var(--cor-sidebar); padding: 15px 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #007bff;">
+                    <label for="armador_id"><i class="fas fa-user-tie"></i> Armador (Opcional)</label>
+                    <select id="armador_id" name="armador_id" style="width: 100%; padding: 8px 12px; border: 1px solid var(--cor-borda); border-radius: 4px;">
+                        <option value="">-- Selecione o Armador (se houver) --</option>
+                        <?php
+                        try {
+                            $stmtArm = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE perfil = 'armador' AND status = 'ATIVO' ORDER BY nome ASC");
+                            while ($a = $stmtArm->fetch(PDO::FETCH_ASSOC)) {
+                                $selected = ($armador_id === $a['id']) ? 'selected' : '';
+                                echo "<option value='".h($a['id'])."' $selected>".h($a['nome'])." (".h($a['cpf_cnpj']).")</option>";
+                            }
+                        } catch (Exception $e) {}
+                        ?>
+                    </select>
+                    <small class="text-muted">Selecione quem está explorando comercialmente a embarcação nesta vistoria.</small>
                 </div>
 
                 <!-- Data da vistoria -->

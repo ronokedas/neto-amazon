@@ -8,9 +8,11 @@
 ini_set('opcache.enable', '0');
 ini_set('opcache.enable_cli', '0');
 
-// Erros (desativar em producao!)
+// Erros: registrar sempre, mas so exibir quando APP_DEBUG estiver habilitado.
+define('APP_DEBUG', filter_var(getenv('APP_DEBUG') ?: '0', FILTER_VALIDATE_BOOL));
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', APP_DEBUG ? '1' : '0');
+ini_set('log_errors', '1');
 
 // Configurar encoding UTF-8 para PHP
 mb_internal_encoding('UTF-8');
@@ -33,6 +35,12 @@ define('DB_USER', getenv('DB_USER') ?: 'erp_user');
 define('DB_PASS', getenv('DB_PASS') ?: 'erp_pass_2026');
 define('DB_CHARSET', 'utf8mb4');
 
+// Credenciais MinIO / S3 Storage
+define('MINIO_ENDPOINT', getenv('MINIO_ENDPOINT') ?: 'http://minio:9000');
+define('MINIO_ACCESS_KEY', getenv('MINIO_ACCESS_KEY') ?: 'erp_minio_admin');
+define('MINIO_SECRET_KEY', getenv('MINIO_SECRET_KEY') ?: 'erp_minio_pass_2026');
+define('MINIO_BUCKET', getenv('MINIO_BUCKET') ?: 'erp-storage');
+
 // Credenciais SMTP para envio de e-mails (PHPMailer)
 define('MAIL_HOST', getenv('MAIL_HOST') ?: 'smtp.gmail.com');
 define('MAIL_PORT', getenv('MAIL_PORT') ?: 587);
@@ -53,7 +61,7 @@ define('TELEFONE_CONTATO', getenv('TELEFONE_CONTATO') ?: '(91) 0000-0000');
 define('META_MENSAL', getenv('META_MENSAL') ? (float)getenv('META_MENSAL') : 50000.00);
 
 // Diretorios
-define('BASE_PATH', dirname(__DIR__));
+define('BASE_PATH', __DIR__);
 define('UPLOADS_PATH', __DIR__ . '/uploads/');
 
 // Conexao PDO com MySQL

@@ -11,11 +11,15 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $editando = false;
 $certificado = null;
 $convalidacoes = [];
+$tipo_embarcacao_convalidacoes = '';
 
 // Se tem ID, é edição
 if (isset($_GET['id']) && !empty($_GET['id'])) {
@@ -35,6 +39,29 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
     $stmt_conv = $pdo->prepare("SELECT * FROM cert_convalidacoes WHERE certificado_id = :cert_id AND tipo_certificado = 'CNBL' ORDER BY id");
     $stmt_conv->execute([':cert_id' => $id]);
     $convalidacoes = $stmt_conv->fetchAll(PDO::FETCH_ASSOC);
+
+    $tipo_embarcacao_convalidacoes = $certificado['tipo_embarcacao'] ?? '';
+    if (!empty($certificado['vistoria_id'])) {
+        $stmt_tipo_conv = $pdo->prepare("
+            SELECT COALESCE(te.nome, e.tipo_embarcacao) AS tipo_embarcacao_real
+            FROM vistorias v
+            JOIN agendamentos a ON v.agendamento_id = a.id
+            JOIN embarcacoes e ON a.embarcacao_id = e.id
+            LEFT JOIN tipos_embarcacao te ON e.tipo_embarcacao_id = te.id
+            WHERE v.id = :vistoria_id
+            LIMIT 1
+        ");
+        $stmt_tipo_conv->execute([':vistoria_id' => $certificado['vistoria_id']]);
+        $tipo_embarcacao_real = $stmt_tipo_conv->fetchColumn();
+        if (!empty($tipo_embarcacao_real)) {
+            $tipo_embarcacao_convalidacoes = $tipo_embarcacao_real;
+        }
+    }
+}
+
+if (!$editando) {
+    header('Location: ' . APP_URL . 'certificados');
+    exit;
 }
 
 // Gerar próximo número (se não estiver editando)
@@ -106,6 +133,43 @@ $stmt_emb = $pdo->prepare("SELECT id, nome, tipo, registro
 $stmt_emb->execute();
 $embarcacoes = $stmt_emb->fetchAll(PDO::FETCH_ASSOC);
 
+
+// Buscar lista de despachantes ativos
+$stmt_desp = $pdo->prepare("SELECT id, nome FROM clientes WHERE perfil = 'despachante' AND status = 'ATIVO' ORDER BY nome");
+$stmt_desp->execute();
+$despachantes_list = $stmt_desp->fetchAll(PDO::FETCH_ASSOC);
+
+$valorCampoCnbl = function (string $campo, string $padrao = '') use ($editando, $certificado, $preenchimento): string {
+    if ($editando && isset($certificado[$campo]) && $certificado[$campo] !== null && $certificado[$campo] !== '') {
+        return (string)$certificado[$campo];
+    }
+    if (!$editando && isset($preenchimento[$campo]) && $preenchimento[$campo] !== null && $preenchimento[$campo] !== '') {
+        return (string)$preenchimento[$campo];
+    }
+    return $padrao;
+};
+
+$normalizarOpcaoCnbl = static function (string $valor): string {
+    $valor = trim($valor);
+    $valor = str_replace(['Á', 'À', 'Â', 'Ã', 'Ä', 'á', 'à', 'â', 'ã', 'ä'], 'A', $valor);
+    $valor = str_replace(['É', 'È', 'Ê', 'Ë', 'é', 'è', 'ê', 'ë'], 'E', $valor);
+    $valor = str_replace(['Í', 'Ì', 'Î', 'Ï', 'í', 'ì', 'î', 'ï'], 'I', $valor);
+    $valor = str_replace(['Ó', 'Ò', 'Ô', 'Õ', 'Ö', 'ó', 'ò', 'ô', 'õ', 'ö'], 'O', $valor);
+    $valor = str_replace(['Ú', 'Ù', 'Û', 'Ü', 'ú', 'ù', 'û', 'ü'], 'U', $valor);
+    $valor = str_replace(['Ç', 'ç'], 'C', $valor);
+    return mb_strtoupper($valor, 'UTF-8');
+};
+
+$optionSelectedCnbl = static function (string $atual, string $opcao) use ($normalizarOpcaoCnbl): string {
+    return $normalizarOpcaoCnbl($atual) === $normalizarOpcaoCnbl($opcao) ? 'selected' : '';
+};
+
+$valorAtividadeCnbl = $valorCampoCnbl('atividades_servicos');
+$valorTipoEmbarcacaoCnbl = $valorCampoCnbl('tipo_embarcacao');
+$valorPortoInscricaoCnbl = $valorCampoCnbl('porto_inscricao');
+$valorTipoNavegacaoCnbl = $valorCampoCnbl('tipo_navegacao');
+$valorAreaNavegacaoCnbl = $valorCampoCnbl('area_navegacao');
+
 $titulo_page = ($editando ? 'Editar' : 'Novo') . ' Certificado CNBL - ' . APP_NAME;
 require_once __DIR__ . '/../../../includes/header.php';
 require_once __DIR__ . '/../../../includes/sidebar.php';
@@ -172,6 +236,8 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
         <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
         <?php if ($editando): ?>
             <input type="hidden" name="id" value="<?php echo h($certificado['id']); ?>">
+            <input type="hidden" name="vistoria_id" value="<?php echo h($certificado['vistoria_id'] ?? ''); ?>">
+            <input type="hidden" name="despachante_id" value="<?php echo h($certificado['despachante_id'] ?? ''); ?>">
         <?php endif; ?>
 
         <!-- SEÇÃO 1: Identificação do Certificado -->
@@ -257,14 +323,6 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <hr>
                     <?php endif; ?>
 
-                    <div class="alert alert-info" style="background: #e0f2fe; border-left: 4px solid #0891b2; padding: 15px; border-radius: 4px; color: #0c4a6e;">
-                        <h5 style="margin-top: 0; color: #0891b2;">
-                            <i class="fas fa-check-circle"></i> Pronto!
-                        </h5>
-                        <p style="margin-bottom: 0; color: #0c4a6e;">
-                            Os dados da embarcação serão preenchidos automaticamente. Clique na aba <strong>"2. Dados da Embarcação"</strong> para continuar.
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -299,24 +357,40 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                             <label for="atividades_servicos">Atividade/Serviço <span style="color: #dc2626;">*</span></label>
                             <select name="atividades_servicos" id="atividade_servico" class="form-control" required>
                                 <option value="">-- Selecione --</option>
-                                <option value="Carga Geral" <?php echo ($editando && $certificado['atividades_servicos'] == 'Carga Geral') ? 'selected' : ''; ?>>Carga Geral</option>
-                                <option value="Carga Geral sobre o Convés" <?php echo ($editando && $certificado['atividades_servicos'] == 'Carga Geral sobre o Convés') ? 'selected' : ''; ?>>Carga Geral sobre o Convés</option>
-                                <option value="Passageiros" <?php echo ($editando && $certificado['atividades_servicos'] == 'Passageiros') ? 'selected' : ''; ?>>Passageiros</option>
-                                <option value="Reboque" <?php echo ($editando && $certificado['atividades_servicos'] == 'Reboque') ? 'selected' : ''; ?>>Reboque</option>
-                                <option value="Tanque" <?php echo ($editando && $certificado['atividades_servicos'] == 'Tanque') ? 'selected' : ''; ?>>Tanque</option>
-                                <option value="Granel" <?php echo ($editando && $certificado['atividades_servicos'] == 'Granel') ? 'selected' : ''; ?>>Granel</option>
-                                <option value="Outro" <?php echo ($editando && $certificado['atividades_servicos'] == 'Outro') ? 'selected' : ''; ?>>Outro</option>
+                                <?php
+                                $atividadesCnbl = ['Carga Geral', 'Carga Geral sobre o Convés', 'Passageiros', 'Transporte de Passageiros', 'Transporte de Carga', 'Pesca', 'Reboque', 'Tanque', 'Granel', 'Apoio Portuário', 'Outro'];
+                                if ($valorAtividadeCnbl !== '' && !in_array($valorAtividadeCnbl, $atividadesCnbl, true)) {
+                                    array_unshift($atividadesCnbl, $valorAtividadeCnbl);
+                                }
+                                foreach (array_unique($atividadesCnbl) as $atividadeCnbl):
+                                ?>
+                                    <option value="<?php echo h($atividadeCnbl); ?>" <?php echo $optionSelectedCnbl($valorAtividadeCnbl, $atividadeCnbl); ?>>
+                                        <?php echo h($atividadeCnbl); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="tipo_embarcacao">Tipo de Embarcação <span style="color: #dc2626;">*</span></label>
                             <select name="tipo_embarcacao" id="tipo_embarcacao" class="form-control" required>
                                 <option value="">-- Selecione --</option>
-                                <option value="A" <?php echo ($editando && strtoupper($certificado['tipo_embarcacao']) == 'A') ? 'selected' : ''; ?>>A - Carga Geral</option>
-                                <option value="B" <?php echo ($editando && strtoupper($certificado['tipo_embarcacao']) == 'B') ? 'selected' : ''; ?>>B - Tanque</option>
-                                <option value="C" <?php echo ($editando && strtoupper($certificado['tipo_embarcacao']) == 'C') ? 'selected' : ''; ?>>C - Granel</option>
-                                <option value="D" <?php echo ($editando && strtoupper($certificado['tipo_embarcacao']) == 'D') ? 'selected' : ''; ?>>D - Passageiros</option>
-                                <option value="E" <?php echo ($editando && strtoupper($certificado['tipo_embarcacao']) == 'E') ? 'selected' : ''; ?>>E - Empurrador/Empurrado</option>
+                                <?php
+                                $tiposEmbarcacaoCnbl = [
+                                    'A' => 'A - Carga Geral',
+                                    'B' => 'B - Tanque',
+                                    'C' => 'C - Granel',
+                                    'D' => 'D - Passageiros',
+                                    'E' => 'E - Empurrador/Empurrado',
+                                ];
+                                if ($valorTipoEmbarcacaoCnbl !== '' && !array_key_exists($valorTipoEmbarcacaoCnbl, $tiposEmbarcacaoCnbl)) {
+                                    echo '<option value="' . h($valorTipoEmbarcacaoCnbl) . '" selected>' . h($valorTipoEmbarcacaoCnbl) . '</option>';
+                                }
+                                foreach ($tiposEmbarcacaoCnbl as $tipoValorCnbl => $tipoLabelCnbl):
+                                ?>
+                                    <option value="<?php echo h($tipoValorCnbl); ?>" <?php echo $optionSelectedCnbl($valorTipoEmbarcacaoCnbl, $tipoValorCnbl); ?>>
+                                        <?php echo h($tipoLabelCnbl); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="form-group">
@@ -337,9 +411,17 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                             <label for="porto_inscricao">Porto de Inscrição <span style="color: #dc2626;">*</span></label>
                             <select name="porto_inscricao" id="porto_inscricao" class="form-control" required>
                                 <option value="">-- Selecione --</option>
-                                <option value="Belém/PA" <?php echo ($editando && $certificado['porto_inscricao'] == 'Belém/PA') ? 'selected' : ''; ?>>Belém/PA</option>
-                                <option value="Manaus/AM" <?php echo ($editando && $certificado['porto_inscricao'] == 'Manaus/AM') ? 'selected' : ''; ?>>Manaus/AM</option>
-                                <option value="Porto Velho/RO" <?php echo ($editando && $certificado['porto_inscricao'] == 'Porto Velho/RO') ? 'selected' : ''; ?>>Porto Velho/RO</option>
+                                <?php
+                                $portosCnbl = ['Belém/PA', 'Belém - PA', 'Manaus/AM', 'Manaus - AM', 'Porto Velho/RO', 'Porto Velho - RO', 'Santarém - PA'];
+                                if ($valorPortoInscricaoCnbl !== '' && !in_array($valorPortoInscricaoCnbl, $portosCnbl, true)) {
+                                    array_unshift($portosCnbl, $valorPortoInscricaoCnbl);
+                                }
+                                foreach (array_unique($portosCnbl) as $portoCnbl):
+                                ?>
+                                    <option value="<?php echo h($portoCnbl); ?>" <?php echo $optionSelectedCnbl($valorPortoInscricaoCnbl, $portoCnbl); ?>>
+                                        <?php echo h($portoCnbl); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="form-group">
@@ -395,12 +477,12 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         <div class="d-flex gap-2" style="flex-wrap: wrap;">
                             <?php
                             $tipos_nav = ['MAR ABERTO', 'INTERIOR', 'APOIO PORTUÁRIO'];
-                            $selected_tipos = $editando ? explode(',', $certificado['tipo_navegacao'] ?? '') : [];
+                            $selected_tipos = array_map($normalizarOpcaoCnbl, array_filter(array_map('trim', explode(',', $valorTipoNavegacaoCnbl))));
                             foreach ($tipos_nav as $tn):
                             ?>
                                 <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                                     <input type="checkbox" name="tipo_navegacao[]" value="<?php echo $tn; ?>"
-                                           <?php echo in_array($tn, $selected_tipos) ? 'checked' : ''; ?>>
+                                           <?php echo in_array($normalizarOpcaoCnbl($tn), $selected_tipos, true) ? 'checked' : ''; ?>>
                                     <?php echo $tn; ?>
                                 </label>
                             <?php endforeach; ?>
@@ -413,22 +495,23 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         <div class="d-flex gap-3" style="flex-wrap: wrap; margin-top: 8px;">
                             <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 20px; border: 2px solid #0891b2; border-radius: 6px; background: white; font-weight: 500;">
                                 <input type="radio" name="area_navegacao" value="Área 1" required
-                                       <?php echo ($editando && $certificado['area_navegacao'] == 'Área 1') ? 'checked' : ''; ?>>
+                                       <?php echo $normalizarOpcaoCnbl($valorAreaNavegacaoCnbl) === $normalizarOpcaoCnbl('Área 1') ? 'checked' : ''; ?>>
                                 <strong>Área 1</strong>
                             </label>
                             <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 20px; border: 2px solid #d1d5db; border-radius: 6px; background: white; font-weight: 500;">
                                 <input type="radio" name="area_navegacao" value="Área 2"
-                                       <?php echo ($editando && $certificado['area_navegacao'] == 'Área 2') ? 'checked' : ''; ?>>
+                                       <?php echo $normalizarOpcaoCnbl($valorAreaNavegacaoCnbl) === $normalizarOpcaoCnbl('Área 2') ? 'checked' : ''; ?>>
                                 <strong>Área 2</strong>
                             </label>
+                            <?php if ($valorAreaNavegacaoCnbl !== '' && !in_array($normalizarOpcaoCnbl($valorAreaNavegacaoCnbl), [$normalizarOpcaoCnbl('Área 1'), $normalizarOpcaoCnbl('Área 2')], true)): ?>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 10px 20px; border: 2px solid #10b981; border-radius: 6px; background: rgba(16,185,129,.08); font-weight: 500;">
+                                    <input type="radio" name="area_navegacao" value="<?php echo h($valorAreaNavegacaoCnbl); ?>" checked>
+                                    <strong><?php echo h($valorAreaNavegacaoCnbl); ?></strong>
+                                </label>
+                            <?php endif; ?>
                         </div>
                     </div>
 
-                    <div style="text-align: right; margin-top: 20px;">
-                        <button type="button" class="btn btn-primary" onclick="$('#tab-medicoes').tab('show')" style="padding: 10px 20px;">
-                            Próximo <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -444,54 +527,46 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <div class="grid-3">
                         <div class="form-group">
                             <label for="centro_disco_situado">Distância até Centro do Disco (mm) <span style="color: #dc2626;">*</span></label>
-                            <input type="number" name="centro_disco_situado" id="dist_centro_disco" class="form-control" required min="0" step="1"
-                                   value="<?php echo $editando ? h($certificado['centro_disco_situado']) : '476'; ?>">
+                            <input type="text" inputmode="numeric" name="centro_disco_situado" id="dist_centro_disco" class="form-control" required
+                                   value="<?php echo h($valorCampoCnbl('centro_disco_situado', '476')); ?>">
                         </div>
                         <div class="form-group">
                             <label for="marca_linha_carga_area1">Distância até Marca Linha Área 1 (mm) <span style="color: #dc2626;">*</span></label>
-                            <input type="number" name="marca_linha_carga_area1" id="marca_linha_area1" class="form-control" required min="0" step="1"
-                                   value="<?php echo $editando ? h($certificado['marca_linha_carga_area1']) : '0'; ?>">
+                            <input type="text" inputmode="numeric" name="marca_linha_carga_area1" id="marca_linha_area1" class="form-control" required
+                                   value="<?php echo h($valorCampoCnbl('marca_linha_carga_area1', '0')); ?>">
                         </div>
                         <div class="form-group">
                             <label for="marca_linha_carga_area2">Distância até Marca Linha Área 2 (mm) <span style="color: #dc2626;">*</span></label>
-                            <input type="number" name="marca_linha_carga_area2" id="marca_linha_area2" class="form-control" required min="0" step="1"
-                                   value="<?php echo $editando ? h($certificado['marca_linha_carga_area2']) : '476'; ?>">
+                            <input type="text" inputmode="numeric" name="marca_linha_carga_area2" id="marca_linha_area2" class="form-control" required
+                                   value="<?php echo h($valorCampoCnbl('marca_linha_carga_area2', '476')); ?>">
                         </div>
                     </div>
                     <div class="grid-3">
                         <div class="form-group">
                             <label for="aresta_superior_linha_conves">Aresta Superior da Linha do Convés (mm) <span style="color: #dc2626;">*</span></label>
-                            <input type="number" name="aresta_superior_linha_conves" id="aresta_conves" class="form-control" required min="0" step="1"
-                                   value="<?php echo $editando ? h($certificado['aresta_superior_linha_conves']) : '0'; ?>">
+                            <input type="text" inputmode="numeric" name="aresta_superior_linha_conves" id="aresta_conves" class="form-control" required
+                                   value="<?php echo h($valorCampoCnbl('aresta_superior_linha_conves', '0')); ?>">
                         </div>
                         <div class="form-group">
                             <label for="dist_linha_conves_bico_proa">Centro do Disco até Bico de Proa (mm) <span style="color: #dc2626;">*</span></label>
-                            <input type="number" name="dist_linha_conves_bico_proa" id="dist_bico_proa" class="form-control" required min="0" step="1"
-                                   value="<?php echo $editando ? h($certificado['dist_linha_conves_bico_proa']) : '25440'; ?>">
+                            <input type="text" inputmode="numeric" name="dist_linha_conves_bico_proa" id="dist_bico_proa" class="form-control" required
+                                   value="<?php echo h($valorCampoCnbl('dist_linha_conves_bico_proa', '25440')); ?>">
                         </div>
                         <div class="form-group">
                             <label for="acrescimo_agua_salgada">Acréscimo para Água Salgada (mm) <span style="color: #dc2626;">*</span></label>
-                            <input type="number" name="acrescimo_agua_salgada" id="acrescimo_agua_salgada" class="form-control" required min="0" step="1"
-                                   value="<?php echo $editando ? h($certificado['acrescimo_agua_salgada']) : '0'; ?>">
+                            <input type="text" inputmode="numeric" name="acrescimo_agua_salgada" id="acrescimo_agua_salgada" class="form-control" required
+                                   value="<?php echo h($valorCampoCnbl('acrescimo_agua_salgada', '0')); ?>">
                         </div>
                     </div>
                     <div class="grid-3">
                         <div class="form-group">
                             <label for="borda_livre_mm">Número da Linha de Verão (Borda Livre) <span style="color: #dc2626;">*</span></label>
                             <input type="number" name="borda_livre_mm" id="borda_livre_mm" class="form-control" required min="0" step="0.1"
-                                   value="<?php echo $editando ? h($certificado['borda_livre_mm']) : '2'; ?>">
+                                   value="<?php echo h($valorCampoCnbl('borda_livre_mm', '2')); ?>">
                             <small class="text-muted">Número que aparece dentro do círculo no desenho do Disco de Plimsoll</small>
                         </div>
                     </div>
 
-                    <div style="text-align: right; margin-top: 20px;">
-                        <button type="button" class="btn btn-secondary" onclick="$('#tab-dados').tab('show')" style="padding: 10px 20px;">
-                            <i class="fas fa-arrow-left"></i> Voltar
-                        </button>
-                        <button type="button" class="btn btn-primary" onclick="$('#tab-convalidacoes').tab('show')" style="padding: 10px 20px;">
-                            Próximo <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -516,14 +591,19 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                             </thead>
                             <tbody>
                                 <?php
-                                $vistorias_padrao = ['1ª VIST. ANUAL', '2ª VIST. ANUAL', '3ª VIST. ANUAL', '4ª VIST. ANUAL'];
-                                for ($i = 0; $i < 4; $i++):
-                                    $conv = $convalidacoes[$i] ?? null;
+                                $vistorias_padrao = certificadoNomesConvalidacoes($tipo_embarcacao_convalidacoes);
+                                $convalidacoes_por_numero = certificadoConvalidacoesPorNumero($convalidacoes);
+                                $usar_mapa_convalidacoes = !empty($convalidacoes_por_numero);
+                                foreach ($vistorias_padrao as $i => $nome_vistoria):
+                                    $numero_vistoria = $i + 1;
+                                    $conv = $usar_mapa_convalidacoes
+                                        ? ($convalidacoes_por_numero[$numero_vistoria] ?? null)
+                                        : ($convalidacoes[$i] ?? null);
                                 ?>
                                     <tr>
                                         <td>
                                             <input type="text" name="conv_numero[]" class="form-control" 
-                                                   value="<?php echo h($conv['numero_vistoria'] ?? $vistorias_padrao[$i]); ?>" readonly
+                                                   value="<?php echo h($nome_vistoria); ?>" readonly
                                                    style="background: var(--cor-sidebar);">
                                         </td>
                                         <td>
@@ -545,7 +625,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                                    value="<?php echo h($conv['vistoriador'] ?? ''); ?>">
                                         </td>
                                     </tr>
-                                <?php endfor; ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>

@@ -6,5 +6,9 @@ Thumbs.db
 logs/
 temp_pdf/
 uploads/
+storage/
 .env
-docker/
+.env.*
+!.env.example
+*.bak
+*.tmp

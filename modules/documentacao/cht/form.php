@@ -9,7 +9,10 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $editando = false;
 $certificado = null;
@@ -38,7 +41,7 @@ if (!$editando) {
     $stmt_num->execute([':ano' => $ano4]);
     $total = $stmt_num->fetch()['total'];
     $seq = $total + 1;
-    $proximo_numero = "AM-REL-HT-{$seq}/{$ano}";
+    $proximo_numero = "AM-CHT-{$seq}/{$ano}";
 }
 
 // --- PRE-PREENCHIMENTO VIA AGENDAMENTO ---
@@ -92,6 +95,12 @@ if (!$editando && !empty($_GET['agendamento_id'])) {
     }
 }
 
+
+// Buscar lista de despachantes ativos
+$stmt_desp = $pdo->prepare("SELECT id, nome FROM clientes WHERE perfil = 'despachante' AND status = 'ATIVO' ORDER BY nome");
+$stmt_desp->execute();
+$despachantes_list = $stmt_desp->fetchAll(PDO::FETCH_ASSOC);
+
 $titulo_page = ($editando ? 'Editar' : 'Novo') . ' Certificado CHT - ' . APP_NAME;
 require_once __DIR__ . '/../../../includes/header.php';
 require_once __DIR__ . '/../../../includes/sidebar.php';
@@ -138,7 +147,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                 <div class="grid-2">
                     <div class="form-group">
                         <label>Número do Certificado</label>
-                        <input type="text" class="form-control" value="<?php echo $editando ? h($certificado['numero_relatorio_ht']) : h($proximo_numero); ?>" readonly 
+                        <input type="text" class="form-control" value="<?php echo $editando ? h($certificado['numero_certificado'] ?: $certificado['numero_relatorio_ht']) : h($proximo_numero); ?>" readonly 
                                style="background: var(--cor-sidebar); font-weight: bold;">
                     </div>
                     <div class="form-group">
@@ -156,10 +165,26 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         </select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="data_emissao">Data de Emissão</label>
-                    <input type="date" name="data_emissao" id="data_emissao" class="form-control" required
-                           value="<?php echo $editando ? h($certificado['data_emissao']) : date('Y-m-d'); ?>">
+                <div class="grid-3">
+                    <div class="form-group">
+                        <label for="data_emissao">Data de Emissão</label>
+                        <input type="date" name="data_emissao" id="data_emissao" class="form-control" required
+                               value="<?php echo $editando ? h($certificado['data_emissao']) : date('Y-m-d'); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="data_validade">Válido até *</label>
+                        <input type="date" name="data_validade" id="data_validade" class="form-control" required
+                               value="<?php echo $editando ? h($certificado['data_validade']) : ''; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="local_emissao">Local de Emissão *</label>
+                        <select name="local_emissao" id="local_emissao" class="form-control" required>
+                            <?php $local_atual = $editando ? ($certificado['local_emissao'] ?? '') : 'Belém-PA'; ?>
+                            <?php foreach (['Belém-PA', 'Manaus-AM', 'Santarém-PA', 'Macapá-AP', 'Porto Velho-RO'] as $local): ?>
+                                <option value="<?php echo h($local); ?>" <?php echo $local_atual === $local ? 'selected' : ''; ?>><?php echo h($local); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -177,16 +202,26 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                value="<?php echo $editando ? h($certificado['profissional_empresa']) : ''; ?>">
                     </div>
                     <div class="form-group">
-                        <label for="cpf_cnpj">CPF / CNPJ</label>
-                        <input type="text" name="cpf_cnpj" id="cpf_cnpj" class="form-control"
+                        <label for="cpf_cnpj">CPF / CNPJ *</label>
+                        <input type="text" name="cpf_cnpj" id="cpf_cnpj" class="form-control" required
                                value="<?php echo $editando ? h($certificado['cpf_cnpj']) : ''; ?>">
                     </div>
                 </div>
                 <div class="form-group">
+                    <label for="email_destinatario">E-mail para envio *</label>
+                    <input type="email" name="email_destinatario" id="email_destinatario" class="form-control" required
+                           value="<?php echo $editando ? h($certificado['email_destinatario']) : ''; ?>">
+                </div>
+                <div class="form-group">
                     <label for="atividade_homologada">Atividade Homologada *</label>
-                    <input type="text" name="atividade_homologada" id="atividade_homologada" class="form-control" required
-                           placeholder="Ex: Serviços de manutenção naval"
-                           value="<?php echo $editando ? h($certificado['atividade_homologada']) : ''; ?>">
+                    <textarea name="atividade_homologada" id="atividade_homologada" class="form-control" rows="3" required
+                              placeholder="Ex.: Medição de espessura (NORMAM 202/DPC)"><?php echo $editando ? h($certificado['atividade_homologada']) : ''; ?></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="relatorio_homologacao_numero">Relatório de Homologação Técnica *</label>
+                    <input type="text" name="relatorio_homologacao_numero" id="relatorio_homologacao_numero" class="form-control" required
+                           placeholder="Ex.: AM-REL-HT-101/26"
+                           value="<?php echo $editando ? h($certificado['relatorio_homologacao_numero'] ?: $certificado['numero_relatorio_ht']) : ''; ?>">
                 </div>
                 <div class="form-group">
                     <label for="observacoes">Observações</label>
@@ -220,6 +255,28 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                placeholder="Ex: CREA: 22.482"
                                value="<?php echo $editando ? h($certificado['assinante_registro']) : ''; ?>">
                     </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <!-- SEÇÃO: Despachante -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3><i class="fas fa-briefcase"></i> Responsável pelo Trâmite (Despachante) - Opcional</h3>
+            </div>
+            <div class="card-body">
+                <div class="form-group col-md-6">
+                    <label for="despachante_id">Despachante</label>
+                    <select name="despachante_id" id="despachante_id" class="form-control">
+                        <option value="">-- Sem Despachante / Não se aplica --</option>
+                        <?php foreach ($despachantes_list as $desp): ?>
+                            <option value="<?php echo h($desp['id']); ?>" <?php echo ($editando && ($certificado['despachante_id'] ?? '') === $desp['id']) ? 'selected' : ''; ?>>
+                                <?php echo h($desp['nome']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">Selecione quem será responsável por protocolar ou retirar este certificado junto ao órgão.</small>
                 </div>
             </div>
         </div>

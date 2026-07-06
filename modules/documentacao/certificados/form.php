@@ -10,12 +10,16 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo(['ADMIN', 'VENDEDOR', 'VISTORIADOR']);
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $editando = false;
 $certificado = null;
 $distribuicao = [];
 $convalidacoes = [];
+$tipo_embarcacao_convalidacoes = '';
 
 // Se tem ID, é edição
 if (isset($_GET['id']) && !empty($_GET['id'])) {
@@ -40,6 +44,29 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
     $stmt_conv = $pdo->prepare("SELECT * FROM csn_convalidacoes WHERE certificado_id = :cert_id ORDER BY id");
     $stmt_conv->execute([':cert_id' => $id]);
     $convalidacoes = $stmt_conv->fetchAll(PDO::FETCH_ASSOC);
+
+    $tipo_embarcacao_convalidacoes = $certificado['tipo_embarcacao'] ?? '';
+    if (!empty($certificado['vistoria_id'])) {
+        $stmt_tipo_conv = $pdo->prepare("
+            SELECT COALESCE(te.nome, e.tipo_embarcacao) AS tipo_embarcacao_real
+            FROM vistorias v
+            JOIN agendamentos a ON v.agendamento_id = a.id
+            JOIN embarcacoes e ON a.embarcacao_id = e.id
+            LEFT JOIN tipos_embarcacao te ON e.tipo_embarcacao_id = te.id
+            WHERE v.id = :vistoria_id
+            LIMIT 1
+        ");
+        $stmt_tipo_conv->execute([':vistoria_id' => $certificado['vistoria_id']]);
+        $tipo_embarcacao_real = $stmt_tipo_conv->fetchColumn();
+        if (!empty($tipo_embarcacao_real)) {
+            $tipo_embarcacao_convalidacoes = $tipo_embarcacao_real;
+        }
+    }
+}
+
+if (!$editando) {
+    header('Location: ' . APP_URL . 'certificados');
+    exit;
 }
 
 // --- PRE-PREENCHIMENTO VIA AGENDAMENTO ---
@@ -48,17 +75,18 @@ $preenchimento = [
     'atividades_servicos'=> '', 'tipo_embarcacao'    => '', 'ano_construcao'     => '',
     'comprimento_m'      => '', 'arqueacao_bruta'    => '', 'material_casco'     => '',
     'relatorio_numero'   => '', 'data_vistoria_seco' => '', 'data_vistoria_flutuando' => '',
-    'local_vistoria'     => ''
+    'local_vistoria'     => '', 'armador_nome'       => ''
 ];
 
 if (!$editando && !empty($_GET['agendamento_id'])) {
     $stmtPre = $pdo->prepare("
         SELECT e.nome as emb_nome, e.registro, e.tipo_embarcacao, e.ano as emb_ano,
                e.comprimento_total, e.arqueacao_bruta, e.material_casco,
-               v.numero as relatorio_numero
+               v.numero as relatorio_numero, arm.nome as armador_nome
         FROM agendamentos a
         JOIN embarcacoes e ON a.embarcacao_id = e.id
         LEFT JOIN vistorias v ON v.agendamento_id = a.id
+        LEFT JOIN clientes arm ON v.armador_id = arm.id
         WHERE a.id = :aid
     ");
     $stmtPre->execute([':aid' => $_GET['agendamento_id']]);
@@ -73,6 +101,7 @@ if (!$editando && !empty($_GET['agendamento_id'])) {
         $preenchimento['arqueacao_bruta']    = $dadosPre['arqueacao_bruta'];
         $preenchimento['material_casco']     = $dadosPre['material_casco'];
         $preenchimento['relatorio_numero']   = $dadosPre['relatorio_numero'];
+        $preenchimento['armador_nome']       = $dadosPre['armador_nome'];
     }
 }
 
@@ -88,6 +117,12 @@ if (!$editando) {
     $seq = $total + 1;
     $proximo_numero = "AM-CSN-{$seq}/{$ano}";
 }
+
+
+// Buscar lista de despachantes ativos
+$stmt_desp = $pdo->prepare("SELECT id, nome FROM clientes WHERE perfil = 'despachante' AND status = 'ATIVO' ORDER BY nome");
+$stmt_desp->execute();
+$despachantes_list = $stmt_desp->fetchAll(PDO::FETCH_ASSOC);
 
 $titulo_page = ($editando ? 'Editar' : 'Novo') . ' Certificado CSN - ' . APP_NAME;
 require_once __DIR__ . '/../../../includes/header.php';
@@ -138,11 +173,19 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                 <h3><i class="fas fa-id-card"></i> Identificação do Certificado</h3>
             </div>
             <div class="card-body">
-                <div class="grid-2">
+                <div class="grid-3">
                     <div class="form-group">
                         <label>Número do Certificado</label>
                         <input type="text" class="form-control" value="<?php echo $editando ? h($certificado['numero']) : h($proximo_numero); ?>" readonly 
                                style="background: var(--cor-sidebar); font-weight: bold;">
+                    </div>
+                    <div class="form-group">
+                        <label for="tipo">Tipo do Certificado</label>
+                        <select name="tipo" id="tipo" class="form-control" required>
+                            <option value="Definitivo" <?php echo ($editando && ($certificado['tipo'] ?? '') === 'Definitivo') || !$editando ? 'selected' : ''; ?>>Definitivo</option>
+                            <option value="Condicional" <?php echo $editando && ($certificado['tipo'] ?? '') === 'Condicional' ? 'selected' : ''; ?>>Condicional</option>
+                            <option value="Provisório" <?php echo $editando && ($certificado['tipo'] ?? '') === 'Provisório' ? 'selected' : ''; ?>>Provisório</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="status">Status</label>
@@ -324,12 +367,18 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                 <h3><i class="fas fa-clipboard-check"></i> Vistoria e Certificação</h3>
             </div>
             <div class="card-body">
-                <div class="grid-2">
+                <div class="grid-3">
                     <div class="form-group">
                         <label for="relatorio_numero">N° Relatório de Vistorias</label>
                         <input type="text" name="relatorio_numero" id="relatorio_numero" class="form-control"
                                placeholder="Ex: AM-REL-AP:100/26"
                                value="<?php echo $editando ? h($certificado['relatorio_numero']) : h($preenchimento['relatorio_numero']); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="armador_nome">Armador (da Vistoria)</label>
+                        <input type="text" id="armador_nome" class="form-control" readonly
+                               style="background: var(--cor-sidebar);"
+                               value="<?php echo $editando ? '' : h($preenchimento['armador_nome']); ?>">
                     </div>
                     <div class="form-group">
                         <label for="local_vistoria">Local da Vistoria</label>
@@ -455,14 +504,19 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         </thead>
                         <tbody>
                             <?php
-                            $vistorias_padrao = ['1ª VIST. ANUAL', '2ª VIST. ANUAL', '3ª VIST. ANUAL', '4ª VIST. ANUAL'];
-                            for ($i = 0; $i < 4; $i++):
-                                $conv = $convalidacoes[$i] ?? null;
+                            $vistorias_padrao = certificadoNomesConvalidacoes($tipo_embarcacao_convalidacoes);
+                            $convalidacoes_por_numero = certificadoConvalidacoesPorNumero($convalidacoes);
+                            $usar_mapa_convalidacoes = !empty($convalidacoes_por_numero);
+                            foreach ($vistorias_padrao as $i => $nome_vistoria):
+                                $numero_vistoria = $i + 1;
+                                $conv = $usar_mapa_convalidacoes
+                                    ? ($convalidacoes_por_numero[$numero_vistoria] ?? null)
+                                    : ($convalidacoes[$i] ?? null);
                             ?>
                                 <tr>
                                     <td>
                                         <input type="text" name="conv_numero[]" class="form-control" 
-                                               value="<?php echo h($conv['numero_vistoria'] ?? $vistorias_padrao[$i]); ?>" readonly
+                                               value="<?php echo h($nome_vistoria); ?>" readonly
                                                style="background: var(--cor-sidebar);">
                                     </td>
                                     <td>
@@ -484,9 +538,31 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                                value="<?php echo h($conv['vistoriador'] ?? ''); ?>">
                                     </td>
                                 </tr>
-                            <?php endfor; ?>
+                            <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        
+        <!-- SEÇÃO: Despachante -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h3><i class="fas fa-briefcase"></i> Responsável pelo Trâmite (Despachante) - Opcional</h3>
+            </div>
+            <div class="card-body">
+                <div class="form-group col-md-6">
+                    <label for="despachante_id">Despachante</label>
+                    <select name="despachante_id" id="despachante_id" class="form-control">
+                        <option value="">-- Sem Despachante / Não se aplica --</option>
+                        <?php foreach ($despachantes_list as $desp): ?>
+                            <option value="<?php echo h($desp['id']); ?>" <?php echo ($editando && ($certificado['despachante_id'] ?? '') === $desp['id']) ? 'selected' : ''; ?>>
+                                <?php echo h($desp['nome']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">Selecione quem será responsável por protocolar ou retirar este certificado junto ao órgão.</small>
                 </div>
             </div>
         </div>
@@ -531,5 +607,44 @@ function removerLinha(btn) {
     row.remove();
 }
 </script>
+
+<?php if ($editando && $certificado['assinado']): ?>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Se o certificado já estiver assinado, travar todos os campos exceto convalidações
+    const form = document.getElementById('formCertificado');
+    if (form) {
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            const name = input.getAttribute('name');
+            // Se não for das convalidações e nem do controle do form, trava!
+            if (name && !name.startsWith('conv_local_data') && !name.startsWith('conv_vistoriador') && name !== 'csrf_token' && name !== 'action' && name !== 'id') {
+                input.setAttribute('readonly', 'true');
+                if (input.tagName === 'SELECT') {
+                    input.style.pointerEvents = 'none';
+                    input.style.background = '#f3f4f6';
+                }
+                if (input.getAttribute('type') === 'checkbox' || input.getAttribute('type') === 'radio') {
+                    input.setAttribute('disabled', 'true');
+                }
+            }
+        });
+
+        // Trava também as datas das convalidações, deixando apenas Lugar/Data e Vistoriador editáveis
+        const convDates = form.querySelectorAll('input[name="conv_data_inicio[]"], input[name="conv_data_fim[]"]');
+        convDates.forEach(input => {
+            input.setAttribute('readonly', 'true');
+        });
+
+        // Esconder botões de adicionar/remover passageiros ou outros elementos de modificação estrutural
+        const btnAddPass = document.querySelector('button[onclick="adicionarLinhaPassageiro()"]');
+        if (btnAddPass) btnAddPass.style.display = 'none';
+
+        const btnsRemover = document.querySelectorAll('.btn-danger');
+        btnsRemover.forEach(btn => btn.style.display = 'none');
+    }
+});
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../../../includes/footer.php'; ?>

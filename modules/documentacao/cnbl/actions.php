@@ -11,7 +11,10 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $action = $_POST['action'] ?? '';
 
@@ -31,6 +34,7 @@ if ($action === 'salvar') {
     // Dados principais
     $nome_embarcacao      = trim($_POST['nome_embarcacao'] ?? '');
     $numero_inscricao     = trim($_POST['numero_inscricao'] ?? '');
+    $porto_inscricao      = trim($_POST['porto_inscricao'] ?? '');
     $indicativo_chamada   = trim($_POST['indicativo_chamada'] ?? '');
     $atividades_servicos  = trim($_POST['atividades_servicos'] ?? '');
     $tipo_embarcacao      = trim($_POST['tipo_embarcacao'] ?? '');
@@ -80,12 +84,29 @@ if ($action === 'salvar') {
     $assinante_registro = trim($_POST['assinante_registro'] ?? '');
 
     // Status
+    $despachante_id = $_POST['despachante_id'] ?? null;
+    if(empty($despachante_id)) $despachante_id = null;
+
     $status = $_POST['status'] ?? 'rascunho';
     if (!in_array($status, ['rascunho', 'emitido', 'cancelado'])) {
         $status = 'rascunho';
     }
 
     // Validações
+    $vistoria_id = $_POST['vistoria_id'] ?? null;
+    if (empty($vistoria_id)) {
+        setMensagem('error', 'É obrigatório selecionar um relatório aprovado para emitir o certificado.');
+        redirecionar(APP_URL . 'documentacao/cnbl/form' . ($editando ? "?id={$id}" : ''));
+    } else {
+        $stmtStatus = $pdo->prepare("SELECT status FROM vistorias WHERE id = :vid");
+        $stmtStatus->execute([':vid' => $vistoria_id]);
+        $vistData = $stmtStatus->fetch(PDO::FETCH_ASSOC);
+        if (!$vistData || !in_array($vistData['status'], ['APROVADA', 'APROVADA_COM_EXIGENCIAS'])) {
+            setMensagem('error', 'Não é possível emitir certificado. O relatório selecionado não está aprovado.');
+            redirecionar(APP_URL . 'documentacao/cnbl/form' . ($editando ? "?id={$id}" : ''));
+        }
+    }
+
     if (empty($nome_embarcacao)) {
         setMensagem('error', 'O nome da embarcação é obrigatório.');
         redirecionar(APP_URL . 'documentacao/cnbl/form' . ($editando ? "?id={$id}" : ''));
@@ -109,6 +130,7 @@ if ($action === 'salvar') {
             $sql = "UPDATE certificados_cnbl SET
                         nome_embarcacao = :nome_embarcacao,
                         numero_inscricao = :numero_inscricao,
+                        porto_inscricao = :porto_inscricao,
                         indicativo_chamada = :indicativo_chamada,
                         atividades_servicos = :atividades_servicos,
                         tipo_embarcacao = :tipo_embarcacao,
@@ -138,13 +160,13 @@ if ($action === 'salvar') {
                         assinante_nome = :assinante_nome,
                         assinante_titulo = :assinante_titulo,
                         assinante_registro = :assinante_registro,
-                        status = :status
-                    WHERE id = :id";
+                        status = :status, vistoria_id = :vistoria_id, despachante_id = :despachante_id WHERE id = :id";
 
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 ':nome_embarcacao'     => $nome_embarcacao,
                 ':numero_inscricao'    => $numero_inscricao,
+                ':porto_inscricao'     => $porto_inscricao,
                 ':indicativo_chamada'  => $indicativo_chamada,
                 ':atividades_servicos' => $atividades_servicos,
                 ':tipo_embarcacao'     => $tipo_embarcacao,
@@ -175,6 +197,8 @@ if ($action === 'salvar') {
                 ':assinante_titulo'    => $assinante_titulo,
                 ':assinante_registro'  => $assinante_registro,
                 ':status'              => $status,
+                ':vistoria_id'          => $vistoria_id,
+                ':despachante_id'       => $despachante_id,
                 ':id'                  => $id,
             ]);
 
@@ -195,7 +219,7 @@ if ($action === 'salvar') {
 
             $sql = "INSERT INTO certificados_cnbl (
                         id, numero, token_assinatura,
-                        nome_embarcacao, numero_inscricao, indicativo_chamada,
+                        nome_embarcacao, numero_inscricao, porto_inscricao, indicativo_chamada,
                         atividades_servicos, tipo_embarcacao, ano_construcao,
                         comprimento_total, comprimento_casco, boca_moldada, pontal_moldado,
                         arqueacao_bruta, tipo_navegacao, area_navegacao, material_casco,
@@ -206,10 +230,9 @@ if ($action === 'salvar') {
                         relatorio_numero, data_vistoria, local_vistoria,
                         data_emissao, data_validade, local_emissao,
                         assinante_nome, assinante_titulo, assinante_registro,
-                        status, criado_por
-                    ) VALUES (
+                        status, criado_por, vistoria_id, despachante_id) VALUES (
                         :id, :numero, :token_assinatura,
-                        :nome_embarcacao, :numero_inscricao, :indicativo_chamada,
+                        :nome_embarcacao, :numero_inscricao, :porto_inscricao, :indicativo_chamada,
                         :atividades_servicos, :tipo_embarcacao, :ano_construcao,
                         :comprimento_total, :comprimento_casco, :boca_moldada, :pontal_moldado,
                         :arqueacao_bruta, :tipo_navegacao, :area_navegacao, :material_casco,
@@ -220,8 +243,7 @@ if ($action === 'salvar') {
                         :relatorio_numero, :data_vistoria, :local_vistoria,
                         :data_emissao, :data_validade, :local_emissao,
                         :assinante_nome, :assinante_titulo, :assinante_registro,
-                        :status, :criado_por
-                    )";
+                        :status, :criado_por, :vistoria_id, :despachante_id)";
 
             $id = gerarUUID();
 
@@ -232,6 +254,7 @@ if ($action === 'salvar') {
                 ':token_assinatura'    => $token,
                 ':nome_embarcacao'     => $nome_embarcacao,
                 ':numero_inscricao'    => $numero_inscricao,
+                ':porto_inscricao'     => $porto_inscricao,
                 ':indicativo_chamada'  => $indicativo_chamada,
                 ':atividades_servicos' => $atividades_servicos,
                 ':tipo_embarcacao'     => $tipo_embarcacao,
@@ -263,6 +286,8 @@ if ($action === 'salvar') {
                 ':assinante_registro'  => $assinante_registro,
                 ':status'              => $status,
                 ':criado_por'          => $_SESSION['usuario_id'] ?? null,
+                ':vistoria_id'          => $vistoria_id,
+                ':despachante_id'       => $despachante_id,
             ]);
         }
 

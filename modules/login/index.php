@@ -68,10 +68,9 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="login-container">
     <div class="login-box">
         <div class="login-logo">
-            <div class="logo-icon">
-                <i class="fas fa-anchor"></i>
-            </div>
-            <h1>Sistema Amazon</h1>
+            <img src="<?php echo APP_URL; ?>img/logo-amazon-certificadora.svg"
+                 alt="Amazon Certificadora"
+                 class="login-brand-logo">
         </div>
 
         <?php if (!empty($erro_msg)): ?>

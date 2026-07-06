@@ -1,14 +1,13 @@
 <?php
 /**
  * MÓDULO: Documentação > Certificados CNBL
- * Geração de PDF — Certificado Nacional de Borda Livre para Navegação Interior
- * Layout conforme NORMAM-202/DPC (Anexo 6-A)
+ * PDF fiel ao modelo oficial do Certificado Nacional de Borda Livre.
  */
 
 require_once __DIR__ . '/../../../config.php';
 require_once __DIR__ . '/../../../includes/functions.php';
+require_once __DIR__ . '/../../../vendor/autoload.php';
 
-// Verificar acesso
 $token_publico = $_GET['token'] ?? '';
 $id = $_GET['id'] ?? '';
 
@@ -16,72 +15,152 @@ if (!empty($token_publico)) {
     $stmt = $pdo->prepare("SELECT id FROM certificados_cnbl WHERE token_assinatura = :token AND ativo = 1");
     $stmt->execute([':token' => $token_publico]);
     $row = $stmt->fetch();
-    if (!$row) die("Certificado não encontrado.");
+    if (!$row) {
+        die('Certificado não encontrado.');
+    }
     $id = $row['id'];
-} elseif (!empty($id)) {
-    require_once __DIR__ . '/../../../includes/auth.php';
-    verificar_sessao();
-    verificar_cargo('ADMIN');
-} else {
-    die("ID ou token não informado.");
+} elseif (empty($id)) {
+    die('ID ou token não informado.');
 }
 
-// Buscar dados
 $stmt = $pdo->prepare("SELECT * FROM certificados_cnbl WHERE id = :id AND ativo = 1");
 $stmt->execute([':id' => $id]);
 $c = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$c) die("Certificado não encontrado.");
+if (!$c) {
+    die('Certificado não encontrado.');
+}
 
-// Convalidações
+$tipo_embarcacao_convalidacoes = $c['tipo_embarcacao'] ?? '';
+if (!empty($c['vistoria_id'])) {
+    $stmtTipoConv = $pdo->prepare("
+        SELECT COALESCE(te.nome, e.tipo_embarcacao) AS tipo_embarcacao_real
+        FROM vistorias v
+        JOIN agendamentos a ON v.agendamento_id = a.id
+        JOIN embarcacoes e ON a.embarcacao_id = e.id
+        LEFT JOIN tipos_embarcacao te ON e.tipo_embarcacao_id = te.id
+        WHERE v.id = :vistoria_id
+        LIMIT 1
+    ");
+    $stmtTipoConv->execute([':vistoria_id' => $c['vistoria_id']]);
+    $tipoEmbarcacaoReal = $stmtTipoConv->fetchColumn();
+    if (!empty($tipoEmbarcacaoReal)) {
+        $tipo_embarcacao_convalidacoes = $tipoEmbarcacaoReal;
+    }
+}
+
 $stmt_conv = $pdo->prepare("SELECT * FROM cert_convalidacoes WHERE certificado_id = :cert_id AND tipo_certificado = 'CNBL' ORDER BY id");
 $stmt_conv->execute([':cert_id' => $id]);
 $convalidacoes = $stmt_conv->fetchAll(PDO::FETCH_ASSOC);
 
-// Autoloader
-require_once __DIR__ . '/../../../vendor/autoload.php';
+function cnblText($valor, string $padrao = ''): string
+{
+    $valor = trim((string)$valor);
+    return $valor !== '' ? $valor : $padrao;
+}
 
-// ============================================
-// FUNÇÕES AUXILIARES
-// ============================================
+function cnblPdfText($valor): string
+{
+    return strip_tags(html_entity_decode((string)$valor, ENT_QUOTES, 'UTF-8'));
+}
 
-function dataPorExtenso($data) {
-    if (empty($data)) return '___/___/______';
-    $meses = [1=>'janeiro',2=>'fevereiro',3=>'março',4=>'abril',5=>'maio',6=>'junho',
-              7=>'julho',8=>'agosto',9=>'setembro',10=>'outubro',11=>'novembro',12=>'dezembro'];
+function cnblDataBR($data): string
+{
+    if (empty($data)) {
+        return '';
+    }
+    return date('d/m/Y', strtotime($data));
+}
+
+function cnblDataExtenso($data): string
+{
+    if (empty($data)) {
+        return '__ de __________ de ____';
+    }
+
+    $meses = [
+        1 => 'janeiro', 2 => 'fevereiro', 3 => 'março', 4 => 'abril',
+        5 => 'maio', 6 => 'junho', 7 => 'julho', 8 => 'agosto',
+        9 => 'setembro', 10 => 'outubro', 11 => 'novembro', 12 => 'dezembro'
+    ];
     $dt = new DateTime($data);
     return $dt->format('d') . ' de ' . $meses[(int)$dt->format('n')] . ' de ' . $dt->format('Y');
 }
 
-function formatarDataBR($data) {
-    if (empty($data)) return '';
-    return date('d/m/Y', strtotime($data));
+function cnblMedida($valor, string $padrao = ''): string
+{
+    $valor = trim((string)$valor);
+    if ($valor === '') {
+        return $padrao;
+    }
+    if (preg_match('/\bmm\b/i', $valor)) {
+        return $valor;
+    }
+    return preg_match('/^[0-9]+([,.][0-9]+)?$/', $valor) ? $valor . ' mm' : $valor;
 }
 
-function imgOK($p) { 
-    return file_exists($p) && filesize($p) > 100; 
+function cnblNorm($valor): string
+{
+    $valor = trim((string)$valor);
+    $map = [
+        'Á'=>'A','À'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','á'=>'A','à'=>'A','â'=>'A','ã'=>'A','ä'=>'A',
+        'É'=>'E','È'=>'E','Ê'=>'E','Ë'=>'E','é'=>'E','è'=>'E','ê'=>'E','ë'=>'E',
+        'Í'=>'I','Ì'=>'I','Î'=>'I','Ï'=>'I','í'=>'I','ì'=>'I','î'=>'I','ï'=>'I',
+        'Ó'=>'O','Ò'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','ó'=>'O','ò'=>'O','ô'=>'O','õ'=>'O','ö'=>'O',
+        'Ú'=>'U','Ù'=>'U','Û'=>'U','Ü'=>'U','ú'=>'U','ù'=>'U','û'=>'U','ü'=>'U',
+        'Ç'=>'C','ç'=>'C'
+    ];
+    return mb_strtoupper(strtr($valor, $map), 'UTF-8');
 }
 
-function converterImagemParaJpeg($dados) {
-    if (!function_exists('imagecreatefromstring')) return $dados;
-    
-    $img = imagecreatefromstring($dados);
-    if (!$img) return $dados;
-    
-    ob_start();
-    imagejpeg($img, null, 90);
-    $jpeg = ob_get_clean();
-    imagedestroy($img);
-    
-    return $jpeg ?: $dados;
+function cnblTipoLetra(array $c): string
+{
+    $tipo = cnblNorm($c['tipo_embarcacao'] ?? '');
+    $atividade = cnblNorm($c['atividades_servicos'] ?? '');
+
+    if (preg_match('/^[ABCDE]$/', $tipo)) {
+        return $tipo;
+    }
+    if (str_contains($tipo . ' ' . $atividade, 'CARGA GERAL')) {
+        return 'A';
+    }
+    if (str_contains($tipo . ' ' . $atividade, 'TANQUE')) {
+        return 'B';
+    }
+    if (str_contains($tipo . ' ' . $atividade, 'GRANEL')) {
+        return 'C';
+    }
+    if (str_contains($tipo . ' ' . $atividade, 'PASSAGEIRO')) {
+        return 'D';
+    }
+    if (str_contains($tipo . ' ' . $atividade, 'EMPURRADOR') || str_contains($tipo . ' ' . $atividade, 'EMPURRADO')) {
+        return 'E';
+    }
+    return '';
 }
 
-// ============================================
-// CLASSE PDF PERSONALIZADA
-// ============================================
+function cnblAreaNumero($area): string
+{
+    $area = cnblNorm($area);
+    if (str_contains($area, 'AREA 1')) {
+        return '1';
+    }
+    if (str_contains($area, 'AREA 2')) {
+        return '2';
+    }
+    return '';
+}
 
-class CertificadoCNBL extends TCPDF {
-    public function Header() {}
-    public function Footer() {}
+function cnblImgOk(string $path): bool
+{
+    return file_exists($path) && filesize($path) > 100;
+}
+
+if (!class_exists('CertificadoCNBL')) {
+    class CertificadoCNBL extends TCPDF
+    {
+        public function Header() {}
+        public function Footer() {}
+    }
 }
 
 $pdf = new CertificadoCNBL('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -90,366 +169,382 @@ $pdf->SetAuthor('Amazon Naval Ltda');
 $pdf->SetTitle('Certificado CNBL - ' . $c['numero']);
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
-$pdf->SetMargins(18, 18, 18);
+$pdf->SetMargins(10, 10, 10);
 $pdf->SetAutoPageBreak(false, 0);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
+$pdf->SetDrawColor(0, 0, 0);
+$pdf->SetTextColor(0, 0, 0);
 
-// ============================================
+$tipo_certificado = cnblText($c['tipo'] ?? '', 'Condicional');
+$tipo_label = '(' . mb_strtoupper($tipo_certificado, 'UTF-8') . ')';
+$numero_limpo = str_replace('AM-CNBL-', '', (string)$c['numero']);
+$porto = cnblText($c['porto_inscricao'] ?? '', cnblText($c['local_emissao'] ?? ''));
+$tipo_letra = cnblTipoLetra($c);
+$area_numero = cnblAreaNumero($c['area_navegacao'] ?? '');
+$numero_disco = $area_numero !== '' ? $area_numero : '2';
+$marca_disco_codigo = preg_replace('/[^A-Z0-9]/', '', cnblNorm($c['marca_disco'] ?? 'AM'));
+$marca_disco_codigo = strlen($marca_disco_codigo) >= 2 ? $marca_disco_codigo : 'AM';
+$marca_disco_esquerda = mb_substr($marca_disco_codigo, 0, 1, 'UTF-8');
+$marca_disco_direita = mb_substr($marca_disco_codigo, 1, 1, 'UTF-8');
+
+$medCentroDisco = cnblMedida($c['centro_disco_situado'] ?? '', '___ mm');
+$medMarcaArea1 = cnblMedida($c['marca_linha_carga_area1'] ?? '', '___ mm');
+$medMarcaArea2 = cnblMedida($c['marca_linha_carga_area2'] ?? '', '___ mm');
+$medAresta = cnblMedida($c['aresta_superior_linha_conves'] ?? '', '___ mm');
+$medBicoProa = cnblMedida($c['dist_linha_conves_bico_proa'] ?? '', '___ mm');
+$medAguaSalgada = cnblMedida($c['acrescimo_agua_salgada'] ?? '', '___ mm');
+
+// =========================
 // PÁGINA 1
-// ============================================
+// =========================
 $pdf->AddPage();
+$pdf->SetLineWidth(0.35);
 
-// --- Brasão da República (canto superior esquerdo) ---
-$brasao_path = __DIR__ . '/../../../assets/img/brasao.png';
-if (imgOK($brasao_path)) {
-    $pdf->Image($brasao_path, 23, 21, 30, 30, 'PNG', '', '', true, 150);
-}
-
-// --- Número do certificado (topo direito) ---
-$numero_limpo = str_replace('AM-CNBL-', '', $c['numero']);
-$pdf->SetY(14);
-$pdf->SetX(17);
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(240, 240, 240);
-$pdf->SetDrawColor(200, 200, 200);
-$pdf->Cell(90, 6, 'CERTIFICADO AM-CNBL - ' . h($numero_limpo), 1, 0, 'C', true);
-$pdf->SetFont('helvetica', 'I', 7);
-$pdf->SetTextColor(180, 80, 0);
-$pdf->Cell(0, 6, '(CONDICIONAL)', 0, 1, 'R');
-$pdf->SetTextColor(0, 0, 0);
-
-// --- Título ---
-$pdf->Ln(8);
-$pdf->SetFont('helvetica', 'B', 12);
-$pdf->Cell(0, 6, 'CERTIFICADO NACIONAL DE BORDA LIVRE', 0, 1, 'C');
+// Número do certificado
 $pdf->SetFont('helvetica', 'B', 10);
-$pdf->Cell(0, 5, 'PARA NAVEGAÇÃO INTERIOR', 0, 1, 'C');
-$pdf->Ln(1);
-$pdf->SetFont('helvetica', '', 7);
-$pdf->Cell(0, 3, '(EMITIDO DE ACORDO COM A NORMAM-202)', 0, 1, 'C');
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 4, 'REPÚBLICA FEDERATIVA DO BRASIL', 0, 1, 'C');
-$pdf->Cell(0, 4, 'MARINHA DO BRASIL', 0, 1, 'C');
-$pdf->Cell(0, 4, 'DIRETORIA DE PORTOS E COSTAS', 0, 1, 'C');
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(0, 5, 'AMAZON NAVAL LTDA', 0, 1, 'C');
-$pdf->Ln(3);
+$pdf->Rect(10, 14, 73, 5);
+$pdf->SetXY(10, 14.1);
+$pdf->Cell(73, 5, 'CERTIFICADO AM-CNBL - ' . cnblPdfText($numero_limpo), 0, 0, 'C');
 
-// --- Tabela 4 colunas ---
-$col_w = [58, 35, 45, 42];
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w[0], 6, 'Nome da Embarcação', 1, 0, 'C', true);
-$pdf->Cell($col_w[1], 6, 'N° de Inscrição', 1, 0, 'C', true);
-$pdf->Cell($col_w[2], 6, 'Porto de Inscrição', 1, 0, 'C', true);
-$pdf->Cell($col_w[3], 6, 'Arqueação Bruta', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell($col_w[0], 8, h($c['nome_embarcacao']), 1, 0, 'C');
-$pdf->Cell($col_w[1], 8, h($c['numero_inscricao'] ?: 'Não Fornecido'), 1, 0, 'C');
-$pdf->Cell($col_w[2], 8, h($c['local_emissao']), 1, 0, 'C');
-$pdf->Cell($col_w[3], 8, h($c['arqueacao_bruta'] ?: 'Não Fornecido'), 1, 1, 'C');
-$pdf->Ln(3);
-
-// --- Atividade ou Serviço (tabela com borda) ---
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell(0, 6, 'Atividade ou Serviço', 1, 1, 'C', true);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 7, h($c['atividades_servicos']), 1, 1, 'C');
-$pdf->Ln(2);
-
-// --- Tipo de Embarcação (tabela com borda, checkbox A-E) ---
-$tipo_emb = strtoupper(trim($c['tipo_embarcacao'] ?? ''));
-$mapa_tipos = ['A'=>'CARGA GERAL','B'=>'TANQUE','C'=>'GRANELEIRO','D'=>'PASSAGEIROS','E'=>'EMPURRADOR/EMPURRADO'];
-$letra_selecionada = '';
-foreach ($mapa_tipos as $letra => $desc) {
-    if (stripos($tipo_emb, $desc) !== false) {
-        $letra_selecionada = $letra;
-        break;
-    }
-}
-if (empty($letra_selecionada) && !empty($tipo_emb)) {
-    $primeira = substr($tipo_emb, 0, 1);
-    if (isset($mapa_tipos[$primeira])) $letra_selecionada = $primeira;
+// Brasão
+$brasao = __DIR__ . '/../../../assets/img/brasao.png';
+if (cnblImgOk($brasao)) {
+    $pdf->Image($brasao, 25, 35, 31, 31, 'PNG', '', '', true, 150);
 }
 
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$col_tipo = [30, 30, 30, 30, 30, 30];
-$pdf->Cell($col_tipo[0], 6, 'Tipo de Embarcação', 1, 0, 'C', true);
-$pdf->Cell($col_tipo[1], 6, 'A', 1, 0, 'C', true);
-$pdf->Cell($col_tipo[2], 6, 'B', 1, 0, 'C', true);
-$pdf->Cell($col_tipo[3], 6, 'C', 1, 0, 'C', true);
-$pdf->Cell($col_tipo[4], 6, 'D', 1, 0, 'C', true);
-$pdf->Cell($col_tipo[5], 6, 'E', 1, 1, 'C', true);
+// Cabeçalho central
+$pdf->SetFont('helvetica', 'B', 14);
+$pdf->SetXY(58, 26);
+$pdf->Cell(110, 6, 'CERTIFICADO NACIONAL DE BORDA LIVRE', 0, 1, 'C');
+$pdf->Line(67, 32.2, 160, 32.2);
+$pdf->SetX(58);
+$pdf->Cell(110, 6, 'PARA NAVEGAÇÃO INTERIOR', 0, 1, 'C');
+$pdf->Line(77, 38.2, 150, 38.2);
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetX(58);
+$pdf->Cell(110, 5, '(EMITIDO DE ACORDO COM A NORMAM-202)', 0, 1, 'C');
 
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($col_tipo[0], 7, '', 1, 0, 'C');
-$letras = ['A', 'B', 'C', 'D', 'E'];
-foreach ($letras as $i => $letra) {
-    $marcado = ($letra === $letra_selecionada) ? 'X' : '';
-    $pdf->Cell($col_tipo[$i + 1], 7, $marcado, 1, 0, 'C');
+$pdf->SetFont('helvetica', 'B', 13);
+$pdf->SetXY(58, 48);
+$pdf->Cell(110, 6, 'REPÚBLICA FEDERATIVA DO BRASIL', 0, 1, 'C');
+$pdf->SetX(58);
+$pdf->Cell(110, 6, 'MARINHA DO BRASIL', 0, 1, 'C');
+$pdf->SetX(58);
+$pdf->Cell(110, 6, 'DIRETORIA DE PORTOS E COSTAS', 0, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 11);
+$pdf->SetXY(58, 70);
+$pdf->Cell(110, 5, 'AMAZON NAVAL LTDA', 0, 1, 'C');
+
+$pdf->SetFont('helvetica', 'BI', 10);
+$pdf->SetXY(164, 31);
+$pdf->Cell(35, 5, $tipo_label, 0, 0, 'L');
+
+// Tabela principal
+$x = 10; $y = 79; $w = 190;
+$cols = [80, 37, 36, 37];
+$pdf->SetLineWidth(0.45);
+$pdf->Rect($x, $y, $w, 21);
+$pdf->Line($x, $y + 8, $x + $w, $y + 8);
+$cx = $x;
+for ($i = 0; $i < 3; $i++) {
+    $cx += $cols[$i];
+    $pdf->Line($cx, $y, $cx, $y + 21);
 }
-$pdf->Ln(7);
+$pdf->SetFont('helvetica', '', 10);
+$labels = ['Nome da Embarcação', 'N° de Inscrição', 'Porto de Inscrição', 'Arqueação Bruta'];
+$cx = $x;
+foreach ($labels as $i => $label) {
+    $pdf->SetXY($cx, $y + 1.5);
+    $pdf->Cell($cols[$i], 5, $label, 0, 0, 'C');
+    $cx += $cols[$i];
+}
+$pdf->SetFont('helvetica', 'B', 10);
+$values = [
+    '"' . mb_strtoupper(cnblText($c['nome_embarcacao'] ?? '', 'Não informado'), 'UTF-8') . '"',
+    cnblText($c['numero_inscricao'] ?? '', 'Não Fornecido'),
+    $porto,
+    cnblText($c['arqueacao_bruta'] ?? '', 'Não Fornecido')
+];
+$cx = $x;
+foreach ($values as $i => $value) {
+    $pdf->SetXY($cx + 1, $y + 11.5);
+    $pdf->Cell($cols[$i] - 2, 5, cnblPdfText($value), 0, 0, 'C');
+    $cx += $cols[$i];
+}
 
-$pdf->Ln(2);
+// Quadro atividade/tipo/área
+$y = 104;
+$pdf->Rect($x, $y, $w, 18);
+$pdf->Line($x, $y + 6, $x + $w, $y + 6);
+$pdf->Line($x, $y + 12, $x + $w, $y + 12);
+$labelW = 65;
+$pdf->Line($x + $labelW, $y, $x + $labelW, $y + 18);
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetXY($x + 1, $y + 0.8);
+$pdf->Cell($labelW - 2, 5, 'Atividade ou Serviço:', 0, 0, 'L');
+$pdf->SetXY($x + $labelW + 1, $y + 0.8);
+$pdf->Cell($w - $labelW - 2, 5, cnblPdfText(cnblText($c['atividades_servicos'] ?? '')), 0, 0, 'L');
+$pdf->SetXY($x + 1, $y + 6.8);
+$pdf->Cell($labelW - 2, 5, 'Tipo de Embarcação:', 0, 0, 'L');
 
-// --- Área de Navegação Interior (tabela com borda, checkbox) ---
-$area_nav_selected = array_map('trim', explode(',', $c['area_navegacao'] ?? ''));
+$tipoX = $x + $labelW;
+$tipoCellW = ($w - $labelW) / 5;
+for ($i = 1; $i < 5; $i++) {
+    $pdf->Line($tipoX + ($tipoCellW * $i), $y + 6, $tipoX + ($tipoCellW * $i), $y + 12);
+}
+$pdf->SetFont('helvetica', 'B', 10);
+foreach (['A', 'B', 'C', 'D', 'E'] as $i => $letra) {
+    $pdf->SetXY($tipoX + ($tipoCellW * $i), $y + 6.8);
+    $texto = ($letra === $tipo_letra ? 'X   ' : '    ') . $letra;
+    $pdf->Cell($tipoCellW, 5, $texto, 0, 0, 'C');
+}
 
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$col_area = [60, 60, 60];
-$pdf->Cell($col_area[0], 6, 'Área de Navegação Interior', 1, 0, 'C', true);
-$pdf->Cell($col_area[1], 6, 'Área 1', 1, 0, 'C', true);
-$pdf->Cell($col_area[2], 6, 'Área 2', 1, 1, 'C', true);
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetXY($x + 1, $y + 12.8);
+$pdf->Cell($labelW - 2, 5, 'Área de Navegação Interior:', 0, 0, 'L');
+$areaX = $x + $labelW;
+$areaW = ($w - $labelW) / 2;
+$pdf->Line($areaX + $areaW, $y + 12, $areaX + $areaW, $y + 18);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->SetXY($areaX, $y + 12.8);
+$pdf->Cell($areaW, 5, ($area_numero === '1' ? 'X   ' : '    ') . 'Área 1', 0, 0, 'C');
+$pdf->SetXY($areaX + $areaW, $y + 12.8);
+$pdf->Cell($areaW, 5, ($area_numero === '2' ? 'X   ' : '    ') . 'Área 2', 0, 0, 'C');
 
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($col_area[0], 7, '', 1, 0, 'C');
-$pdf->Cell($col_area[1], 7, in_array('Área 1', $area_nav_selected) ? 'X' : '', 1, 0, 'C');
-$pdf->Cell($col_area[2], 7, in_array('Área 2', $area_nav_selected) ? 'X' : '', 1, 1, 'C');
-$pdf->Ln(8);
+// Medições
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetXY(11, 127);
+$pdf->Cell(120, 5, 'DISTÂNCIA DA PARTE SUPERIOR DA LINHA DO CONVÉS ATÉ:', 0, 1, 'L');
+$pdf->SetFont('helvetica', '', 10);
+$measureRows = [
+    ['CENTRO DO DISCO:', $medCentroDisco],
+    ['MARCA DA LINHA DE CARGA PARA A ÁREA 1:', $medMarcaArea1],
+    ['MARCA DA LINHA DE CARGA PARA A ÁREA 2:', $medMarcaArea2],
+];
+$yy = 136;
+foreach ($measureRows as [$label, $value]) {
+    $pdf->SetXY(35, $yy);
+    $pdf->Cell(70, 5, $label, 0, 0, 'R');
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->Cell(32, 5, cnblPdfText($value), 0, 0, 'C');
+    $pdf->SetFont('helvetica', '', 10);
+    $yy += 6;
+}
 
-// --- DISTÂNCIA DA PARTE SUPERIOR DA LINHA DO CONVÉS ATÉ: ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 6, 'DISTÂNCIA DA PARTE SUPERIOR DA LINHA DO CONVÉS ATÉ:', 0, 1, 'L');
-$pdf->Ln(1);
+// Diagrama oficial do Disco de Plimsoll
+$diagramY = 164;
+$diagramaOficial = __DIR__ . '/../../../img/imagem-pdf.png';
+if (cnblImgOk($diagramaOficial)) {
+    $imgX = 65;
+    $imgY = $diagramY - 1;
+    $imgW = 88;
+    $imgH = 26.5;
+    $pdf->Image($diagramaOficial, $imgX, $imgY, $imgW, $imgH, 'PNG', '', '', true, 150);
 
-$pdf->SetFont('helvetica', '', 8);
-$pdf->SetX(25);
-$pdf->Cell(0, 5, 'CENTRO DO DISCO: ' . h($c['centro_disco_situado'] ?: ' mm'), 0, 1, 'L');
-$pdf->SetX(25);
-$pdf->Cell(0, 5, 'MARCA DA LINHA DE CARGA PARA A ÁREA 1: ' . h($c['marca_linha_carga_area1'] ?: ' mm'), 0, 1, 'L');
-$pdf->SetX(25);
-$pdf->Cell(0, 5, 'MARCA DA LINHA DE CARGA PARA A ÁREA 2: ' . h($c['marca_linha_carga_area2'] ?: ' mm'), 0, 1, 'L');
+    // A imagem oficial é usada como base, mas os identificadores do disco são
+    // variáveis: letras da entidade certificadora e número da área aplicável.
+    $scaleX = $imgW / 574;
+    $scaleY = $imgH / 173;
+    $drawDiscLabel = function (float $px, float $py, float $pw, float $ph, string $text, float $fontSize) use ($pdf, $imgX, $imgY, $scaleX, $scaleY) {
+        $x = $imgX + ($px * $scaleX);
+        $y = $imgY + ($py * $scaleY);
+        $w = $pw * $scaleX;
+        $h = $ph * $scaleY;
 
-$pdf->Ln(5);
+        $pdf->SetFillColor(255, 255, 255);
+        $pdf->Rect($x - 0.6, $y - 0.3, $w + 1.2, $h + 0.9, 'F');
+        $pdf->SetFont('helvetica', 'B', $fontSize);
+        $pdf->SetXY($x - 0.7, $y - 1.1);
+        $pdf->Cell($w + 1.4, $h + 2.0, cnblPdfText($text), 0, 0, 'C');
+    };
 
-// ============================================
-// DIAGRAMA DO DISCO DE PLIMSOLL (imagem estática)
-// ============================================
-$diag_y = $pdf->GetY();
-$disco_img_path = __DIR__ . '/../../../img/imagem-pdf.png';
-if (file_exists($disco_img_path) && filesize($disco_img_path) > 100) {
-    // Proporção original: 574x173 pixels (~3.32:1)
-    $img_largura_mm = 90;
-    $img_altura_mm = round(90 * 173 / 574); // ~27mm mantendo proporção
-    $pdf->Image($disco_img_path, 55, $diag_y, $img_largura_mm, $img_altura_mm, 'PNG', '', '', true, 150);
-    $pdf->SetY($diag_y + $img_altura_mm + 5);
+    $drawDiscLabel(27, 70, 21, 22, $marca_disco_esquerda, 13);
+    $drawDiscLabel(111, 60, 17, 26, $numero_disco, 13.5);
+    $drawDiscLabel(193, 70, 22, 22, $marca_disco_direita, 13);
+
+    $pdf->SetFillColor(255, 255, 255);
 } else {
-    // Fallback: texto indicando que a imagem não foi encontrada
-    $pdf->SetFont('helvetica', 'I', 8);
-    $pdf->Cell(0, 5, '[Diagrama do Disco de Plimsoll não disponível]', 0, 1, 'C');
-    $pdf->SetY($diag_y + 10);
+    $pdf->SetLineWidth(1.0);
+    $pdf->Line(68, $diagramY, 91, $diagramY);
+    $pdf->SetLineWidth(0.8);
+    $pdf->Circle(79.5, $diagramY + 12.5, 8.7);
+    $pdf->Line(66, $diagramY + 12.5, 90.6, $diagramY + 12.5);
+    $pdf->SetFont('helvetica', 'B', 14);
+    $pdf->Text(64.2, $diagramY + 6.3, cnblPdfText($marca_disco_esquerda));
+    $pdf->Text(90.3, $diagramY + 6.3, cnblPdfText($marca_disco_direita));
+    $pdf->SetFont('helvetica', 'B', 13);
+    $pdf->SetXY(74.7, $diagramY + 5.8);
+    $pdf->Cell(9, 7, cnblPdfText($numero_disco), 0, 0, 'C');
 }
 
-// --- Parágrafo narrativo (CAIXA ALTA) ---
-$pdf->SetFont('helvetica', 'B', 8);
-$aresta_val = h($c['aresta_superior_linha_conves'] ?: '0 mm');
-$centro_val = h($c['centro_disco_situado'] ?: ' mm');
-$acrescimo_val = h($c['acrescimo_agua_salgada'] ?: '0 mm');
+// Texto técnico com valores sublinhados
+$baseY = 196;
 
-$texto_narrativo = 'A ARESTA SUP. DA LINHA DO CONVÉS ESTÁ SITUADA A ' . $aresta_val . ' DA FACE SUPERIOR DO CONVÉS AO LADO. ';
-$texto_narrativo .= 'O CENTRO DO DISCO ESTÁ SITUADO A ' . $centro_val . ' DO BICO DE PROA. ';
-$texto_narrativo .= 'ACRÉSCIMO PARA NAVEGAÇÃO EM ÁGUA SALGADA ' . $acrescimo_val . ' ABAIXO DO DISCO DE PLIMSOLL.';
+$linhaAFont = 8.8;
+$linhaAInicio = 'A ARESTA SUP. DA LINHA DO CONVÉS ESTÁ SITUADA A';
+$linhaAFim = 'DA FACE SUPERIOR DO CONVÉS AO LADO';
+$linhaAX = 10;
+$linhaAValorW = 30;
 
-$pdf->MultiCell(0, 5, $texto_narrativo, 0, 'J');
-$pdf->Ln(3);
+$pdf->SetFont('helvetica', '', $linhaAFont);
+$linhaAInicioW = $pdf->GetStringWidth($linhaAInicio) + 1.5;
+$pdf->SetXY($linhaAX, $baseY);
+$pdf->Cell($linhaAInicioW, 5, $linhaAInicio, 0, 0, 'L');
+$pdf->SetFont('helvetica', 'B', $linhaAFont);
+$pdf->Cell($linhaAValorW, 5, cnblPdfText($medAresta), 'B', 0, 'C');
+$pdf->SetFont('helvetica', '', $linhaAFont);
+$pdf->Cell(200 - ($linhaAX + $linhaAInicioW + $linhaAValorW), 5, $linhaAFim, 0, 1, 'L');
 
-// --- Parágrafo de certificação ---
-$pdf->SetFont('helvetica', 'B', 8);
-$texto_cert = 'O PRESENTE CERTIFICADO É EXPEDIDO PARA ATESTAR QUE A EMBARCAÇÃO FOI VISTORIADA E QUE A SUA BORDA LIVRE E LINHA DE CARGA INDICADAS FORAM APOSTAS E SERÃO CONTROLADAS CONFORME AS DISPOSIÇÕES EM VIGOR.';
-$pdf->MultiCell(0, 5, $texto_cert, 0, 'J');
+$pdf->SetFont('helvetica', '', 9.3);
+$pdf->SetXY(11, $baseY + 7);
+$pdf->Cell(68, 5, 'O CENTRO DO DISCO ESTÁ SITUADO A', 0, 0, 'L');
+$pdf->SetFont('helvetica', 'B', 9.3);
+$pdf->Cell(34, 5, cnblPdfText($medBicoProa), 'B', 0, 'C');
+$pdf->SetFont('helvetica', '', 9.3);
+$pdf->Cell(55, 5, 'DO BICO DE PROA.', 0, 1, 'L');
 
-$pdf->Ln(5);
+$pdf->SetXY(11, $baseY + 14);
+$pdf->Cell(102, 5, 'ACRÉSCIMO PARA NAVEGAÇÃO EM ÁGUA SALGADA', 0, 0, 'L');
+$pdf->SetFont('helvetica', 'B', 9.3);
+$pdf->SetXY(113, $baseY + 14);
+$pdf->Cell(34, 5, cnblPdfText($medAguaSalgada), 'B', 0, 'C');
+$pdf->SetFont('helvetica', '', 9.3);
+$pdf->SetXY(148, $baseY + 14);
+$pdf->Cell(52, 5, 'ABAIXO DO DISCO DE PLIMSOLL.', 0, 1, 'L');
 
-// --- VÁLIDO até ---
+// Texto de certificação
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetXY(10, 221);
+$pdf->MultiCell(190, 10, 'O PRESENTE CERTIFICADO É EXPEDIDO PARA ATESTAR QUE A EMBARCAÇÃO FOI VISTORIADA E QUE A SUA BORDA LIVRE E LINHA DE CARGA INDICADAS FORAM APOSTAS E SERÃO CONTROLADAS CONFORME AS DISPOSIÇÕES EM VIGOR.', 0, 'L');
+
 $pdf->SetFont('helvetica', 'B', 10);
-$pdf->Cell(0, 6, 'VÁLIDO até: ' . dataPorExtenso($c['data_validade']), 0, 1, 'C');
+$pdf->SetXY(10, 238);
+$pdf->Cell(190, 6, 'VÁLIDO até: ' . cnblDataExtenso($c['data_validade']), 0, 1, 'C');
+$pdf->SetXY(10, 248);
+$pdf->Cell(190, 6, 'Expedido em ' . cnblPdfText(cnblText($c['local_emissao'] ?? '', 'Belém-PA')) . ', em ' . cnblDataExtenso($c['data_emissao']), 0, 1, 'C');
 
-$pdf->Ln(2);
-
-// --- Expedido em ---
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(0, 5, 'Expedido em ' . h($c['local_emissao']) . ', em ' . dataPorExtenso($c['data_emissao']), 0, 1, 'C');
-
-$pdf->Ln(4);
-
-// --- Área de assinatura (QUADRO) ---
-$sig_y = $pdf->GetY();
-
-// Retângulo da assinatura
-$pdf->SetDrawColor(8, 145, 178);
-$pdf->SetLineWidth(0.5);
-$pdf->Rect(35, $sig_y, 140, 40);
-$pdf->SetDrawColor(200, 200, 200);
-$pdf->SetLineWidth(0.2);
-$pdf->Rect(36, $sig_y + 1, 138, 38);
-
-// Logo Amazon Naval (dentro do quadro)
-$logo_path = __DIR__ . '/../../../assets/img/logo.png';
-if (imgOK($logo_path)) {
-    $pdf->Image($logo_path, 42, $sig_y + 7, 22, 22, 'PNG', '', '', true, 150);
+// Assinatura
+$sigX = 25; $sigY = 255; $sigW = 160; $sigH = 36;
+$pdf->SetLineWidth(0.45);
+$pdf->Rect($sigX, $sigY, $sigW, $sigH);
+$logo = __DIR__ . '/../../../assets/img/logo.png';
+if (cnblImgOk($logo)) {
+    $pdf->Image($logo, $sigX + 12, $sigY + 8, 24, 23.2, '', '', '', true, 150);
 }
 
-// Linha para assinatura
-$pdf->SetDrawColor(100, 100, 100);
-$pdf->SetLineWidth(0.3);
-$pdf->Line(75, $sig_y + 25, 168, $sig_y + 25);
-
-// Nome do assinante (abaixo da linha)
-$pdf->SetXY(75, $sig_y + 27);
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(93, 4, h($c['assinante_nome']), 0, 1, 'C');
-
-// Título
-$pdf->SetX(75);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(93, 4, h($c['assinante_titulo']), 0, 1, 'C');
-
-// Registro
-$pdf->SetX(75);
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetTextColor(8, 145, 178);
-$pdf->Cell(93, 4, h($c['assinante_registro']), 0, 1, 'C');
-$pdf->SetTextColor(0, 0, 0);
-
-// Se assinado, sobrepor imagem da assinatura
 if (!empty($c['assinatura_imagem'])) {
-    $img_data = $c['assinatura_imagem'];
-    
-    // Remover header data URI se existir
-    if (preg_match('/^data:image\/(\w+);base64,/', $img_data, $type)) {
-        $img_data = substr($img_data, strpos($img_data, ',') + 1);
+    $imgData = $c['assinatura_imagem'];
+    if (preg_match('/^data:image\/(\w+);base64,/', $imgData)) {
+        $imgData = substr($imgData, strpos($imgData, ',') + 1);
     }
-    
-    $decoded = base64_decode($img_data);
-    
+    $decoded = base64_decode($imgData);
     if ($decoded !== false && strlen($decoded) > 100) {
-        // Salvar como PNG temporário (melhor qualidade e transparência)
-        $tmp_file = tempnam(sys_get_temp_dir(), 'sig_') . '.png';
-        file_put_contents($tmp_file, $decoded);
-        
-        // Verificar se o arquivo foi criado corretamente
-        if (file_exists($tmp_file) && filesize($tmp_file) > 100) {
-            // Usar PNG diretamente sem conversão
-            $pdf->Image($tmp_file, 75, $sig_y + 7, 55, 16, 'PNG', '', '', true, 150);
+        $tmp = tempnam(sys_get_temp_dir(), 'cnbl_sig_') . '.png';
+        file_put_contents($tmp, $decoded);
+        if (cnblImgOk($tmp)) {
+            $pdf->Image($tmp, $sigX + 58, $sigY + 13, 58, 12, 'PNG', '', '', true, 150);
         }
-        @unlink($tmp_file);
+        @unlink($tmp);
     }
 }
 
-$pdf->SetY($sig_y + 44);
+$pdf->SetLineWidth(0.25);
+$pdf->Line($sigX + 51, $sigY + 23, $sigX + 118, $sigY + 23);
+$pdf->SetFont('helvetica', 'B', 9);
+$pdf->SetXY($sigX + 51, $sigY + 23.1);
+$pdf->Cell(67, 4, cnblPdfText(cnblText($c['assinante_nome'] ?? '', 'Responsável Técnico')), 0, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 8);
+$pdf->SetX($sigX + 51);
+$pdf->Cell(67, 4, cnblPdfText(cnblText($c['assinante_titulo'] ?? '', '')), 0, 1, 'C');
+$pdf->SetX($sigX + 51);
+$pdf->Cell(67, 4, cnblPdfText(cnblText($c['assinante_registro'] ?? '', '')), 0, 1, 'C');
 
-// --- QR Code + Link (rodapé da página 1) ---
-$link_assinatura = APP_URL . 'assinar/' . $c['token_assinatura'];
-
-$qr_y = $pdf->GetY();
-try {
-    $qr = new TCPDF2DBarcode($link_assinatura, 'QRCODE,M');
-    $qr_png = $qr->getBarcodePngData(3, 3, array(0, 0, 0));
-    $qr_file = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
-    file_put_contents($qr_file, $qr_png);
-    $pdf->Image($qr_file, 10, $qr_y, 15, 15, 'PNG');
-    @unlink($qr_file);
-    $pdf->SetXY(27, $qr_y);
-} catch (Exception $e) {
-    $pdf->SetXY(10, $qr_y);
-}
-$pdf->SetFont('helvetica', '', 6);
-$pdf->Cell(80, 5, 'Link de assinatura: ' . $link_assinatura, 0, 1, 'L');
-
-if ($c['assinado']) {
-    $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->SetX(27);
-    $pdf->SetTextColor(0, 100, 0);
-    $pdf->Cell(0, 5, 'Documento assinado por ' . h($c['assinante_nome']) . ' em ' . 
-        formatarDataCompleta($c['assinatura_em']), 0, 1, 'L');
-    $pdf->SetTextColor(0, 0, 0);
-} else {
-    $pdf->SetFont('helvetica', 'I', 7);
-    $pdf->SetX(27);
-    $pdf->Cell(0, 5, 'Acesse o link para assinar este documento.', 0, 1, 'L');
-}
-
-// ============================================
-// PÁGINA 2 — VERSO
-// ============================================
+// =========================
+// PÁGINA 2
+// =========================
 $pdf->AddPage();
-$pdf->SetY(20);
+$pdf->SetLineWidth(0.45);
+$pdf->SetFont('helvetica', 'B', 13);
+$pdf->SetXY(10, 17);
+$pdf->Cell(190, 7, 'CONVALIDAÇÕES', 0, 1, 'C');
 
-// --- Título ---
-$pdf->SetFont('helvetica', 'B', 12);
-$pdf->Cell(0, 8, 'ANEXO 6-A - NORMAM 202/DPC', 0, 1, 'C');
-$pdf->Ln(3);
+$pdf->SetFont('helvetica', '', 10);
+$pdf->SetXY(10, 33);
+$pdf->MultiCell(190, 12, 'Este documento é para certificar que a vistoria requerida pela NORMAM-202/DPC foi efetuada e que a embarcação se encontrava de acordo com as prescrições relevantes da Norma.', 0, 'L');
 
-// --- Observações ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 5, 'Observações:', 0, 1, 'L');
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, '1. Este Certificado Condicional foi emitido com base no Relatório de Vistorias n.º ' . 
-    h($c['relatorio_numero']) . '.', 0, 1, 'L');
-$pdf->Cell(0, 5, '2. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . 
-    formatarDataBR($c['data_vistoria']) . ' em ' . h($c['local_vistoria']) . '.', 0, 1, 'L');
-
-$pdf->Ln(3);
-
-// --- Texto certifica-se ---
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, 'Certifica-se que a embarcação "' . h($c['nome_embarcacao']) . '" foi objeto das vistorias a seguir estabelecidas:', 0, 1, 'L');
-
-$pdf->Ln(3);
-
-// --- Tabela de Convalidações ---
-$col_w = [32, 32, 28, 48, 40];
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($col_w[0], 6, 'CONVALIDAÇÕES', 1, 0, 'C', true);
-$pdf->Cell($col_w[1], 6, 'A REALIZAR ENTRE', 1, 0, 'C', true);
-$pdf->Cell($col_w[2], 6, 'E', 1, 0, 'C', true);
-$pdf->Cell($col_w[3], 6, 'LUGAR E DATA DA REALIZAÇÃO', 1, 0, 'C', true);
-$pdf->Cell($col_w[4], 6, 'VISTORIADOR', 1, 1, 'C', true);
-
-$vistorias_nomes = ['1ª VIST. ANUAL', '2ª VIST. ANUAL', '3ª VIST. ANUAL', '4ª VIST. ANUAL'];
-
-$conv_map = [];
-foreach ($convalidacoes as $conv) {
-    $conv_map[$conv['numero_vistoria']] = $conv;
+// Tabela de convalidações
+$tx = 10; $ty = 58; $tw = 190;
+$nomesConv = certificadoNomesConvalidacoes($tipo_embarcacao_convalidacoes);
+$qtdConv = count($nomesConv);
+$headerH = 12; $rowH = $qtdConv > 4 ? 10 : 18;
+$tcols = [44, 29, 36, 36, 45];
+$pdf->Rect($tx, $ty, $tw, $headerH + ($rowH * $qtdConv));
+$pdf->Line($tx, $ty + $headerH, $tx + $tw, $ty + $headerH);
+for ($i = 1; $i <= $qtdConv; $i++) {
+    $pdf->Line($tx, $ty + $headerH + ($rowH * $i), $tx + $tw, $ty + $headerH + ($rowH * $i));
+}
+$cx = $tx;
+for ($i = 0; $i < count($tcols) - 1; $i++) {
+    $cx += $tcols[$i];
+    $pdf->Line($cx, $ty, $cx, $ty + $headerH + ($rowH * $qtdConv));
 }
 
-for ($i = 0; $i < 4; $i++) {
-    $nome_vistoria = $vistorias_nomes[$i];
-    $conv = $conv_map[$nome_vistoria] ?? $convalidacoes[$i] ?? null;
-    
-    $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->Cell($col_w[0], 8, $nome_vistoria, 1, 0, 'L');
-    $pdf->SetFont('helvetica', '', 7);
-    $pdf->Cell($col_w[1], 8, formatarDataBR($conv['data_inicio'] ?? ''), 1, 0, 'C');
-    $pdf->Cell($col_w[2], 8, formatarDataBR($conv['data_fim'] ?? ''), 1, 0, 'C');
-    $pdf->Cell($col_w[3], 8, h($conv['local_data'] ?? ''), 1, 0, 'L');
-    $pdf->Cell($col_w[4], 8, h($conv['vistoriador'] ?? ''), 1, 1, 'L');
+$headers = ['A REALIZAR', 'ENTRE', 'E', "LUGAR E DATA DA\nREALIZAÇÃO", 'VISTORIADOR'];
+$cx = $tx;
+$pdf->SetFont('helvetica', 'B', 10);
+foreach ($headers as $i => $header) {
+    $pdf->SetXY($cx, $ty + 2.2);
+    $pdf->MultiCell($tcols[$i], 5, $header, 0, 'C');
+    $cx += $tcols[$i];
 }
 
-$pdf->Ln(3);
+$convByNumero = certificadoConvalidacoesPorNumero($convalidacoes);
+$usarMapaConvalidacoes = !empty($convByNumero);
+foreach ($nomesConv as $i => $nome) {
+    $rowY = $ty + $headerH + ($rowH * $i);
+    $numeroVistoria = $i + 1;
+    $conv = $usarMapaConvalidacoes ? ($convByNumero[$numeroVistoria] ?? []) : ($convalidacoes[$i] ?? []);
+    $dados = [
+        $nome,
+        cnblDataBR($conv['data_inicio'] ?? ''),
+        cnblDataBR($conv['data_fim'] ?? ''),
+        cnblText($conv['local_data'] ?? ''),
+        cnblText($conv['vistoriador'] ?? ''),
+    ];
+    $cx = $tx;
+    foreach ($dados as $j => $dado) {
+        $pdf->SetFont('helvetica', $j === 0 || $j === 2 ? 'B' : '', $qtdConv > 4 ? 8 : 9);
+        $pdf->SetXY($cx + 1, $rowY + ($qtdConv > 4 ? 2.5 : 6));
+        $pdf->Cell($tcols[$j] - 2, 5, cnblPdfText($dado), 0, 0, 'C');
+        $cx += $tcols[$j];
+    }
+}
 
-// --- Texto final ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->MultiCell(0, 5, 'Este documento é para certificar que a vistoria requerida pela NORMAM-202/DPC foi efetuada e que a embarcação se encontrava de acordo com as prescrições relevantes da Norma.', 0, 'J');
+// Observações
+$obsY = $ty + $headerH + ($rowH * $qtdConv) + 8;
+$pdf->Rect(10, $obsY, 190, 80);
+$pdf->SetFont('helvetica', 'B', 9);
+$pdf->SetXY(11, $obsY + 2);
+$pdf->Cell(188, 5, 'Observações:', 0, 1, 'L');
+$pdf->SetFont('helvetica', '', 9);
+$obs1 = '1. Este Certificado ' . $tipo_certificado . ' foi emitido com base no Relatório de Vistorias n.º ' . cnblText($c['relatorio_numero'] ?? '') . '.';
+$obs2 = '2. Vistoria Flutuando para emissão do Certificado de Segurança da Navegação realizada em ' . cnblDataBR($c['data_vistoria']) . ' em ' . cnblText($c['local_vistoria'] ?? '') . '.';
+$pdf->SetX(11);
+$pdf->MultiCell(188, 5, cnblPdfText($obs1), 0, 'L');
+$pdf->SetX(11);
+$pdf->MultiCell(188, 5, cnblPdfText($obs2), 0, 'L');
 
-$pdf->Ln(5);
+// Rodapé
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->Rect(10, 281, 73, 5);
+$pdf->SetXY(10, 281.2);
+$pdf->Cell(73, 5, 'ANEXO 6-A - NORMAM 202/DPC', 0, 0, 'C');
 
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell(0, 5, 'Carga Geral sobre o Convés:', 0, 1, 'L');
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 5, 'Autorizado a transportar carga no convés conforme regulamentação aplicável.', 0, 1, 'L');
-
-// ============================================
-// SAÍDA
-// ============================================
 $nome_arquivo = 'CNBL_' . str_replace('/', '-', $c['numero']) . '.pdf';
-$pdf->Output($nome_arquivo, 'I');
-exit;
+
+if (isset($salvar_pdf_caminho) && !empty($salvar_pdf_caminho)) {
+    $pdf->Output($salvar_pdf_caminho, 'F');
+} else {
+    $pdf->Output($nome_arquivo, 'I');
+    exit;
+}

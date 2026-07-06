@@ -8,14 +8,7 @@
  */
 
 require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
-
-verificar_sessao();
-if (getCargo() !== 'ADMIN') {
-    setMensagem('error', 'Acesso negado. Apenas Administradores podem gerar PDFs de propostas.');
-    redirecionar(APP_URL . 'comercial/propostas');
-}
 
 $proposta_id = $_GET['id'] ?? '';
 if (empty($proposta_id)) {
@@ -508,8 +501,7 @@ $pdf->SetFont('helvetica', 'B', 8);
 $pdf->SetFillColor(230, 235, 245);
 $pdf->Cell(0, 5, 'VALIDADE DA PROPOSTA: ' . dataBR($proposta['data_validade'] ?? ''), 0, 1, 'L', true);
 
-// ==================== PÁGINA 2 ====================
-$pdf->AddPage();
+$pdf->Ln(10);
 
 // --- BLOCO: PARCELAS E FORMA DE PAGAMENTO ---
 $pdf->SetFont('helvetica', 'B', 10);
@@ -631,8 +623,7 @@ $pdf->MultiCell(0, 4, "No caso do ACEITANTE não cumprir os prazos dos certifica
 $pdf->Ln(1);
 $pdf->MultiCell(0, 4, "No caso de excepcional desistência na conclusão dos serviços por parte do ACEITANTE, este se compromete a arcar com as despesas já realizadas e não pagas, bem como o valor residual acordado e não pago desta proposta de serviços.", 0, 'J');
 
-// ==================== PÁGINA 3 ====================
-$pdf->AddPage();
+$pdf->Ln(10);
 
 // --- DO FORO ---
 $pdf->SetFont('helvetica', 'B', 9);
@@ -659,6 +650,9 @@ $pdf->MultiCell(0, 4, "O ACEITANTE declara estar ciente e de acordo com todos os
 $pdf->Ln(8);
 
 // --- ÁREA DE ASSINATURAS ---
+if ($pdf->GetY() > 200) {
+    $pdf->AddPage();
+}
 $assinaturaY = $pdf->GetY();
 
 // Quadro da assinatura CONTRATANTE (esquerda)
@@ -730,6 +724,97 @@ if (file_exists($logo_path2) && filesize($logo_path2) > 100) {
     $pdf->Image($logo_path2, 135, $assinaturaY + 14, 18, 18, 'PNG', '', '', true, 150);
 }
 
+// Imagem da Assinatura do Cliente
+if (!empty($proposta['assinado'])) {
+    if (!empty($proposta['assinatura_url'])) {
+        // Nova abordagem: baixar URL
+        $url = $proposta['assinatura_url'];
+        
+        $decoded = false;
+        
+        // Se a URL for um fallback local (uploads), vamos ler o arquivo localmente
+        if (strpos($url, '/uploads/assinaturas/') !== false) {
+            $parsed = parse_url($url);
+            $localFilePath = UPLOADS_PATH . str_replace('/uploads/', '', $parsed['path']);
+            // Tenta remover o diretorio base se ele estiver no path
+            $localFilePath = preg_replace('/.*\/uploads\//', UPLOADS_PATH, $url);
+            
+            if (file_exists($localFilePath)) {
+                $decoded = file_get_contents($localFilePath);
+            }
+        }
+        
+        // Se ainda não leu e é MinIO
+        if ($decoded === false && class_exists('Aws\S3\S3Client') && strpos($url, 'erp-storage') !== false) {
+            // Ajustar URL para uso interno no Docker (se necessário)
+            $url = str_replace(['http://localhost:9002', 'http://localhost:9000'], 'http://minio:9000', $url);
+            try {
+                $s3 = new Aws\S3\S3Client([
+                    'version' => 'latest',
+                    'region'  => 'us-east-1',
+                    'endpoint' => defined('MINIO_ENDPOINT') ? MINIO_ENDPOINT : 'http://minio:9000',
+                    'use_path_style_endpoint' => true,
+                    'credentials' => [
+                        'key'    => defined('MINIO_ACCESS_KEY') ? MINIO_ACCESS_KEY : 'erp_minio_admin',
+                        'secret' => defined('MINIO_SECRET_KEY') ? MINIO_SECRET_KEY : 'erp_minio_pass_2026',
+                    ],
+                ]);
+                
+                // Ex: http://minio:9000/erp-storage/assinaturas/propostas/abc_123.png
+                $parsedUrl = parse_url($url);
+                $path = ltrim($parsedUrl['path'], '/');
+                $bucket = defined('MINIO_BUCKET') ? MINIO_BUCKET : 'erp-storage';
+                // Remove o nome do bucket do path para pegar a key
+                $key = preg_replace('/^' . preg_quote($bucket, '/') . '\//', '', $path);
+                
+                $result = $s3->getObject([
+                    'Bucket' => $bucket,
+                    'Key'    => $key
+                ]);
+                $decoded = (string)$result['Body'];
+            } catch (Exception $e) {
+                // Tenta fallback
+                error_log("Erro S3 no PDF: " . $e->getMessage());
+            }
+        }
+        
+        if ($decoded === false || empty($decoded)) {
+            $opts = [
+                "http" => [
+                    "method" => "GET",
+                    "header" => "Accept-language: en\r\n"
+                ],
+                "ssl" => [
+                    "verify_peer" => false,
+                    "verify_peer_name" => false,
+                ]
+            ];
+            $context = stream_context_create($opts);
+            $decoded = @file_get_contents($url, false, $context);
+        }
+        
+        if ($decoded !== false && !empty($decoded)) {
+            $tmp_file = tempnam(sys_get_temp_dir(), 'sig_') . '.png';
+            file_put_contents($tmp_file, $decoded);
+            $pdf->Image($tmp_file, 25, $assinaturaY + 14, 55, 25, 'PNG', '', '', true, 150);
+            @unlink($tmp_file);
+        }
+    } elseif (!empty($proposta['assinatura_imagem'])) {
+        // Fallback legado Base64
+        $img_data = $proposta['assinatura_imagem'];
+        if (preg_match('/^data:image\/(\w+);base64,/', $img_data, $type)) {
+            $img_data = substr($img_data, strpos($img_data, ',') + 1);
+        }
+        $decoded = base64_decode($img_data);
+        if ($decoded !== false) {
+            $tmp_file = tempnam(sys_get_temp_dir(), 'sig_') . '.png';
+            file_put_contents($tmp_file, $decoded);
+            $pdf->Image($tmp_file, 25, $assinaturaY + 14, 55, 25, 'PNG', '', '', true, 150);
+            @unlink($tmp_file);
+        }
+    }
+}
+
 // Data e local no rodapé dos quadros
 $pdf->SetXY(17, $assinaturaY + 54);
 $pdf->SetFont('helvetica', '', 7);
@@ -749,6 +834,45 @@ if (!empty($proposta['observacoes'])) {
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetFont('helvetica', '', 8);
     $pdf->MultiCell(0, 4, $proposta['observacoes'], 0, 'J');
+}
+
+// --- QR Code + Link (rodapé da página) ---
+if (!empty($proposta['token_assinatura'])) {
+    $pdf->Ln(10);
+    $link_assinatura = APP_URL . 'assinar/' . $proposta['token_assinatura'];
+    $qr_y = $pdf->GetY();
+    
+    // Verificar se cabe na página
+    if ($qr_y > 250) {
+        $pdf->AddPage();
+        $qr_y = $pdf->GetY();
+    }
+    
+    try {
+        $qr = new TCPDF2DBarcode($link_assinatura, 'QRCODE,M');
+        $qr_png = $qr->getBarcodePngData(3, 3, array(0, 0, 0));
+        $qr_file = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
+        file_put_contents($qr_file, $qr_png);
+        $pdf->Image($qr_file, 15, $qr_y, 15, 15, 'PNG');
+        @unlink($qr_file);
+        $pdf->SetXY(32, $qr_y);
+    } catch (Exception $e) {
+        $pdf->SetXY(15, $qr_y);
+    }
+    $pdf->SetFont('helvetica', '', 7);
+    $pdf->Cell(80, 5, 'Link de assinatura: ' . $link_assinatura, 0, 1, 'L');
+    
+    if ($proposta['assinado']) {
+        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetX(32);
+        $pdf->SetTextColor(0, 100, 0);
+        $pdf->Cell(0, 5, 'Documento assinado digitalmente por ' . h($proposta['assinante_nome']) . ' em ' . date('d/m/Y H:i:s', strtotime($proposta['assinatura_em'])), 0, 1, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+    } else {
+        $pdf->SetFont('helvetica', 'I', 8);
+        $pdf->SetX(32);
+        $pdf->Cell(0, 5, 'Acesse o link para assinar este documento.', 0, 1, 'L');
+    }
 }
 
 // ============================================

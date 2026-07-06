@@ -98,7 +98,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             <div class="form-row">
                 <div class="form-group col-4">
                     <label for="tipo_pessoa">Tipo *</label>
-                    <select id="tipo_pessoa" name="tipo_pessoa" onchange="toggleCpfCnpj()">
+                    <select id="tipo_pessoa" name="tipo_pessoa" onchange="toggleCpfCnpj(true)">
                         <option value="PF" <?php echo $cliente['tipo_pessoa'] === 'PF' ? 'selected' : ''; ?>>Pessoa Física</option>
                         <option value="PJ" <?php echo $cliente['tipo_pessoa'] === 'PJ' ? 'selected' : ''; ?>>Pessoa Jurídica</option>
                     </select>
@@ -184,11 +184,15 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 </div>
 
 <script>
-function toggleCpfCnpj() {
+function toggleCpfCnpj(limparValor = false) {
     const tipo = document.getElementById('tipo_pessoa').value;
     const input = document.getElementById('cpf_cnpj');
     input.placeholder = tipo === 'PF' ? 'CPF (apenas numeros)' : 'CNPJ (apenas numeros)';
-    input.value = '';
+    if (limparValor) {
+        input.value = '';
+    } else {
+        mascararCpfCnpj(input);
+    }
 }
 
 function mascararCpfCnpj(input) {
@@ -234,7 +238,7 @@ function mascararTelefone(input) {
 
 // Inicializar placeholder ao carregar
 document.addEventListener('DOMContentLoaded', function() {
-    toggleCpfCnpj();
+    toggleCpfCnpj(false);
 });
 </script>
 

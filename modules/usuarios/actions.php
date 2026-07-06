@@ -42,21 +42,27 @@ switch ($action) {
 
         // Validacoes
         $erros = [];
+        $errosCampos = [];
 
         if (empty($nome)) {
             $erros[] = 'O nome e obrigatorio.';
+            $errosCampos['nome'] = 'Informe o nome do usuario.';
         } elseif (strlen($nome) < 3) {
             $erros[] = 'O nome deve ter pelo menos 3 caracteres.';
+            $errosCampos['nome'] = 'Use pelo menos 3 caracteres.';
         }
 
         if (empty($email)) {
             $erros[] = 'O email e obrigatorio.';
+            $errosCampos['email'] = 'Informe o e-mail.';
         } elseif (!validarEmail($email)) {
             $erros[] = 'Email invalido.';
+            $errosCampos['email'] = 'Informe um e-mail valido.';
         }
 
         if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'])) {
             $erros[] = 'Cargo invalido.';
+            $errosCampos['cargo'] = 'Selecione um cargo valido.';
         }
 
         // Se e criacao, senha e obrigatoria
@@ -64,20 +70,25 @@ switch ($action) {
         if (!$isEdicao) {
             if (empty($senha)) {
                 $erros[] = 'A senha e obrigatoria para novos usuarios.';
+                $errosCampos['senha'] = 'Informe uma senha.';
             } elseif (strlen($senha) < 6) {
                 $erros[] = 'A senha deve ter pelo menos 6 caracteres.';
+                $errosCampos['senha'] = 'Use pelo menos 6 caracteres.';
             }
             if ($senha !== $confirma) {
                 $erros[] = 'As senhas nao conferem.';
+                $errosCampos['senha_confirma'] = 'A confirmacao nao corresponde a senha.';
             }
         } else {
             // Se senha informada na edicao, validar
             if (!empty($senha)) {
                 if (strlen($senha) < 6) {
                     $erros[] = 'A senha deve ter pelo menos 6 caracteres.';
+                    $errosCampos['senha'] = 'Use pelo menos 6 caracteres.';
                 }
                 if ($senha !== $confirma) {
                     $erros[] = 'As senhas nao conferem.';
+                    $errosCampos['senha_confirma'] = 'A confirmacao nao corresponde a senha.';
                 }
             }
         }
@@ -95,6 +106,7 @@ switch ($action) {
                 $stmtCheck->execute($paramsCheck);
                 if ($stmtCheck->fetch()) {
                     $erros[] = 'Ja existe um usuario com este email.';
+                    $errosCampos['email'] = 'Este e-mail ja esta cadastrado.';
                 }
             } catch (Exception $e) {
                 error_log('Erro ao verificar email: ' . $e->getMessage());
@@ -103,7 +115,7 @@ switch ($action) {
         }
 
         if (!empty($erros)) {
-            setMensagem('error', implode(' ', $erros));
+            setMensagem('error', implode(' ', $erros), $errosCampos);
             // Retornar para o form com os dados
             $url = APP_URL . 'usuarios/form';
             if ($isEdicao) $url .= '?id=' . urlencode($id);

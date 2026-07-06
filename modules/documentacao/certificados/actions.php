@@ -10,7 +10,10 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $action = $_POST['action'] ?? '';
 
@@ -67,12 +70,31 @@ if ($action === 'salvar') {
     $assinante_registro = trim($_POST['assinante_registro'] ?? '');
 
     // Status
+    $despachante_id = $_POST['despachante_id'] ?? null;
+    if(empty($despachante_id)) $despachante_id = null;
+
+    $tipo = trim($_POST['tipo'] ?? 'Definitivo');
+
     $status = $_POST['status'] ?? 'rascunho';
     if (!in_array($status, ['rascunho', 'emitido', 'cancelado'])) {
         $status = 'rascunho';
     }
 
     // Validações
+    $vistoria_id = $_POST['vistoria_id'] ?? null;
+    if (empty($vistoria_id)) {
+        setMensagem('error', 'É obrigatório selecionar um relatório aprovado para emitir o certificado.');
+        redirecionar(APP_URL . 'documentacao/certificados/form' . ($editando ? "?id={$id}" : ''));
+    } else {
+        $stmtStatus = $pdo->prepare("SELECT status FROM vistorias WHERE id = :vid");
+        $stmtStatus->execute([':vid' => $vistoria_id]);
+        $vistData = $stmtStatus->fetch(PDO::FETCH_ASSOC);
+        if (!$vistData || !in_array($vistData['status'], ['APROVADA', 'APROVADA_COM_EXIGENCIAS'])) {
+            setMensagem('error', 'Não é possível emitir certificado. O relatório selecionado não está aprovado.');
+            redirecionar(APP_URL . 'documentacao/certificados/form' . ($editando ? "?id={$id}" : ''));
+        }
+    }
+
     if (empty($nome_embarcacao)) {
         setMensagem('error', 'O nome da embarcação é obrigatório.');
         redirecionar(APP_URL . 'documentacao/certificados/form' . ($editando ? "?id={$id}" : ''));
@@ -88,83 +110,111 @@ if ($action === 'salvar') {
         redirecionar(APP_URL . 'documentacao/certificados/form' . ($editando ? "?id={$id}" : ''));
     }
 
+    // Verificar se já está assinado
+    $ja_assinado = false;
+    $cert_existente = null;
+    if ($editando) {
+        $stmtCheck = $pdo->prepare("SELECT assinado, criado_em, numero FROM certificados_csn WHERE id = :id");
+        $stmtCheck->execute([':id' => $id]);
+        $cert_existente = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+        if ($cert_existente && $cert_existente['assinado'] == 1) {
+            $ja_assinado = true;
+        }
+    }
+
     try {
         $pdo->beginTransaction();
 
         if ($editando) {
-            // ATUALIZAR
-            $sql = "UPDATE certificados_csn SET
-                        nome_embarcacao = :nome_embarcacao,
-                        numero_inscricao = :numero_inscricao,
-                        indicativo_chamada = :indicativo_chamada,
-                        atividades_servicos = :atividades_servicos,
-                        tipo_embarcacao = :tipo_embarcacao,
-                        ano_construcao = :ano_construcao,
-                        comprimento_m = :comprimento_m,
-                        arqueacao_bruta = :arqueacao_bruta,
-                        tipo_navegacao = :tipo_navegacao,
-                        area_navegacao = :area_navegacao,
-                        fabricante_motor = :fabricante_motor,
-                        potencia_kw = :potencia_kw,
-                        material_casco = :material_casco,
-                        autorizado_carga = :autorizado_carga,
-                        qtd_passageiros = :qtd_passageiros,
-                        obs_passageiros = :obs_passageiros,
-                        relatorio_numero = :relatorio_numero,
-                        data_vistoria_seco = :data_vistoria_seco,
-                        data_vistoria_flutuando = :data_vistoria_flutuando,
-                        local_vistoria = :local_vistoria,
-                        acessibilidade_sim = :acessibilidade_sim,
-                        acessibilidade_nao = :acessibilidade_nao,
-                        data_emissao = :data_emissao,
-                        data_validade = :data_validade,
-                        local_emissao = :local_emissao,
-                        assinante_nome = :assinante_nome,
-                        assinante_titulo = :assinante_titulo,
-                        assinante_registro = :assinante_registro,
-                        status = :status
-                    WHERE id = :id";
+            if ($ja_assinado) {
+                // Se já estiver assinado, atualiza apenas o status e não altera dados imutáveis assinados
+                $sql = "UPDATE certificados_csn SET status = :status WHERE id = :id";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    ':status' => $status,
+                    ':id'     => $id
+                ]);
 
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([
-                ':nome_embarcacao'      => $nome_embarcacao,
-                ':numero_inscricao'     => $numero_inscricao,
-                ':indicativo_chamada'   => $indicativo_chamada,
-                ':atividades_servicos'  => $atividades_servicos,
-                ':tipo_embarcacao'      => $tipo_embarcacao,
-                ':ano_construcao'       => $ano_construcao,
-                ':comprimento_m'        => $comprimento_m,
-                ':arqueacao_bruta'      => $arqueacao_bruta,
-                ':tipo_navegacao'       => $tipo_navegacao,
-                ':area_navegacao'       => $area_navegacao,
-                ':fabricante_motor'     => $fabricante_motor,
-                ':potencia_kw'          => $potencia_kw,
-                ':material_casco'       => $material_casco,
-                ':autorizado_carga'     => $autorizado_carga,
-                ':qtd_passageiros'      => $qtd_passageiros,
-                ':obs_passageiros'      => $obs_passageiros,
-                ':relatorio_numero'     => $relatorio_numero,
-                ':data_vistoria_seco'   => $data_vistoria_seco,
-                ':data_vistoria_flutuando' => $data_vistoria_flutuando,
-                ':local_vistoria'       => $local_vistoria,
-                ':acessibilidade_sim'   => $acessibilidade_sim,
-                ':acessibilidade_nao'   => $acessibilidade_nao,
-                ':data_emissao'         => $data_emissao,
-                ':data_validade'        => $data_validade,
-                ':local_emissao'        => $local_emissao,
-                ':assinante_nome'       => $assinante_nome,
-                ':assinante_titulo'     => $assinante_titulo,
-                ':assinante_registro'   => $assinante_registro,
-                ':status'               => $status,
-                ':id'                   => $id,
-            ]);
+                // Deletar apenas convalidações para reinserção (não mexe na distribuição de passageiros de docs assinados)
+                $stmt_del2 = $pdo->prepare("DELETE FROM csn_convalidacoes WHERE certificado_id = :cert_id");
+                $stmt_del2->execute([':cert_id' => $id]);
+            } else {
+                // ATUALIZAR COMPLETAMENTE
+                $sql = "UPDATE certificados_csn SET
+                            tipo = :tipo,
+                            nome_embarcacao = :nome_embarcacao,
+                            numero_inscricao = :numero_inscricao,
+                            indicativo_chamada = :indicativo_chamada,
+                            atividades_servicos = :atividades_servicos,
+                            tipo_embarcacao = :tipo_embarcacao,
+                            ano_construcao = :ano_construcao,
+                            comprimento_m = :comprimento_m,
+                            arqueacao_bruta = :arqueacao_bruta,
+                            tipo_navegacao = :tipo_navegacao,
+                            area_navegacao = :area_navegacao,
+                            fabricante_motor = :fabricante_motor,
+                            potencia_kw = :potencia_kw,
+                            material_casco = :material_casco,
+                            autorizado_carga = :autorizado_carga,
+                            qtd_passageiros = :qtd_passageiros,
+                            obs_passageiros = :obs_passageiros,
+                            relatorio_numero = :relatorio_numero,
+                            data_vistoria_seco = :data_vistoria_seco,
+                            data_vistoria_flutuando = :data_vistoria_flutuando,
+                            local_vistoria = :local_vistoria,
+                            acessibilidade_sim = :acessibilidade_sim,
+                            acessibilidade_nao = :acessibilidade_nao,
+                            data_emissao = :data_emissao,
+                            data_validade = :data_validade,
+                            local_emissao = :local_emissao,
+                            assinante_nome = :assinante_nome,
+                            assinante_titulo = :assinante_titulo,
+                            assinante_registro = :assinante_registro,
+                            status = :status, vistoria_id = :vistoria_id, despachante_id = :despachante_id WHERE id = :id";
 
-            // Deletar registros antigos e reinserir
-            $stmt_del1 = $pdo->prepare("DELETE FROM csn_distribuicao_passageiros WHERE certificado_id = :cert_id");
-            $stmt_del1->execute([':cert_id' => $id]);
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([
+                    ':tipo'                 => $tipo,
+                    ':nome_embarcacao'      => $nome_embarcacao,
+                    ':numero_inscricao'     => $numero_inscricao,
+                    ':indicativo_chamada'   => $indicativo_chamada,
+                    ':atividades_servicos'  => $atividades_servicos,
+                    ':tipo_embarcacao'      => $tipo_embarcacao,
+                    ':ano_construcao'       => $ano_construcao,
+                    ':comprimento_m'        => $comprimento_m,
+                    ':arqueacao_bruta'      => $arqueacao_bruta,
+                    ':tipo_navegacao'       => $tipo_navegacao,
+                    ':area_navegacao'       => $area_navegacao,
+                    ':fabricante_motor'     => $fabricante_motor,
+                    ':potencia_kw'          => $potencia_kw,
+                    ':material_casco'       => $material_casco,
+                    ':autorizado_carga'     => $autorizado_carga,
+                    ':qtd_passageiros'      => $qtd_passageiros,
+                    ':obs_passageiros'      => $obs_passageiros,
+                    ':relatorio_numero'     => $relatorio_numero,
+                    ':data_vistoria_seco'   => $data_vistoria_seco,
+                    ':data_vistoria_flutuando' => $data_vistoria_flutuando,
+                    ':local_vistoria'       => $local_vistoria,
+                    ':acessibilidade_sim'   => $acessibilidade_sim,
+                    ':acessibilidade_nao'   => $acessibilidade_nao,
+                    ':data_emissao'         => $data_emissao,
+                    ':data_validade'        => $data_validade,
+                    ':local_emissao'        => $local_emissao,
+                    ':assinante_nome'       => $assinante_nome,
+                    ':assinante_titulo'     => $assinante_titulo,
+                    ':assinante_registro'   => $assinante_registro,
+                    ':status'               => $status,
+                    ':vistoria_id'          => $vistoria_id,
+                    ':id'                   => $id,
+                ]);
 
-            $stmt_del2 = $pdo->prepare("DELETE FROM csn_convalidacoes WHERE certificado_id = :cert_id");
-            $stmt_del2->execute([':cert_id' => $id]);
+                // Deletar registros antigos e reinserir
+                $stmt_del1 = $pdo->prepare("DELETE FROM csn_distribuicao_passageiros WHERE certificado_id = :cert_id");
+                $stmt_del1->execute([':cert_id' => $id]);
+
+                $stmt_del2 = $pdo->prepare("DELETE FROM csn_convalidacoes WHERE certificado_id = :cert_id");
+                $stmt_del2->execute([':cert_id' => $id]);
+            }
 
         } else {
             // INSERIR - Gerar número e token
@@ -178,7 +228,7 @@ if ($action === 'salvar') {
             $token = bin2hex(random_bytes(32));
 
             $sql = "INSERT INTO certificados_csn (
-                        id, numero, token_assinatura,
+                        id, numero, tipo, token_assinatura,
                         nome_embarcacao, numero_inscricao, indicativo_chamada,
                         atividades_servicos, tipo_embarcacao, ano_construcao,
                         comprimento_m, arqueacao_bruta, tipo_navegacao, area_navegacao,
@@ -188,9 +238,8 @@ if ($action === 'salvar') {
                         local_vistoria, acessibilidade_sim, acessibilidade_nao,
                         data_emissao, data_validade, local_emissao,
                         assinante_nome, assinante_titulo, assinante_registro,
-                        status, criado_por
-                    ) VALUES (
-                        :id, :numero, :token_assinatura,
+                        status, criado_por, vistoria_id, despachante_id) VALUES (
+                        :id, :numero, :tipo, :token_assinatura,
                         :nome_embarcacao, :numero_inscricao, :indicativo_chamada,
                         :atividades_servicos, :tipo_embarcacao, :ano_construcao,
                         :comprimento_m, :arqueacao_bruta, :tipo_navegacao, :area_navegacao,
@@ -200,8 +249,7 @@ if ($action === 'salvar') {
                         :local_vistoria, :acessibilidade_sim, :acessibilidade_nao,
                         :data_emissao, :data_validade, :local_emissao,
                         :assinante_nome, :assinante_titulo, :assinante_registro,
-                        :status, :criado_por
-                    )";
+                        :status, :criado_por, :vistoria_id, :despachante_id)";
 
             $id = gerarUUID();
 
@@ -209,6 +257,7 @@ if ($action === 'salvar') {
             $stmt->execute([
                 ':id'                   => $id,
                 ':numero'               => $numero,
+                ':tipo'                 => $tipo,
                 ':token_assinatura'     => $token,
                 ':nome_embarcacao'      => $nome_embarcacao,
                 ':numero_inscricao'     => $numero_inscricao,
@@ -240,27 +289,31 @@ if ($action === 'salvar') {
                 ':assinante_registro'   => $assinante_registro,
                 ':status'               => $status,
                 ':criado_por'           => $_SESSION['usuario_id'] ?? null,
+                ':vistoria_id'          => $vistoria_id,
+                ':despachante_id'       => $despachante_id,
             ]);
         }
 
-        // Salvar distribuição de passageiros
-        $passageiros_local = $_POST['passageiro_local'] ?? [];
-        $passageiros_qtd   = $_POST['passageiro_qtd'] ?? [];
+        if (!$ja_assinado) {
+            // Salvar distribuição de passageiros
+            $passageiros_local = $_POST['passageiro_local'] ?? [];
+            $passageiros_qtd   = $_POST['passageiro_qtd'] ?? [];
 
-        $stmt_dist = $pdo->prepare("INSERT INTO csn_distribuicao_passageiros 
-                                    (id, certificado_id, local_nome, quantidade) 
-                                    VALUES (:id, :cert_id, :local, :qtd)");
+            $stmt_dist = $pdo->prepare("INSERT INTO csn_distribuicao_passageiros 
+                                        (id, certificado_id, local_nome, quantidade) 
+                                        VALUES (:id, :cert_id, :local, :qtd)");
 
-        for ($i = 0; $i < count($passageiros_local); $i++) {
-            $local = trim($passageiros_local[$i] ?? '');
-            $qtd   = (int)($passageiros_qtd[$i] ?? 0);
-            if (!empty($local) || $qtd > 0) {
-                $stmt_dist->execute([
-                    ':id'      => gerarUUID(),
-                    ':cert_id' => $id,
-                    ':local'   => $local,
-                    ':qtd'     => $qtd,
-                ]);
+            for ($i = 0; $i < count($passageiros_local); $i++) {
+                $local = trim($passageiros_local[$i] ?? '');
+                $qtd   = (int)($passageiros_qtd[$i] ?? 0);
+                if (!empty($local) || $qtd > 0) {
+                    $stmt_dist->execute([
+                        ':id'      => gerarUUID(),
+                        ':cert_id' => $id,
+                        ':local'   => $local,
+                        ':qtd'     => $qtd,
+                    ]);
+                }
             }
         }
 
@@ -293,11 +346,42 @@ if ($action === 'salvar') {
             ]);
         }
 
+        if ($ja_assinado) {
+            // Se já estiver assinado, regenerar o PDF para incluir as convalidações atualizadas!
+            $dir_ano = date('Y', strtotime($cert_existente['criado_em']));
+            $nome_arquivo_pdf = 'CSN_' . str_replace('/', '-', $cert_existente['numero']) . '.pdf';
+            $caminho_relativo = 'storage/certificados/' . $dir_ano . '/csn/' . $nome_arquivo_pdf;
+            $salvar_pdf_caminho = __DIR__ . '/../../../' . $caminho_relativo;
+            
+            $dir_pdf = dirname($salvar_pdf_caminho);
+            if (!is_dir($dir_pdf)) {
+                mkdir($dir_pdf, 0777, true);
+            }
+
+            // Variáveis para o pdf.php
+            $_GET['id'] = $id;
+            
+            // Fazer include para gerar o PDF
+            ob_start();
+            require __DIR__ . '/pdf.php';
+            ob_end_clean();
+
+            // Salvar hash atualizado no banco
+            if (file_exists($salvar_pdf_caminho)) {
+                $hash_pdf = hash_file('sha256', $salvar_pdf_caminho);
+                $stmt_pdf = $pdo->prepare("UPDATE certificados_csn SET hash_arquivo_pdf = :hash WHERE id = :id");
+                $stmt_pdf->execute([
+                    ':hash' => $hash_pdf,
+                    ':id'   => $id
+                ]);
+            }
+        }
+
         $pdo->commit();
 
         // Log de atividade
         log_atividade($editando ? 'certificado_csn_editado' : 'certificado_csn_criado', 
-                      "Certificado {$numero} - {$nome_embarcacao}");
+                      "Certificado " . ($ja_assinado ? $cert_existente['numero'] : $numero) . " - " . ($ja_assinado ? '' : $nome_embarcacao));
 
         setMensagem('success', 'Certificado CSN ' . ($editando ? 'atualizado' : 'criado') . ' com sucesso.');
         redirecionar(APP_URL . 'documentacao/certificados');

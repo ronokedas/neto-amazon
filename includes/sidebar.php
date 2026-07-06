@@ -26,7 +26,10 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo-area">
-        <a href="<?= APP_URL ?>dashboard" class="logo-title">Sistema Naval</a>
+        <a href="<?= APP_URL ?>dashboard" class="logo-title" aria-label="Amazon Certificadora - Dashboard">
+            <img src="<?= APP_URL ?>img/logo-amazon-sidebar.svg" alt="Amazon Certificadora" class="sidebar-brand-logo">
+            <img src="<?= APP_URL ?>img/logo-amazon-icon.svg" alt="" class="sidebar-brand-icon" aria-hidden="true">
+        </a>
         <button class="btn-sidebar-toggle" id="sidebar-toggle">
             <i class="fa-solid fa-chevron-left"></i>
         </button>
@@ -36,67 +39,84 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
         
         <!-- GRUPO OPERAÇÃO -->
         <div class="nav-group-label">OPERAÇÃO</div>
-        <a href="<?= APP_URL ?>dashboard" class="nav-item<?= isActive('dashboard', $pagina_atual) ?>">
-            <i class="fa-solid fa-grid"></i>
+        <a href="<?= APP_URL ?>dashboard" class="nav-item<?= isActive('dashboard', $pagina_atual) ?>" data-label="Dashboard">
+            <i class="fa-solid fa-gauge-high"></i>
             <span class="nav-text">Dashboard</span>
         </a>
-        <a href="<?= APP_URL ?>vistorias" class="nav-item<?= isActive('vistorias', $pagina_atual) ?>">
+        <a href="<?= APP_URL ?>vistorias" class="nav-item<?= isActive('vistorias', $pagina_atual) ?>" data-label="Vistorias">
             <i class="fa-solid fa-clipboard-check"></i>
             <span class="nav-text">Vistorias</span>
         </a>
-        <a href="<?= APP_URL ?>agendamentos" class="nav-item<?= isActive('agendamentos', $pagina_atual) ?>">
-            <i class="fa-solid fa-calendar"></i>
+        <?php if ($cargo === 'ADMIN'): ?>
+        <a href="<?= APP_URL ?>documentacao/aprovacao_relatorios" class="nav-item<?= isActive('documentacao/aprovacao_relatorios', $pagina_atual) ?>" data-label="Relatórios">
+            <i class="fa-solid fa-file-circle-check"></i>
+            <span class="nav-text">Relatórios</span>
+        </a>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>agendamentos" class="nav-item<?= isActive('agendamentos', $pagina_atual) ?>" data-label="Agendamentos">
+            <i class="fa-solid fa-calendar-days"></i>
             <span class="nav-text">Agendamentos</span>
+        </a>
+        <a href="<?= APP_URL ?>certificados" class="nav-item<?= isActive('certificados', $pagina_atual) ?>" data-label="Certificados">
+            <i class="fa-solid fa-award"></i>
+            <span class="nav-text">Certificados</span>
         </a>
 
         <!-- GRUPO CADASTROS -->
         <div class="nav-group-label">CADASTROS</div>
-        <a href="<?= APP_URL ?>embarcacoes" class="nav-item<?= isActive('embarcacoes', $pagina_atual) ?>">
-            <i class="fa-solid fa-anchor"></i>
+        <a href="<?= APP_URL ?>embarcacoes" class="nav-item<?= isActive('embarcacoes', $pagina_atual) ?>" data-label="Embarcações">
+            <i class="fa-solid fa-ship"></i>
             <span class="nav-text">Embarcações</span>
         </a>
-        <a href="<?= APP_URL ?>clientes" class="nav-item<?= isActive('clientes', $pagina_atual) ?>">
-            <i class="fa-solid fa-building"></i>
-            <span class="nav-text">Clientes</span>
+        <a href="<?= APP_URL ?>armadores" class="nav-item<?= isActive('armadores', $pagina_atual) ?>" data-label="Armadores">
+            <i class="fa-solid fa-building-user"></i>
+            <span class="nav-text">Armadores</span>
         </a>
-        <a href="<?= APP_URL ?>pessoas" class="nav-item<?= isActive('pessoas', $pagina_atual) ?>">
-            <i class="fa-solid fa-users"></i>
-            <span class="nav-text">Pessoas</span>
+        <a href="<?= APP_URL ?>proprietarios" class="nav-item<?= isActive('proprietarios', $pagina_atual) ?>" data-label="Proprietários">
+            <i class="fa-solid fa-id-card"></i>
+            <span class="nav-text">Proprietários</span>
+        </a>
+        <a href="<?= APP_URL ?>despachantes" class="nav-item<?= isActive('despachantes', $pagina_atual) ?>" data-label="Despachantes">
+            <i class="fa-solid fa-briefcase"></i>
+            <span class="nav-text">Despachantes</span>
         </a>
 
         <?php if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR'): ?>
         <!-- GRUPO COMERCIAL -->
         <div class="nav-group-label">COMERCIAL</div>
-        <a href="<?= APP_URL ?>comercial" class="nav-item<?= isActive('comercial', $pagina_atual) ?>">
-            <i class="fa-solid fa-file-text"></i>
+        <a href="<?= APP_URL ?>comercial" class="nav-item<?= isActive('comercial', $pagina_atual) ?>" data-label="Propostas">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
             <span class="nav-text">Propostas</span>
         </a>
-        <a href="#" class="nav-item nav-link disabled" title="Em breve">
+        <a href="<?= APP_URL ?>comercial/servicos" class="nav-item<?= isActive('comercial/servicos', $pagina_atual) ?>" data-label="Serviços">
+            <i class="fa-solid fa-list-check"></i>
+            <span class="nav-text">Serviços</span>
+        </a>
+        <a href="<?= APP_URL ?>contratos" class="nav-item<?= isActive('contratos', $pagina_atual) ?>" data-label="Contratos">
             <i class="fa-solid fa-file-signature"></i>
             <span class="nav-text">Contratos</span>
-            <span style="font-size:10px; color:var(--text-tertiary); margin-left:auto; background:var(--bg-surface-3); padding:1px 6px; border-radius:10px;">Em breve</span>
         </a>
         <?php endif; ?>
 
-        <?php if ($cargo === 'ADMIN'): ?>
+        <?php if (podeAcessar('financeiro')): ?>
         <!-- GRUPO FINANCEIRO -->
         <div class="nav-group-label">FINANCEIRO</div>
-        <a href="<?= APP_URL ?>financeiro" class="nav-item<?= isActive('financeiro', $pagina_atual) ?>">
-            <i class="fa-solid fa-dollar-sign"></i>
+        <a href="<?= APP_URL ?>financeiro" class="nav-item<?= isActive('financeiro', $pagina_atual) ?>" data-label="Lançamentos">
+            <i class="fa-solid fa-coins"></i>
             <span class="nav-text">Lançamentos</span>
         </a>
-        <a href="#" class="nav-item nav-link disabled" title="Em breve">
-            <i class="fa-solid fa-chart-column"></i>
+        <a href="<?= APP_URL ?>financeiro/relatorios" class="nav-item<?= isActive('financeiro/relatorios', $pagina_atual) ?>" data-label="Relatórios financeiros">
+            <i class="fa-solid fa-chart-line"></i>
             <span class="nav-text">Relatórios</span>
-            <span style="font-size:10px; color:var(--text-tertiary); margin-left:auto; background:var(--bg-surface-3); padding:1px 6px; border-radius:10px;">Em breve</span>
         </a>
         <?php endif; ?>
 
+        <?php if (podeAcessar('documentacao')): ?>
         <!-- GRUPO WORKSPACE -->
         <div class="nav-group-label">WORKSPACE</div>
         <div class="nav-group">
-            <a href="#" class="nav-item<?= (strpos($pagina_atual, 'documentacao') === 0) ? ' active' : '' ?>" onclick="this.parentElement.querySelector('.nav-submenu').classList.toggle('open'); return false;">
-                <i class="fa-solid fa-book-open"></i>
+            <a href="#" class="nav-item<?= (strpos($pagina_atual, 'documentacao') === 0) ? ' active' : '' ?>" data-label="Documentação" onclick="this.parentElement.querySelector('.nav-submenu').classList.toggle('open'); return false;">
+                <i class="fa-solid fa-folder-open"></i>
                 <span class="nav-text">Documentação</span>
                 <i class="fa-solid fa-chevron-down nav-chevron"></i>
             </a>
@@ -109,21 +129,22 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
                 <a href="<?= APP_URL ?>documentacao/cht" class="nav-item nav-subitem<?= isActive('documentacao/cht', $pagina_atual) ?>">CHT</a>
             </div>
         </div>
+        <?php endif; ?>
         
         <?php if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR'): ?>
-        <a href="<?= APP_URL ?>emails" class="nav-item<?= isActive('emails', $pagina_atual) ?>">
-            <i class="fa-solid fa-envelope"></i>
+        <a href="<?= APP_URL ?>emails" class="nav-item<?= isActive('emails', $pagina_atual) ?>" data-label="E-mails">
+            <i class="fa-solid fa-paper-plane"></i>
             <span class="nav-text">E-mails</span>
         </a>
         <?php endif; ?>
 
         <?php if ($cargo === 'ADMIN'): ?>
-        <a href="<?= APP_URL ?>usuarios" class="nav-item<?= isActive('usuarios', $pagina_atual) ?>">
-            <i class="fa-solid fa-user-gear"></i>
+        <a href="<?= APP_URL ?>usuarios" class="nav-item<?= isActive('usuarios', $pagina_atual) ?>" data-label="Usuários">
+            <i class="fa-solid fa-users-gear"></i>
             <span class="nav-text">Usuários</span>
         </a>
-        <a href="<?= APP_URL ?>configuracoes" class="nav-item<?= isActive('configuracoes', $pagina_atual) ?>">
-            <i class="fa-solid fa-gear"></i>
+        <a href="<?= APP_URL ?>configuracoes" class="nav-item<?= isActive('configuracoes', $pagina_atual) ?>" data-label="Configurações">
+            <i class="fa-solid fa-sliders"></i>
             <span class="nav-text">Configurações</span>
         </a>
         <?php endif; ?>
@@ -131,15 +152,10 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
     </nav>
 
     <div class="sidebar-footer">
-        <a href="<?= APP_URL ?>login?action=logout" class="sidebar-logout" title="Sair do Sistema">
+        <a href="<?= APP_URL ?>login?action=logout" class="sidebar-logout" title="Sair do Sistema" data-label="Sair">
             <i class="fa-solid fa-right-from-bracket"></i>
             <span class="nav-text">Sair</span>
         </a>
-        <div class="user-avatar"><?= $inicial_avatar ?></div>
-        <div class="user-info">
-            <div class="user-name"><?= htmlspecialchars($nome_usuario) ?></div>
-            <div class="user-email"><?= htmlspecialchars($email_usuario) ?></div>
-        </div>
     </div>
 </aside>
 

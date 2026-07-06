@@ -33,7 +33,9 @@ switch ($action) {
             $preco_raw  = $_POST['preco_padrao'] ?? '0,00';
 
             if (empty($nome)) {
-                setMensagem('error', 'O nome do serviço é obrigatório.');
+                setMensagem('error', 'O nome do serviço é obrigatório.', [
+                    'nome' => 'Informe o nome do servico.',
+                ]);
                 redirecionar(APP_URL . 'comercial/servicos/form');
             }
 

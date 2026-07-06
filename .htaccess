@@ -3,15 +3,24 @@
 # Ativar mod_rewrite
 RewriteEngine On
 
+# A pasta de documentacao tecnica existe no Windows com outro uso e pode
+# colidir com a rota da aplicacao antes que o roteador seja executado.
+RewriteRule ^documentacao/?$ index.php [QSA,L]
+
 # Redirecionar tudo para index.php (roteamento)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php [QSA,L]
 
 # Proteger arquivos sensiveis
-<FilesMatch "^(config\.php|php\.ini)$">
-    Order Allow,Deny
-    Deny from all
+<FilesMatch "(^\.|config\.php$|php\.ini$|composer\.(json|lock)$|.*\.(sql|log|md|txt|ya?ml)$)">
+    Require all denied
+</FilesMatch>
+
+# Scripts auxiliares de diagnostico, migracao, seed e teste nunca devem ser
+# executados por HTTP. Eles continuam disponiveis para uso controlado via CLI.
+<FilesMatch "^(?:_.*|apply_.*|check_.*|debug_.*|desc.*|describe.*|fix_.*|test_.*|verify_.*|show_.*|seed_.*|create_table|alter_propostas|aplicar_migration|import_cidades|insert_borda_livre|remove_cpf|definitive_fix|final_form_fix)\.php$">
+    Require all denied
 </FilesMatch>
 
 # Bloquear listagem de diretorios
@@ -22,6 +31,7 @@ AddDefaultCharset UTF-8
 
 # Proteger pasta includes contra acesso direto
 RewriteRule ^includes/ - [F,L]
+RewriteRule ^(?:docker|migrations|scripts|docs|DOCUMENTACAO)/ - [F,L,NC]
 
 # Proteger uploads contra execucao de PHP
 <IfModule mod_rewrite.c>

@@ -48,6 +48,66 @@
         mensagens.forEach(function(msg) {
             setTimeout(function() { if (msg.parentElement) msg.remove(); }, 5000);
         });
+
+        const feedback = window.__formFeedback;
+        if (!feedback) return;
+
+        const forms = Array.from(document.querySelectorAll('form'));
+        const valores = feedback.valores || {};
+        const campos = feedback.campos || {};
+        const nomesComErro = Array.isArray(campos) ? campos : Object.keys(campos);
+
+        let formAlvo = forms.find(function(form) {
+            return Object.keys(valores).some(function(nome) {
+                return form.querySelector('[name="' + CSS.escape(nome) + '"], [name="' + CSS.escape(nome) + '[]"]');
+            });
+        });
+        if (!formAlvo) formAlvo = forms[0];
+        if (!formAlvo) return;
+
+        Object.keys(valores).forEach(function(nome) {
+            const valor = valores[nome];
+            const controles = formAlvo.querySelectorAll(
+                '[name="' + CSS.escape(nome) + '"], [name="' + CSS.escape(nome) + '[]"]'
+            );
+            controles.forEach(function(controle) {
+                if (controle.type === 'file' || controle.type === 'password') return;
+                if (controle.type === 'checkbox' || controle.type === 'radio') {
+                    const selecionados = Array.isArray(valor) ? valor.map(String) : [String(valor)];
+                    controle.checked = selecionados.includes(String(controle.value));
+                } else {
+                    controle.value = Array.isArray(valor) ? valor[0] || '' : valor;
+                }
+            });
+        });
+
+        let primeiroInvalido = null;
+        nomesComErro.forEach(function(nome) {
+            const controle = formAlvo.querySelector(
+                '[name="' + CSS.escape(nome) + '"], [name="' + CSS.escape(nome) + '[]"]'
+            );
+            if (!controle) return;
+
+            controle.classList.add('field-invalid');
+            controle.setAttribute('aria-invalid', 'true');
+            if (!primeiroInvalido) primeiroInvalido = controle;
+
+            const grupo = controle.closest('.form-group') || controle.parentElement;
+            if (!grupo || grupo.querySelector('.field-error')) return;
+
+            const mensagem = Array.isArray(campos)
+                ? 'Verifique este campo.'
+                : (campos[nome] || 'Verifique este campo.');
+            const erro = document.createElement('span');
+            erro.className = 'field-error';
+            erro.textContent = mensagem;
+            grupo.appendChild(erro);
+        });
+
+        if (primeiroInvalido) {
+            primeiroInvalido.focus({ preventScroll: true });
+            primeiroInvalido.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     });
 
     window.mostrarMensagem = function(tipo, texto) {

@@ -76,7 +76,8 @@ switch ($action) {
             $dadosServicos       = json_decode($dados_servicos_json, true);
             if (!is_array($dadosServicos)) $dadosServicos = [];
 
-            $desconto_percentual = max(0, min(100, (float)($_POST['desconto_global'] ?? 0)));
+            $tipo_desconto       = $_POST['tipo_desconto'] ?? 'perc';
+            $desconto_input      = (float)($_POST['desconto_global'] ?? 0);
             $parcelas            = max(1, min(12, (int)($_POST['parcelas'] ?? 3)));
 
             if (empty($cliente_id)) {
@@ -132,8 +133,14 @@ switch ($action) {
             }
 
             // Calcular desconto e total
-            $desconto_valor = round($subtotal_geral * ($desconto_percentual / 100), 2);
-            $valor_total    = round($subtotal_geral - $desconto_valor, 2);
+            if ($tipo_desconto === 'valor') {
+                $desconto_valor = max(0, min($subtotal_geral, round($desconto_input, 2)));
+                $desconto_percentual = ($subtotal_geral > 0) ? round(($desconto_valor / $subtotal_geral) * 100, 2) : 0;
+            } else {
+                $desconto_percentual = max(0, min(100, $desconto_input));
+                $desconto_valor = round($subtotal_geral * ($desconto_percentual / 100), 2);
+            }
+            $valor_total = round($subtotal_geral - $desconto_valor, 2);
 
             // Forma de pagamento e observações
             $forma_pagamento = $_POST['forma_pagamento'] ?? 'parcelado';
@@ -144,9 +151,11 @@ switch ($action) {
             $observacoes = trim(sanitizar($_POST['observacoes'] ?? '')) ?: null;
 
             // 3. Inserir a proposta
+            $token_assinatura = md5(uniqid(rand(), true)) . uniqid();
+            
             $stmtProp = $pdo->prepare("
-                INSERT INTO propostas (id, numero, cliente_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, desconto_percentual, desconto_valor, observacoes, status, criado_por)
-                VALUES (UUID(), :numero, :cliente_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por)
+                INSERT INTO propostas (id, numero, cliente_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
+                VALUES (UUID(), :numero, :cliente_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
             ");
             $stmtProp->execute([
                 ':numero'              => $numero,
@@ -158,6 +167,7 @@ switch ($action) {
                 ':desconto_valor'      => $desconto_valor,
                 ':observacoes'         => $observacoes,
                 ':criado_por'          => $_SESSION['usuario_id'],
+                ':token_assinatura'    => $token_assinatura,
             ]);
 
             // Pegar o ID da proposta recém-criada

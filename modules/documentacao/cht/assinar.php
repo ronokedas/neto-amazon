@@ -31,6 +31,7 @@ if (!$cert) {
     echo '<html><head><meta charset="UTF-8"><title>Não encontrado</title><style>body{font-family:Arial,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;height:100vh}.card{background:#fff;padding:40px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);text-align:center;max-width:400px}h2{color:#d32f2f}</style></head><body><div class="card"><h2>Documento não encontrado</h2></div></body></html>';
     exit;
 }
+$numero_cht = $cert['numero_certificado'] ?: $cert['numero_relatorio_ht'];
 
 if ($cert['assinado']) {
     ?><!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Já assinado</title><style>body{font-family:Arial,sans-serif;background:#f5f5f5;display:flex;justify-content:center;align-items:center;height:100vh}.card{background:#fff;padding:40px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);text-align:center;max-width:500px}h2{color:#2e7d32}</style></head><body><div class="card"><h2>&#10003; Já assinado</h2><p>Por <?php echo h($cert['assinante_nome']); ?> em <?php echo formatarDataCompleta($cert['assinatura_em']); ?></p><a href="<?php echo APP_URL; ?>documentacao/cht/pdf?token=<?php echo h($token); ?>" target="_blank" style="display:inline-block;padding:10px 20px;background:#0891b2;color:#fff;text-decoration:none;border-radius:5px">Visualizar</a></div></body></html><?php exit;
@@ -40,7 +41,47 @@ $mensagem='';$erro='';$assinado=false;
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     $nome=trim($_POST['nome']??'');$cpf=trim(preg_replace('/[^0-9]/','',$_POST['cpf']??''));$termos=isset($_POST['termos'])&&$_POST['termos']==='1';$sig=$_POST['assinatura_dados']??'';
     if(empty($nome))$erro='Informe seu nome.';elseif(strlen($cpf)!==11)$erro='CPF inválido.';elseif(!$termos)$erro='Aceite os termos.';elseif(empty($sig))$erro='Desenhe sua assinatura.';
-    if(empty($erro)){try{$ip=$_SERVER['REMOTE_ADDR']??'0.0.0.0';$d=date('Y-m-d H:i:s');$pdo->prepare("UPDATE certificados_cht SET assinante_nome=:n,assinatura_imagem=:i,assinatura_ip=:ip,assinatura_em=:d,assinado=1,status='assinado' WHERE id=:id")->execute([':n'=>$nome,':i'=>$sig,':ip'=>$ip,':d'=>$d,':id'=>$cert['id']]);log_atividade('cht_assinado',"CHT {$cert['numero_relatorio_ht']} assinado por {$nome}");$assinado=true;$mensagem='Assinado com sucesso!';}catch(Exception$e){$erro='Erro: '.$e->getMessage();}}
+    if(empty($erro)){
+        try{
+            $ip=$_SERVER['REMOTE_ADDR']??'0.0.0.0';$d=date('Y-m-d H:i:s');
+            $pdo->prepare("UPDATE certificados_cht SET assinante_nome=:n,assinatura_imagem=:i,assinatura_ip=:ip,assinatura_em=:d,assinado=1,status='assinado' WHERE id=:id")->execute([':n'=>$nome,':i'=>$sig,':ip'=>$ip,':d'=>$d,':id'=>$cert['id']]);
+            
+            // Gerar e salvar PDF imediatamente
+            $dir_ano = date('Y');
+            $nome_arquivo_pdf = 'CHT_' . str_replace('/', '-', $numero_cht) . '.pdf';
+            $caminho_relativo = 'storage/certificados/' . $dir_ano . '/cht/' . $nome_arquivo_pdf;
+            $salvar_pdf_caminho = __DIR__ . '/../../../' . $caminho_relativo;
+            
+            $dir_pdf = dirname($salvar_pdf_caminho);
+            if (!is_dir($dir_pdf)) {
+                mkdir($dir_pdf, 0777, true);
+            }
+
+            // Variáveis para o pdf.php
+            $_GET['id'] = $cert['id'];
+            $id = $cert['id'];
+            $c = $cert; // Para evitar query dupla
+            
+            // Fazer include para gerar o PDF
+            ob_start();
+            require __DIR__ . '/pdf.php';
+            ob_end_clean();
+
+            // Salvar hash e caminho no banco
+            if (file_exists($salvar_pdf_caminho)) {
+                $hash_pdf = hash_file('sha256', $salvar_pdf_caminho);
+                $stmt_pdf = $pdo->prepare("UPDATE certificados_cht SET caminho_arquivo_pdf = :caminho, hash_arquivo_pdf = :hash WHERE id = :id");
+                $stmt_pdf->execute([
+                    ':caminho' => $caminho_relativo,
+                    ':hash' => $hash_pdf,
+                    ':id' => $cert['id']
+                ]);
+            }
+
+            log_atividade('cht_assinado',"CHT {$numero_cht} assinado por {$nome}");
+            $assinado=true;$mensagem='Assinado com sucesso!';
+        }catch(Exception$e){$erro='Erro: '.$e->getMessage();}
+    }
 }
 ?>
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -64,13 +105,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 .success-box{text-align:center;padding:30px 0}.success-icon{font-size:64px;color:#2e7d32}
 </style></head>
 <body><div class="container">
-<div class="header"><h1><i class="fas fa-file-signature"></i> Assinatura Digital - CHT</h1><p><?php echo h($cert['numero_relatorio_ht']); ?></p></div>
+<div class="header"><h1><i class="fas fa-file-signature"></i> Assinatura Digital - CHT</h1><p><?php echo h($numero_cht); ?></p></div>
 <div class="content">
 <?php if($assinado): ?>
 <div class="success-box"><div class="success-icon">&#10003;</div><h2 style="color:#2e7d32">Assinado!</h2><p><?php echo h($mensagem); ?></p><p style="font-size:14px;color:#666">Assinado por: <strong><?php echo h($nome); ?></strong><br>Data: <?php echo date('d/m/Y H:i'); ?></p><a href="<?php echo APP_URL; ?>documentacao/cht/pdf?token=<?php echo h($token); ?>" class="btn-visualizar" target="_blank"><i class="fas fa-file-pdf"></i> Visualizar</a></div>
 <?php else: ?>
 <?php if($erro): ?><div class="alert alert-error"><i class="fas fa-exclamation-circle"></i> <?php echo h($erro); ?></div><?php endif; ?>
-<div class="info-box"><h3><i class="fas fa-info-circle"></i> Documento</h3><p><strong>CHT:</strong> <?php echo h($cert['numero_relatorio_ht']); ?></p><p><strong>Profissional:</strong> <?php echo h($cert['profissional_empresa']); ?></p><a href="<?php echo APP_URL; ?>documentacao/cht/pdf?token=<?php echo h($token); ?>" target="_blank" style="color:#0891b2;font-weight:600">Visualizar</a></div>
+<div class="info-box"><h3><i class="fas fa-info-circle"></i> Documento</h3><p><strong>CHT:</strong> <?php echo h($numero_cht); ?></p><p><strong>Profissional:</strong> <?php echo h($cert['profissional_empresa']); ?></p><a href="<?php echo APP_URL; ?>documentacao/cht/pdf?token=<?php echo h($token); ?>" target="_blank" style="color:#0891b2;font-weight:600">Visualizar</a></div>
 <form method="POST" id="formAssinatura" onsubmit="return validarForm()">
 <div class="form-group"><label for="nome">Nome Completo *</label><input type="text" id="nome" name="nome" required placeholder="Seu nome" value="<?php echo h($_POST['nome']??''); ?>"></div>
 <div class="form-group"><label for="cpf">CPF *</label><input type="text" id="cpf" name="cpf" required placeholder="000.000.000-00" maxlength="14" oninput="mascararCPF(this)" value="<?php echo h($_POST['cpf']??''); ?>"></div>

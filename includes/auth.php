@@ -28,34 +28,60 @@ function podeAcessar($modulo) {
         return true;
     }
     
-    // VENDEDOR tem acesso similar ao ADMIN, exceto usuarios e configuracoes
-    if ($cargo === 'VENDEDOR') {
-        $modulosPermitidos = [
-            'dashboard',
-            'clientes',
-            'embarcacoes',
-            'pessoas',
-            'vistorias',
-            'agendamentos',
-            'documentacao',
-            'comercial',
-            'emails'
-        ];
-        return in_array($modulo, $modulosPermitidos);
+    // Verificação específica para módulos baseada em configuração (tabela usuarios)
+    if ($modulo === 'documentacao' || $modulo === 'financeiro') {
+        global $pdo;
+        if (isset($_SESSION['usuario_id']) && $pdo) {
+            try {
+                $coluna = 'acesso_' . $modulo; // 'acesso_documentacao' ou 'acesso_financeiro'
+                $stmt = $pdo->prepare("SELECT {$coluna} FROM usuarios WHERE id = :id LIMIT 1");
+                $stmt->execute([':id' => $_SESSION['usuario_id']]);
+                $tem_acesso = $stmt->fetchColumn();
+                if ((int)$tem_acesso === 1) {
+                    return true;
+                }
+            } catch (Exception $e) {
+                // Silenciar erro
+            }
+        }
+        return false; // Sem acesso explícito, bloqueia
     }
-    
 
-    // VISTORIADOR tem acesso restrito
-    $modulosPermitidos = [
-        'dashboard',
-        'login',
-        'embarcacoes',
-        'pessoas', 
-        'vistorias'
-    ];
-    // Módulos de ADMIN: documentacao, financeiro, usuarios
-    
-    return in_array($modulo, $modulosPermitidos);
+    // Permissões por cargo (default deny: cargos desconhecidos não acessam nada).
+    // Cargos válidos do sistema: ADMIN, VENDEDOR, VISTORIADOR
+    // (ver modules/usuarios/actions.php).
+    switch ($cargo) {
+        case 'ADMIN':
+            return true;
+
+        case 'VENDEDOR':
+            $modulosPermitidos = [
+                'dashboard',
+                'clientes',
+                'embarcacoes',
+                'pessoas',
+                'vistorias',
+                'agendamentos',
+                'comercial',
+                'contratos',
+                'emails'
+            ];
+            return in_array($modulo, $modulosPermitidos, true);
+
+        case 'VISTORIADOR':
+            $modulosPermitidos = [
+                'dashboard',
+                'login',
+                'embarcacoes',
+                'pessoas',
+                'vistorias'
+            ];
+            return in_array($modulo, $modulosPermitidos, true);
+
+        default:
+            // Cargo desconhecido/nulo: negar acesso por segurança.
+            return false;
+    }
 }
 
 // Redirecionar para login se nao estiver logado
@@ -89,6 +115,7 @@ function requireCargo($cargoRequerido) {
 
 // Inicializar sessao para o usuario
 function login($usuario) {
+    session_regenerate_id(true);
     $_SESSION['usuario_id'] = $usuario['id'];
     $_SESSION['usuario_nome'] = $usuario['nome'];
     $_SESSION['usuario_email'] = $usuario['email'];
@@ -110,6 +137,9 @@ function verificarSessao() {
     if (!estaLogado() || (time() - ($_SESSION['login_time'] ?? 0)) > 1800) {
         logout();
     }
+
+    // A expiracao e por inatividade, portanto uma requisicao valida renova o prazo.
+    $_SESSION['login_time'] = time();
 }
 
 // Alias para compatibilidade com o modulo

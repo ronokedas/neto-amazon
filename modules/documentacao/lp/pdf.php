@@ -1,115 +1,129 @@
 <?php
 /**
  * MÓDULO: Documentação > Licença Provisória (LP)
- * Geração de PDF — Licença Provisória
- * Usa TCPDF (libs/tcpdf/tcpdf.php)
- * Layout: Cabeçalho Amazon Naval, dados da licença em tabela, observações e assinatura
- * 
- * SUPORTA: ?id=UUID (requer login) ou ?token=TOKEN (público via assinatura)
+ * PDF baseado no modelo oficial: CERTIFICADOS-AMAZON-PROCESSO-R5(LP)-BALSA.xlsx
+ *
+ * Suporta:
+ * - ?id=UUID    acesso administrativo
+ * - ?token=...  acesso público para assinatura/visualização
  */
 
 require_once __DIR__ . '/../../../config.php';
+require_once __DIR__ . '/../../../includes/functions.php';
 
-// Verificar acesso: admin logado OU token público válido
 $token_publico = $_GET['token'] ?? '';
 $id = $_GET['id'] ?? '';
 
 if (!empty($token_publico)) {
-    // Modo público (acesso via link de assinatura)
-    require_once __DIR__ . '/../../../includes/functions.php';
     $stmt = $pdo->prepare("SELECT id FROM certificados_lp WHERE token_assinatura = :token AND ativo = 1");
     $stmt->execute([':token' => $token_publico]);
-    $row = $stmt->fetch();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
-        die("Licença não encontrada.");
+        die('Licença não encontrada.');
     }
     $id = $row['id'];
-} elseif (!empty($id)) {
-    // Modo admin
-    require_once __DIR__ . '/../../../includes/auth.php';
-    require_once __DIR__ . '/../../../includes/functions.php';
-    verificar_sessao();
-    verificar_cargo('ADMIN');
-} else {
-    die("ID ou token não informado.");
+} elseif (empty($id)) {
+    die('ID ou token não informado.');
 }
 
-// Buscar licença
 $stmt = $pdo->prepare("SELECT * FROM certificados_lp WHERE id = :id AND ativo = 1");
 $stmt->execute([':id' => $id]);
 $c = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$c) {
-    die("Licença não encontrada.");
+    die('Licença não encontrada.');
 }
 
-// Carregar autoloader do Composer (inclui TCPDF automaticamente)
+if (!isset($salvar_pdf_caminho) && (int)$c['assinado'] === 1 && !empty($c['caminho_arquivo_pdf'])) {
+    $caminho_fisico = __DIR__ . '/../../../' . $c['caminho_arquivo_pdf'];
+    if (file_exists($caminho_fisico)) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($caminho_fisico) . '"');
+        header('Content-Length: ' . filesize($caminho_fisico));
+        readfile($caminho_fisico);
+        exit;
+    }
+}
+
 $autoload_path = __DIR__ . '/../../../vendor/autoload.php';
 if (!file_exists($autoload_path)) {
-    die("Autoloader do Composer não encontrado.");
+    die('Autoloader do Composer não encontrado.');
 }
 require_once $autoload_path;
 
-// ============================================
-// FUNÇÕES AUXILIARES
-// ============================================
+function lpTxt($valor, $padrao = '') {
+    $valor = trim((string)($valor ?? ''));
+    return $valor !== '' ? $valor : $padrao;
+}
 
-function dataPorExtenso($data) {
-    if (empty($data)) return '___/___/______';
+function lpDataBR($data) {
+    if (empty($data)) {
+        return '';
+    }
+    return date('d/m/Y', strtotime($data));
+}
+
+function lpDataExtenso($data) {
+    if (empty($data)) {
+        return '___ de ______________ de ______';
+    }
+
     $meses = [
         1 => 'janeiro', 2 => 'fevereiro', 3 => 'março', 4 => 'abril',
         5 => 'maio', 6 => 'junho', 7 => 'julho', 8 => 'agosto',
         9 => 'setembro', 10 => 'outubro', 11 => 'novembro', 12 => 'dezembro'
     ];
+
     $dt = new DateTime($data);
     return $dt->format('d') . ' de ' . $meses[(int)$dt->format('n')] . ' de ' . $dt->format('Y');
 }
 
-function formatarDataBR($data) {
-    if (empty($data)) return '';
-    return date('d/m/Y', strtotime($data));
+function lpNumero($valor) {
+    if ($valor === null || $valor === '') {
+        return '';
+    }
+
+    $numero = (float)$valor;
+    $formatado = number_format($numero, 2, ',', '');
+    return rtrim(rtrim($formatado, '0'), ',');
 }
 
-function converterImagemParaJpeg($dados) {
+function lpImgOK($caminho) {
+    return file_exists($caminho) && filesize($caminho) > 100;
+}
+
+function lpConverterAssinaturaParaJpeg($dados) {
     if (!function_exists('imagecreatefromstring')) {
         return $dados;
     }
+
     $img = @imagecreatefromstring($dados);
     if ($img === false) {
-        $placeholder = imagecreatetruecolor(400, 80);
-        $branco = imagecolorallocate($placeholder, 255, 255, 255);
-        imagefill($placeholder, 0, 0, $branco);
-        ob_start();
-        imagejpeg($placeholder, null, 85);
-        $jpeg = ob_get_clean();
-        imagedestroy($placeholder);
-        return $jpeg;
+        return $dados;
     }
+
     $w = imagesx($img);
     $h = imagesy($img);
     $nova = imagecreatetruecolor($w, $h);
     $branco = imagecolorallocate($nova, 255, 255, 255);
     imagefill($nova, 0, 0, $branco);
     imagecopy($nova, $img, 0, 0, 0, 0, $w, $h);
+
     ob_start();
     imagejpeg($nova, null, 90);
     $jpeg = ob_get_clean();
+
     imagedestroy($img);
     imagedestroy($nova);
+
     return $jpeg;
 }
 
-function imgOK($p) { 
-    return file_exists($p) && filesize($p) > 100; 
-}
-
-// ============================================
-// CRIAR PDF
-// ============================================
-
-class CertificadoLP extends TCPDF {
-    public function Header() {}
-    public function Footer() {}
+if (!class_exists('CertificadoLP')) {
+    class CertificadoLP extends TCPDF {
+        public function Header() {}
+        public function Footer() {}
+    }
 }
 
 $pdf = new CertificadoLP('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -118,288 +132,161 @@ $pdf->SetAuthor('Amazon Naval Ltda');
 $pdf->SetTitle('Licença Provisória - ' . $c['numero_lp']);
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
-$pdf->SetMargins(15, 15, 15);
+$pdf->SetMargins(15, 12, 15);
 $pdf->SetAutoPageBreak(false, 0);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
-
-// ============================================
-// PÁGINA 1 — FRENTE
-// ============================================
 $pdf->AddPage();
 
-// --- Logo / Brasão (canto superior esquerdo) ---
-$logo_path = __DIR__ . '/../../../assets/img/logo.png';
-if (imgOK($logo_path)) {
-    $pdf->Image($logo_path, 15, 12, 35, 20, 'PNG', '', '', true, 150);
+$brasao = __DIR__ . '/../../../assets/img/brasao.png';
+$logo = __DIR__ . '/../../../assets/img/logo.png';
+
+$x = 15;
+$w = 180;
+
+// Cabeçalho oficial
+if (lpImgOK($brasao)) {
+    $pdf->Image($brasao, 30, 12, 24, 24, 'PNG', '', '', true, 150);
 }
 
-// --- Número da licença (topo direito) ---
-$pdf->SetY(14);
-$pdf->SetX(55);
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(240, 240, 240);
-$pdf->SetDrawColor(200, 200, 200);
-$pdf->Cell(0, 6, 'LP - ' . h($c['numero_lp']), 1, 1, 'R', true);
-
-// --- Título principal ---
-$pdf->Ln(2);
-$pdf->SetFont('helvetica', 'B', 11);
-$pdf->Cell(0, 6, 'AMAZON NAVAL LTDA', 0, 1, 'C');
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 4, 'Serviços Técnicos de Engenharia Naval', 0, 1, 'C');
-$pdf->Ln(3);
-
-$pdf->SetFont('helvetica', 'B', 14);
-$pdf->Cell(0, 8, 'LICENÇA PROVISÓRIA', 0, 1, 'C');
-$pdf->Ln(2);
-
-// --- Tipo de Licença ---
-$tipo_labels = [
-    'construção' => 'LICENÇA DE CONSTRUÇÃO',
-    'alteração' => 'LICENÇA DE ALTERAÇÃO',
-    'reclassificação' => 'LICENÇA DE RECLASSIFICAÇÃO',
-    'lcec' => 'LICENÇA DE CONSTRUÇÃO / EXPLORAÇÃO COMERCIAL (LCEC)'
-];
-$pdf->SetFont('helvetica', 'B', 10);
-$pdf->SetFillColor(230, 230, 230);
-$pdf->Cell(0, 7, h($tipo_labels[$c['tipo_licenca']] ?? strtoupper($c['tipo_licenca'])), 1, 1, 'C', true);
-$pdf->Ln(3);
-
-// --- Dados da Licença em Tabela ---
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-
-$w1 = 55; $w2 = 135;
-
-// Linha 1: Número da LP e Data de Emissão
-$pdf->Cell($w1, 5, 'Número da Licença', 1, 0, 'C', true);
-$pdf->Cell($w2, 5, 'Data de Emissão', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->Cell($w1, 7, h($c['numero_lp']), 1, 0, 'C');
-$pdf->Cell($w2, 7, formatarDataBR($c['data_emissao']), 1, 1, 'C');
-
-// Linha 2: Validade
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($w1, 5, 'Validade (dias)', 1, 0, 'C', true);
-$pdf->Cell($w2, 5, 'Data de Validade', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($w1, 7, $c['validade_dias'] ? $c['validade_dias'] . ' dias' : '', 1, 0, 'C');
-$pdf->Cell($w2, 7, formatarDataBR($c['validade_data']), 1, 1, 'C');
-
-$pdf->Ln(3);
-
-// --- Dados da Embarcação ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'DADOS DA EMBARCAÇÃO', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-
-$dados_emb = [
-    ['Nome da Embarcação', h($c['nome_embarcacao']), 'Tipo', h($c['tipo_embarcacao'])],
-];
-
-foreach ($dados_emb as $d) {
-    $pdf->Cell(60, 5, $d[0], 1, 0, 'C', true);
-    $pdf->Cell(130, 5, $d[2], 1, 1, 'C', true);
-    $pdf->SetFont('helvetica', '', 8);
-    $pdf->Cell(60, 7, $d[1], 1, 0, 'C');
-    $pdf->Cell(130, 7, $d[3], 1, 1, 'C');
-    $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->SetFillColor(220, 220, 220);
-}
-
-// Dimensões
-$w_dim = 190 / 4;
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($w_dim, 5, 'Nº Casco', 1, 0, 'C', true);
-$pdf->Cell($w_dim, 5, 'Material Casco', 1, 0, 'C', true);
-$pdf->Cell($w_dim, 5, 'Comp. Total (m)', 1, 0, 'C', true);
-$pdf->Cell($w_dim, 5, 'Boca Mold. (m)', 1, 0, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($w_dim, 7, h($c['numero_casco']), 1, 0, 'C');
-$pdf->Cell($w_dim, 7, h($c['material_casco']), 1, 0, 'C');
-$pdf->Cell($w_dim, 7, $c['comprimento_total'] ? number_format($c['comprimento_total'], 2, ',', '') . ' m' : '', 1, 0, 'C');
-$pdf->Cell($w_dim, 7, $c['boca_moldada'] ? number_format($c['boca_moldada'], 2, ',', '') . ' m' : '', 1, 1, 'C');
-
-$pdf->SetFillColor(220, 220, 220);
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->Cell($w_dim, 5, 'Pontal Mold. (m)', 1, 0, 'C', true);
-$pdf->Cell($w_dim, 5, '', 1, 0, 'C', true);
-$pdf->Cell($w_dim, 5, '', 1, 0, 'C', true);
-$pdf->Cell($w_dim, 5, '', 1, 0, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($w_dim, 7, $c['pontal_moldado'] ? number_format($c['pontal_moldado'], 2, ',', '') . ' m' : '', 1, 0, 'C');
-$pdf->Cell($w_dim, 7, '', 1, 0, 'C');
-$pdf->Cell($w_dim, 7, '', 1, 0, 'C');
-$pdf->Cell($w_dim, 7, '', 1, 0, 'C');
-
-$pdf->Ln(3);
-
-// --- Proprietário/Armador ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'PROPRIETÁRIO / ARMADOR', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($w1, 5, 'Nome', 1, 0, 'C', true);
-$pdf->Cell($w2, 5, 'CPF / CNPJ', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($w1, 7, h($c['proprietario_nome']), 1, 0, 'C');
-$pdf->Cell($w2, 7, h($c['proprietario_cpf_cnpj']), 1, 1, 'C');
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell(0, 5, 'Endereço', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 7, h($c['proprietario_endereco']), 1, 1, 'L');
-
-$pdf->Ln(2);
-
-// --- Estaleiro/Construtor ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetFillColor(200, 220, 200);
-$pdf->Cell(0, 6, 'ESTALEIRO / CONSTRUTOR', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell($w1, 5, 'Nome', 1, 0, 'C', true);
-$pdf->Cell($w2, 5, 'CPF / CNPJ', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell($w1, 7, h($c['estaleiro_nome']), 1, 0, 'C');
-$pdf->Cell($w2, 7, h($c['estaleiro_cpf_cnpj']), 1, 1, 'C');
-
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->SetFillColor(220, 220, 220);
-$pdf->Cell(0, 5, 'Endereço', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(0, 7, h($c['estaleiro_endereco']), 1, 1, 'L');
-
-$pdf->Ln(3);
-
-// --- Observações / Exigências ---
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetFillColor(240, 240, 200);
-$pdf->Cell(0, 6, 'OBSERVAÇÕES / EXIGÊNCIAS', 1, 1, 'C', true);
-
-$pdf->SetFont('helvetica', '', 8);
-$obs_texto = !empty($c['observacoes_exigencias']) ? h($c['observacoes_exigencias']) : 'Nenhuma observação registrada.';
-$pdf->MultiCell(0, 5, $obs_texto, 1, 'L');
-
-$pdf->Ln(3);
-
-// --- Data e Local ---
-$pdf->SetFont('helvetica', '', 9);
-$pdf->Cell(0, 5, 'Expedido em Belém-PA, ' . dataPorExtenso($c['data_emissao']), 0, 1, 'R');
-$pdf->Ln(2);
-
-// --- Área de assinatura ---
-$sig_y = $pdf->GetY();
-
-// Verificar se cabe na página
-if ($sig_y > 220) {
-    $pdf->AddPage();
-    $sig_y = $pdf->GetY();
-}
-
-// Retângulo da assinatura
-$pdf->SetDrawColor(8, 145, 178);
-$pdf->SetLineWidth(0.5);
-$pdf->Rect(35, $sig_y, 140, 40);
-$pdf->SetDrawColor(200, 200, 200);
-$pdf->SetLineWidth(0.2);
-$pdf->Rect(36, $sig_y + 1, 138, 38);
-
-// Logo dentro do quadro
-if (imgOK($logo_path)) {
-    $pdf->Image($logo_path, 42, $sig_y + 7, 22, 22, 'PNG', '', '', true, 150);
-}
-
-// Linha para assinatura
-$pdf->SetDrawColor(100, 100, 100);
-$pdf->SetLineWidth(0.3);
-$pdf->Line(75, $sig_y + 25, 168, $sig_y + 25);
-
-// Nome do assinante
-$pdf->SetXY(75, $sig_y + 27);
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(93, 4, h($c['assinante_nome']), 0, 1, 'C');
-
-// Título
-$pdf->SetX(75);
-$pdf->SetFont('helvetica', '', 8);
-$pdf->Cell(93, 4, h($c['assinante_titulo']), 0, 1, 'C');
-
-// Registro
-$pdf->SetX(75);
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetTextColor(8, 145, 178);
-$pdf->Cell(93, 4, h($c['assinante_registro']), 0, 1, 'C');
 $pdf->SetTextColor(0, 0, 0);
+$pdf->SetFont('helvetica', 'B', 12);
+$pdf->SetXY(15, 13);
+$pdf->Cell($w, 5, 'MARINHA DO BRASIL', 0, 1, 'C');
+$pdf->SetFont('helvetica', 'B', 11);
+$pdf->Cell($w, 5, 'DIRETORIA DE PORTOS E COSTAS', 0, 1, 'C');
+$pdf->Ln(5);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->Cell($w, 5, 'AMAZON NAVAL LTDA', 0, 1, 'C');
 
-// Se assinado, sobrepor imagem
+$pdf->Ln(6);
+$pdf->SetFont('helvetica', 'B', 13);
+$pdf->Cell($w, 7, 'LICENÇA PROVISÓRIA PARA INICIAR CONSTRUÇÃO / ALTERAÇÃO', 0, 1, 'C');
+
+$validade = lpDataBR($c['validade_data']);
+$pdf->Ln(3);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->Cell($w, 6, 'NÚMERO DA LICENÇA: ' . lpTxt($c['numero_lp']) . ' - VÁLIDA ATÉ: ' . $validade, 0, 1, 'C');
+
+// Texto principal
+$nome_embarcacao = mb_strtoupper(lpTxt($c['nome_embarcacao'], 'NÃO INFORMADO'), 'UTF-8');
+$tipo_embarcacao = mb_strtoupper(lpTxt($c['tipo_embarcacao'], 'NÃO INFORMADO'), 'UTF-8');
+$numero_casco = lpTxt($c['numero_casco'], '-');
+
+$pdf->SetY(57);
+$pdf->SetFont('helvetica', '', 10);
+$texto = 'Concede-se autorização para início de construção da embarcação "' . $nome_embarcacao . '" do tipo ' . $tipo_embarcacao . ', com número de casco - ' . $numero_casco . ' -, com as seguintes características:';
+$pdf->MultiCell($w, 7, $texto, 0, 'L');
+
+// Características
+$pdf->SetY(83);
+$linhas = [
+    ['A)', 'Comprimento Total:', lpNumero($c['comprimento_total'])],
+    ['B)', 'Boca Moldada:', lpNumero($c['boca_moldada'])],
+    ['C)', 'Pontal Moldado:', lpNumero($c['pontal_moldado'])],
+    ['D)', 'Material do Casco:', lpTxt($c['material_casco'])],
+];
+
+foreach ($linhas as $linha) {
+    $pdf->SetX(27);
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->Cell(12, 8, $linha[0], 0, 0, 'L');
+    $pdf->SetFont('helvetica', '', 10);
+    $pdf->Cell(54, 8, $linha[1], 0, 0, 'L');
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->Cell(50, 8, $linha[2], 0, 1, 'L');
+}
+
+// Estaleiro / Construtor
+$pdf->SetY(122);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->Cell(72, 7, 'ESTALEIRO / CONSTRUTOR:', 0, 0, 'L');
+$pdf->Cell(55, 7, '', 0, 0, 'L');
+$pdf->Cell(22, 7, 'CPF/CNPJ:', 0, 0, 'L');
+$pdf->SetFont('helvetica', '', 10);
+$pdf->Cell(31, 7, lpTxt($c['estaleiro_cpf_cnpj']), 0, 1, 'L');
+
+$pdf->SetFont('helvetica', '', 10);
+$pdf->Cell(16, 7, 'Nome:', 0, 0, 'L');
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->Cell(164, 7, lpTxt($c['estaleiro_nome'], 'Não informado'), 0, 1, 'L');
+
+$pdf->SetFont('helvetica', '', 10);
+$pdf->Cell(22, 7, 'Endereço:', 0, 0, 'L');
+$pdf->SetFont('helvetica', 'B', 9);
+$endereco = lpTxt($c['estaleiro_endereco'], 'Não informado');
+$pdf->MultiCell(158, 7, $endereco, 0, 'L');
+
+// Observações / exigências
+$pdf->SetY(154);
+$pdf->SetFont('helvetica', 'B', 10);
+$pdf->Cell($w, 7, 'OBSERVAÇÕES / EXIGÊNCIAS:', 0, 1, 'L');
+
+$observacoes = trim((string)($c['observacoes_exigencias'] ?? ''));
+if ($observacoes === '') {
+    $data_req = !empty($c['data_requerimento']) ? lpDataBR($c['data_requerimento']) : lpDataBR($c['data_emissao']);
+    $requerente = lpTxt($c['proprietario_nome'], 'interessado');
+    $observacoes = "1. A emissão da licença provisória não exime o interessado da obtenção da licença de construção definitiva, prevista no item 3.7.1. d), da NORMAM 202/DPC.\n\n";
+    $observacoes .= "2. Licença Provisória para Iniciar Construção emitida com base no requerimento apresentado por {$requerente}, datado em {$data_req}.";
+}
+
+$pdf->SetFont('helvetica', '', 9);
+$pdf->MultiCell($w, 6, $observacoes, 0, 'L');
+
+// Local e data
+$pdf->SetY(222);
+$pdf->SetFont('helvetica', '', 10);
+$pdf->Cell($w, 6, 'Expedido em Santarém-PA, ' . lpDataExtenso($c['data_emissao']), 0, 1, 'C');
+
+// Assinatura
+$sigY = 235;
+$pdf->SetDrawColor(0, 0, 0);
+$pdf->SetLineWidth(0.35);
+$pdf->Rect(32, $sigY, 146, 42);
+
+if (lpImgOK($logo)) {
+    $pdf->Image($logo, 45, $sigY + 12, 23, 14, 'PNG', '', '', true, 150);
+}
+
+$lineX1 = 84;
+$lineX2 = 156;
+$pdf->Line($lineX1, $sigY + 21, $lineX2, $sigY + 21);
+
 if (!empty($c['assinatura_imagem'])) {
     $img_data = $c['assinatura_imagem'];
-    if (preg_match('/^data:image\/(\w+);base64,/', $img_data, $type)) {
+    if (preg_match('/^data:image\/(\w+);base64,/', $img_data)) {
         $img_data = substr($img_data, strpos($img_data, ',') + 1);
     }
     $decoded = base64_decode($img_data);
     if ($decoded !== false) {
-        $decoded = converterImagemParaJpeg($decoded);
-        $tmp_file = tempnam(sys_get_temp_dir(), 'sig_') . '.jpg';
+        $decoded = lpConverterAssinaturaParaJpeg($decoded);
+        $tmp_file = tempnam(sys_get_temp_dir(), 'lp_sig_') . '.jpg';
         file_put_contents($tmp_file, $decoded);
-        $pdf->Image($tmp_file, 75, $sig_y + 7, 55, 16);
+        $pdf->Image($tmp_file, 88, $sigY + 4, 58, 16, 'JPG', '', '', true, 150);
         @unlink($tmp_file);
     }
 }
 
-$pdf->SetY($sig_y + 44);
+$pdf->SetXY(74, $sigY + 22);
+$pdf->SetFont('helvetica', 'B', 8);
+$pdf->Cell(92, 4, lpTxt($c['assinante_nome']), 0, 1, 'C');
+$pdf->SetX(74);
+$pdf->SetFont('helvetica', '', 7.5);
+$pdf->Cell(92, 4, lpTxt($c['assinante_titulo']), 0, 1, 'C');
+$pdf->SetX(74);
+$pdf->SetFont('helvetica', 'B', 7.5);
+$pdf->Cell(92, 4, lpTxt($c['assinante_registro']), 0, 1, 'C');
 
-// --- QR Code + Link (rodapé) ---
-$link_assinatura = APP_URL . 'assinar/' . $c['token_assinatura'];
-
-$qr_y = $pdf->GetY();
-try {
-    $qr = new TCPDF2DBarcode($link_assinatura, 'QRCODE,M');
-    $qr_png = $qr->getBarcodePngData(3, 3, array(0, 0, 0));
-    $qr_file = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
-    file_put_contents($qr_file, $qr_png);
-    $pdf->Image($qr_file, 10, $qr_y, 15, 15, 'PNG');
-    @unlink($qr_file);
-    $pdf->SetXY(27, $qr_y);
-} catch (Exception $e) {
-    $pdf->SetXY(10, $qr_y);
-}
-$pdf->SetFont('helvetica', '', 6);
-$pdf->Cell(80, 5, 'Link de assinatura: ' . $link_assinatura, 0, 1, 'L');
-
-if ($c['assinado']) {
-    $pdf->SetFont('helvetica', 'B', 7);
-    $pdf->SetX(27);
-    $pdf->SetTextColor(0, 100, 0);
-    $pdf->Cell(0, 5, 'Documento assinado por ' . h($c['assinante_nome']) . ' em ' . 
-        formatarDataCompleta($c['assinatura_em']), 0, 1, 'L');
-    $pdf->SetTextColor(0, 0, 0);
-} else {
-    $pdf->SetFont('helvetica', 'I', 7);
-    $pdf->SetX(27);
-    $pdf->Cell(0, 5, 'Acesse o link para assinar este documento.', 0, 1, 'L');
+if ((int)$c['assinado'] === 1 && !empty($c['assinatura_em'])) {
+    $pdf->SetXY(32, 281);
+    $pdf->SetFont('helvetica', 'I', 6.5);
+    $pdf->Cell(146, 4, 'Documento assinado eletronicamente em ' . formatarDataCompleta($c['assinatura_em']) . '.', 0, 1, 'C');
 }
 
-// ============================================
-// SAÍDA DO PDF
-// ============================================
 $nome_arquivo = 'LP_' . str_replace('/', '-', $c['numero_lp']) . '.pdf';
-$pdf->Output($nome_arquivo, 'I');
-exit;
+
+if (isset($salvar_pdf_caminho) && !empty($salvar_pdf_caminho)) {
+    $pdf->Output($salvar_pdf_caminho, 'F');
+} else {
+    $pdf->Output($nome_arquivo, 'I');
+    exit;
+}

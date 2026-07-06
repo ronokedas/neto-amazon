@@ -4,8 +4,9 @@ FROM php:8.2-apache
 RUN docker-php-ext-install pdo pdo_mysql mysqli && \
     docker-php-ext-enable pdo pdo_mysql mysqli
 
-# Instalar utilitarios uteis
+# Instalar utilitarios uteis e cliente MySQL (para backups via PHP)
 RUN apt-get update && apt-get install -y \
+    default-mysql-client \
     libzip-dev \
     zip \
     unzip \
@@ -32,11 +33,12 @@ COPY composer.json composer.lock* ./
 RUN if [ -f composer.json ]; then composer install --no-interaction --prefer-dist --no-dev || true; fi
 
 # Ajustar permissoes
-RUN mkdir -p /var/www/html/uploads /var/www/html/logs \
+RUN mkdir -p /var/www/html/uploads /var/www/html/logs /var/www/html/storage/backups \
     && chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html \
     && chmod -R 777 /var/www/html/uploads \
-    && chmod -R 777 /var/www/html/logs
+    && chmod -R 777 /var/www/html/logs \
+    && chmod -R 777 /var/www/html/storage
 
 # Configurar PHP
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"

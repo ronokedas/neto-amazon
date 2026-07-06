@@ -11,7 +11,10 @@ require_once __DIR__ . '/../../../includes/functions.php';
 
 // Verificar permissão
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $action = $_POST['action'] ?? '';
 
@@ -37,6 +40,8 @@ if ($action === 'salvar') {
     $material_casco      = trim($_POST['material_casco'] ?? '');
     $porto_inscricao     = trim($_POST['porto_inscricao'] ?? '');
     $local_construcao    = trim($_POST['local_construcao'] ?? '');
+    $tipo                = trim($_POST['tipo'] ?? 'Condicional');
+    $data_quilha         = trim($_POST['data_quilha'] ?? '');
 
     // Dimensões
     $comprimento_total   = $_POST['comprimento_total'] !== '' ? $_POST['comprimento_total'] : null;
@@ -50,6 +55,14 @@ if ($action === 'salvar') {
     $arqueacao_bruta     = $_POST['arqueacao_bruta'] !== '' ? $_POST['arqueacao_bruta'] : null;
     $arqueacao_liquida   = $_POST['arqueacao_liquida'] !== '' ? $_POST['arqueacao_liquida'] : null;
     $metodo_arqueacao    = trim($_POST['metodo_arqueacao'] ?? '');
+    $calado_moldado_m    = $_POST['calado_moldado_m'] !== '' ? $_POST['calado_moldado_m'] : null;
+    $passageiros_camarotes = $_POST['passageiros_camarotes'] !== '' ? (int)$_POST['passageiros_camarotes'] : 0;
+    $passageiros_outros  = $_POST['passageiros_outros'] !== '' ? (int)$_POST['passageiros_outros'] : 0;
+    $espacos_incluidos_ab = trim($_POST['espacos_incluidos_ab'] ?? '');
+    $espacos_incluidos_al = trim($_POST['espacos_incluidos_al'] ?? '');
+    $espacos_excluidos_m3 = $_POST['espacos_excluidos_m3'] !== '' ? $_POST['espacos_excluidos_m3'] : 0;
+    $data_local_arqueacao_original = trim($_POST['data_local_arqueacao_original'] ?? '');
+    $data_local_ultima_rearqueacao = trim($_POST['data_local_ultima_rearqueacao'] ?? '');
 
     // Vistoria
     $relatorio_numero    = trim($_POST['relatorio_numero'] ?? '');
@@ -67,12 +80,29 @@ if ($action === 'salvar') {
     $assinante_registro = trim($_POST['assinante_registro'] ?? '');
 
     // Status
+    $despachante_id = $_POST['despachante_id'] ?? null;
+    if(empty($despachante_id)) $despachante_id = null;
+
     $status = $_POST['status'] ?? 'rascunho';
     if (!in_array($status, ['rascunho', 'emitido', 'cancelado'])) {
         $status = 'rascunho';
     }
 
     // Validações
+    $vistoria_id = $_POST['vistoria_id'] ?? null;
+    if (empty($vistoria_id)) {
+        setMensagem('error', 'É obrigatório selecionar um relatório aprovado para emitir o certificado.');
+        redirecionar(APP_URL . 'documentacao/cnarq/form' . ($editando ? "?id={$id}" : ''));
+    } else {
+        $stmtStatus = $pdo->prepare("SELECT status FROM vistorias WHERE id = :vid");
+        $stmtStatus->execute([':vid' => $vistoria_id]);
+        $vistData = $stmtStatus->fetch(PDO::FETCH_ASSOC);
+        if (!$vistData || !in_array($vistData['status'], ['APROVADA', 'APROVADA_COM_EXIGENCIAS'])) {
+            setMensagem('error', 'Não é possível emitir certificado. O relatório selecionado não está aprovado.');
+            redirecionar(APP_URL . 'documentacao/cnarq/form' . ($editando ? "?id={$id}" : ''));
+        }
+    }
+
     if (empty($nome_embarcacao)) {
         setMensagem('error', 'O nome da embarcação é obrigatório.');
         redirecionar(APP_URL . 'documentacao/cnarq/form' . ($editando ? "?id={$id}" : ''));
@@ -120,8 +150,7 @@ if ($action === 'salvar') {
                         assinante_nome = :assinante_nome,
                         assinante_titulo = :assinante_titulo,
                         assinante_registro = :assinante_registro,
-                        status = :status
-                    WHERE id = :id";
+                        status = :status, vistoria_id = :vistoria_id, despachante_id = :despachante_id WHERE id = :id";
 
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
@@ -152,6 +181,7 @@ if ($action === 'salvar') {
                 ':assinante_titulo'   => $assinante_titulo,
                 ':assinante_registro' => $assinante_registro,
                 ':status'             => $status,
+                ':despachante_id'     => $despachante_id,
                 ':id'                 => $id,
             ]);
 
@@ -181,8 +211,7 @@ if ($action === 'salvar') {
                         relatorio_numero, data_vistoria, local_vistoria,
                         data_emissao, data_validade, local_emissao,
                         assinante_nome, assinante_titulo, assinante_registro,
-                        status, criado_por
-                    ) VALUES (
+                        status, criado_por, vistoria_id, despachante_id) VALUES (
                         :id, :numero, :token_assinatura,
                         :nome_embarcacao, :numero_inscricao, :indicativo_chamada,
                         :tipo_embarcacao, :ano_construcao, :material_casco,
@@ -193,8 +222,7 @@ if ($action === 'salvar') {
                         :relatorio_numero, :data_vistoria, :local_vistoria,
                         :data_emissao, :data_validade, :local_emissao,
                         :assinante_nome, :assinante_titulo, :assinante_registro,
-                        :status, :criado_por
-                    )";
+                        :status, :criado_por, :vistoria_id, :despachante_id)";
 
             $id = gerarUUID();
 
@@ -230,6 +258,8 @@ if ($action === 'salvar') {
                 ':assinante_titulo'   => $assinante_titulo,
                 ':assinante_registro' => $assinante_registro,
                 ':status'             => $status,
+                ':despachante_id'     => $despachante_id,
+                ':despachante_id'     => $despachante_id,
                 ':criado_por'         => $_SESSION['usuario_id'] ?? null,
             ]);
         }

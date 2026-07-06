@@ -10,7 +10,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 
 verificar_sessao();
 $cargo = getCargo();
-if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'])) {
+if (!in_array($cargo, ['ADMIN', 'VENDEDOR', 'VISTORIADOR'], true)) {
     setMensagem('error', 'Acesso negado.');
     redirecionar(APP_URL . 'dashboard');
 }
@@ -19,28 +19,27 @@ $id = $_GET['id'] ?? null;
 $editando = !empty($id);
 
 $agendamento = [
-    'id'              => '',
-    'proposta_id'     => '',
-    'embarcacao_id'   => '',
-    'cliente_id'      => '',
-    'vistoriador_id'  => '',
-    'tipo_vistoria'   => '',
-    'data_vistoria'   => '',
-    'hora_vistoria'   => '',
-    'local'           => '',
-    'contato_nome'    => '',
+    'id'               => '',
+    'proposta_id'      => '',
+    'embarcacao_id'    => '',
+    'cliente_id'       => '',
+    'vistoriador_id'   => '',
+    'tipo_vistoria'    => '',
+    'data_vistoria'    => '',
+    'hora_vistoria'    => '',
+    'local'            => '',
+    'contato_nome'     => '',
     'contato_telefone' => '',
-    'status'          => 'pendente',
-    'observacoes'     => '',
+    'status'           => 'pendente',
+    'observacoes'      => '',
 ];
 
-// Se editando, carregar dados
 if ($editando) {
-    // VISTORIADOR nao pode editar agendamentos existentes
     if ($cargo === 'VISTORIADOR') {
-        setMensagem('error', 'Acesso negado. Vistoriadores nao podem editar agendamentos.');
+        setMensagem('error', 'Acesso negado. Vistoriadores não podem editar agendamentos.');
         redirecionar(APP_URL . 'agendamentos');
     }
+
     try {
         $stmt = $pdo->prepare("SELECT * FROM agendamentos WHERE id = :id");
         $stmt->execute([':id' => $id]);
@@ -58,32 +57,24 @@ if ($editando) {
     }
 }
 
-// Carregar listas auxiliares
 try {
-    // Clientes ativos
     $clientes = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE status = 'ATIVO' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-    // Propostas aprovadas ou enviadas (para vincular ao agendamento)
     $propostas = $pdo->query("
-        SELECT p.id, p.numero, c.nome AS cliente_nome, p.valor_total 
-        FROM propostas p 
-        INNER JOIN clientes c ON p.cliente_id = c.id 
-        WHERE p.status IN ('enviada','aprovada') 
+        SELECT p.id, p.numero, c.nome AS cliente_nome, p.valor_total
+        FROM propostas p
+        INNER JOIN clientes c ON p.cliente_id = c.id
+        WHERE p.status IN ('enviada','aprovada','assinada')
         ORDER BY p.data_emissao DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
 
-    // Vistoriadores ativos (apenas ADMIN pode selecionar)
     $vistoriadores = [];
     if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR') {
         $vistoriadores = $pdo->query("SELECT id, nome FROM usuarios WHERE ativo = 1 AND cargo = 'VISTORIADOR' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Servicos cadastrados (para tipo_vistoria como sugestão)
     $servicos = $pdo->query("SELECT id, nome FROM servicos WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
-
-    // Embarcações ativas
     $embarcacoes = $pdo->query("SELECT id, nome, registro FROM embarcacoes WHERE ativo = 1 ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
-
 } catch (Exception $e) {
     error_log('Erro ao carregar listas: ' . $e->getMessage());
     $clientes = [];
@@ -98,16 +89,32 @@ require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
 
-<div class="conteudo-principal">
-    <div class="form-container">
-        <div class="form-header">
-            <h3>
-                <i class="fas fa-calendar-check"></i> 
-                <?php echo $editando ? 'Editar Agendamento' : 'Novo Agendamento'; ?>
-            </h3>
+<div class="conteudo-principal flow-shell">
+    <div class="flow-hero">
+        <div>
+            <span class="flow-eyebrow"><i class="fas fa-route"></i> Etapa 2 do fluxo</span>
+            <h1><?php echo $editando ? 'Editar Agendamento' : 'Novo Agendamento'; ?></h1>
+            <p>Transforme a proposta assinada em uma vistoria clara para a equipe: cliente, embarcação, data, responsável e orientações do local.</p>
+        </div>
+        <div class="flow-actions">
             <a href="<?php echo APP_URL; ?>agendamentos" class="btn btn-secondary btn-sm">
                 <i class="fas fa-arrow-left"></i> Voltar
             </a>
+        </div>
+    </div>
+
+    <div class="flow-track">
+        <div class="flow-track-step"><span>01</span>Proposta</div>
+        <div class="flow-track-step is-active"><span>02</span>Agendamento</div>
+        <div class="flow-track-step"><span>03</span>Vistoria</div>
+        <div class="flow-track-step"><span>04</span>Aprovação</div>
+        <div class="flow-track-step"><span>05</span>Certificados</div>
+    </div>
+
+    <div class="form-container">
+        <div class="form-header">
+            <h3><i class="fas fa-calendar-check"></i> <?php echo $editando ? 'Editar Agendamento' : 'Novo Agendamento'; ?></h3>
+            <span class="help-text">Campos com * são obrigatórios</span>
         </div>
 
         <form action="<?php echo APP_URL; ?>agendamentos/actions" method="POST" class="form-padrao">
@@ -120,142 +127,144 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <input type="hidden" name="id" value="<?php echo h($agendamento['id']); ?>">
             <?php endif; ?>
 
-            <!-- Vinculo com proposta -->
-            <div class="form-row">
-                <div class="form-group col-12">
-                    <label for="proposta_id"><i class="fas fa-file-invoice"></i> Proposta (opcional)</label>
-                    <select id="proposta_id" name="proposta_id" onchange="carregarDadosProposta(this.value)">
-                        <option value="">-- Sem proposta vinculada --</option>
-                        <?php foreach ($propostas as $prop): ?>
-                            <option value="<?php echo h($prop['id']); ?>" 
-                                    data-cliente="<?php echo h($prop['cliente_nome']); ?>"
-                                    <?php echo $agendamento['proposta_id'] === $prop['id'] ? 'selected' : ''; ?>>
-                                <?php echo h($prop['numero']); ?> — <?php echo h($prop['cliente_nome']); ?> (<?php echo formatarMoeda($prop['valor_total']); ?>)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <small class="text-muted">Ao selecionar uma proposta, cliente e embarcação são preenchidos automaticamente.</small>
-                </div>
-            </div>
-
-            <!-- Cliente e Embarcacao -->
-            <div class="form-row">
-                <div class="form-group col-6">
-                    <label for="cliente_id">Cliente *</label>
-                    <select id="cliente_id" name="cliente_id" required onchange="carregarEmbarcacoesCliente(this.value)">
-                        <option value="">-- Selecione o cliente --</option>
-                        <?php foreach ($clientes as $cli): ?>
-                            <option value="<?php echo h($cli['id']); ?>" 
-                                    <?php echo $agendamento['cliente_id'] === $cli['id'] ? 'selected' : ''; ?>>
-                                <?php echo h($cli['nome']); ?> <?php echo $cli['cpf_cnpj'] ? '(' . h($cli['cpf_cnpj']) . ')' : ''; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group col-6">
-                    <label for="embarcacao_id">Embarcação *</label>
-                    <select id="embarcacao_id" name="embarcacao_id" required>
-                        <option value="">-- Selecione a embarcação --</option>
-                        <?php foreach ($embarcacoes as $emb): ?>
-                            <option value="<?php echo h($emb['id']); ?>" 
-                                    <?php echo $agendamento['embarcacao_id'] === $emb['id'] ? 'selected' : ''; ?>>
-                                <?php echo h($emb['nome']); ?> <?php echo $emb['registro'] ? '(' . h($emb['registro']) . ')' : ''; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Tipo de vistoria e Vistoriador -->
-            <div class="form-row">
-                <div class="form-group col-6">
-                    <label for="tipo_vistoria">Tipo de Vistoria *</label>
-                    <select id="tipo_vistoria" name="tipo_vistoria" required>
-                        <option value="">-- Selecione o tipo --</option>
-                        <?php foreach ($servicos as $srv): ?>
-                            <option value="<?php echo h($srv['nome']); ?>" 
-                                    <?php echo $agendamento['tipo_vistoria'] === $srv['nome'] ? 'selected' : ''; ?>>
-                                <?php echo h($srv['nome']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group col-6">
-                    <label for="vistoriador_id">Vistoriador Responsável</label>
-                    <?php if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR'): ?>
-                        <select id="vistoriador_id" name="vistoriador_id">
-                            <option value="">-- Selecione o vistoriador --</option>
-                            <?php foreach ($vistoriadores as $v): ?>
-                                <option value="<?php echo h($v['id']); ?>" 
-                                        <?php echo $agendamento['vistoriador_id'] === $v['id'] ? 'selected' : ''; ?>>
-                                    <?php echo h($v['nome']); ?>
+            <div class="form-section">
+                <h4 class="form-section-title"><i class="fas fa-file-signature"></i> Origem do serviço</h4>
+                <p class="form-section-hint">Quando houver proposta vinculada, o sistema preenche cliente, embarcação e serviços automaticamente.</p>
+                <div class="form-row">
+                    <div class="form-group col-12">
+                        <label for="proposta_id"><i class="fas fa-file-invoice"></i> Proposta vinculada</label>
+                        <select id="proposta_id" name="proposta_id" onchange="carregarDadosProposta(this.value)">
+                            <option value="">-- Sem proposta vinculada --</option>
+                            <?php foreach ($propostas as $prop): ?>
+                                <option value="<?php echo h($prop['id']); ?>"
+                                        data-cliente="<?php echo h($prop['cliente_nome']); ?>"
+                                        <?php echo $agendamento['proposta_id'] === $prop['id'] ? 'selected' : ''; ?>>
+                                    <?php echo h($prop['numero']); ?> — <?php echo h($prop['cliente_nome']); ?> (<?php echo formatarMoeda($prop['valor_total']); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                    <?php else: ?>
-                        <input type="text" class="form-control" readonly 
-                               value="<?php echo h($_SESSION['usuario_nome'] ?? 'Você (VISTORIADOR)'); ?>">
-                        <input type="hidden" name="vistoriador_id" value="<?php echo h($_SESSION['usuario_id']); ?>">
-                        <small class="text-muted">Como vistoriador, você será automaticamente atribuído.</small>
-                    <?php endif; ?>
+                        <small>Use preferencialmente propostas já assinadas para manter a esteira comercial organizada.</small>
+                    </div>
                 </div>
             </div>
 
-            <!-- Data, Hora e Local -->
-            <div class="form-row">
-                <div class="form-group col-4">
-                    <label for="data_vistoria">Data da Vistoria *</label>
-                    <input type="date" id="data_vistoria" name="data_vistoria" required
-                           value="<?php echo h($agendamento['data_vistoria']); ?>"
-                           min="<?php echo date('Y-m-d'); ?>">
-                </div>
-                <div class="form-group col-3">
-                    <label for="hora_vistoria">Hora</label>
-                    <input type="time" id="hora_vistoria" name="hora_vistoria"
-                           value="<?php echo h($agendamento['hora_vistoria']); ?>">
-                </div>
-                <div class="form-group col-5">
-                    <label for="local">Local</label>
-                    <input type="text" id="local" name="local"
-                           value="<?php echo h($agendamento['local']); ?>"
-                           placeholder="Endereço / estaleiro / porto">
-                </div>
-            </div>
-
-            <!-- Contato no local -->
-            <div class="form-row">
-                <div class="form-group col-6">
-                    <label for="contato_nome">Nome do Contato no Local</label>
-                    <input type="text" id="contato_nome" name="contato_nome"
-                           value="<?php echo h($agendamento['contato_nome']); ?>"
-                           placeholder="Pessoa de contato">
-                </div>
-                <div class="form-group col-6">
-                    <label for="contato_telefone">Telefone do Contato</label>
-                    <input type="text" id="contato_telefone" name="contato_telefone"
-                           value="<?php echo h($agendamento['contato_telefone']); ?>"
-                           placeholder="(91) 99999-9999"
-                           oninput="mascararTelefone(this)">
+            <div class="form-section">
+                <h4 class="form-section-title"><i class="fas fa-user-anchor"></i> Cliente e embarcação</h4>
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label for="cliente_id">Cliente *</label>
+                        <select id="cliente_id" name="cliente_id" required onchange="carregarEmbarcacoesCliente(this.value)">
+                            <option value="">-- Selecione o cliente --</option>
+                            <?php foreach ($clientes as $cli): ?>
+                                <option value="<?php echo h($cli['id']); ?>"
+                                        <?php echo $agendamento['cliente_id'] === $cli['id'] ? 'selected' : ''; ?>>
+                                    <?php echo h($cli['nome']); ?> <?php echo $cli['cpf_cnpj'] ? '(' . h($cli['cpf_cnpj']) . ')' : ''; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group col-6">
+                        <label for="embarcacao_id">Embarcação *</label>
+                        <select id="embarcacao_id" name="embarcacao_id" required>
+                            <option value="">-- Selecione a embarcação --</option>
+                            <?php foreach ($embarcacoes as $emb): ?>
+                                <option value="<?php echo h($emb['id']); ?>"
+                                        <?php echo $agendamento['embarcacao_id'] === $emb['id'] ? 'selected' : ''; ?>>
+                                    <?php echo h($emb['nome']); ?> <?php echo $emb['registro'] ? '(' . h($emb['registro']) . ')' : ''; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <!-- Observacoes -->
-            <div class="form-row">
-                <div class="form-group col-12">
-                    <label for="observacoes">Observações</label>
-                    <textarea id="observacoes" name="observacoes" rows="3"
-                              placeholder="Instruções, materiais necessários, pontos de atenção..."><?php echo h($agendamento['observacoes']); ?></textarea>
+            <div class="form-section">
+                <h4 class="form-section-title"><i class="fas fa-clipboard-check"></i> Execução da vistoria</h4>
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label for="tipo_vistoria">Tipo de vistoria / serviços *</label>
+                        <textarea id="tipo_vistoria" name="tipo_vistoria" required rows="2" placeholder="Ex.: CSN inicial, CNBL, arqueação, convalidação..."><?php echo h($agendamento['tipo_vistoria']); ?></textarea>
+                    </div>
+                    <div class="form-group col-6">
+                        <label for="vistoriador_id">Vistoriador responsável</label>
+                        <?php if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR'): ?>
+                            <select id="vistoriador_id" name="vistoriador_id">
+                                <option value="">-- Selecione o vistoriador --</option>
+                                <?php foreach ($vistoriadores as $v): ?>
+                                    <option value="<?php echo h($v['id']); ?>"
+                                            <?php echo $agendamento['vistoriador_id'] === $v['id'] ? 'selected' : ''; ?>>
+                                        <?php echo h($v['nome']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php else: ?>
+                            <input type="text" class="form-control" readonly value="<?php echo h($_SESSION['usuario_nome'] ?? 'Você (VISTORIADOR)'); ?>">
+                            <input type="hidden" name="vistoriador_id" value="<?php echo h($_SESSION['usuario_id']); ?>">
+                            <small>Como vistoriador, você será automaticamente atribuído.</small>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-4">
+                        <label for="data_vistoria">Data da vistoria *</label>
+                        <input type="date" id="data_vistoria" name="data_vistoria" required
+                               value="<?php echo h($agendamento['data_vistoria']); ?>"
+                               min="<?php echo date('Y-m-d'); ?>">
+                    </div>
+                    <div class="form-group col-3">
+                        <label for="hora_vistoria">Hora</label>
+                        <input type="time" id="hora_vistoria" name="hora_vistoria" value="<?php echo h($agendamento['hora_vistoria']); ?>">
+                    </div>
+                    <div class="form-group col-5">
+                        <label for="local">Local</label>
+                        <input type="text" id="local" name="local" value="<?php echo h($agendamento['local']); ?>" placeholder="Endereço / estaleiro / porto">
+                    </div>
                 </div>
             </div>
+
+            <div class="form-section">
+                <h4 class="form-section-title"><i class="fas fa-phone-volume"></i> Contato e orientações</h4>
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label for="contato_nome">Nome do contato no local</label>
+                        <input type="text" id="contato_nome" name="contato_nome" value="<?php echo h($agendamento['contato_nome']); ?>" placeholder="Pessoa de contato">
+                    </div>
+                    <div class="form-group col-6">
+                        <label for="contato_telefone">Telefone do contato</label>
+                        <input type="text" id="contato_telefone" name="contato_telefone"
+                               value="<?php echo h($agendamento['contato_telefone']); ?>"
+                               placeholder="(91) 99999-9999"
+                               oninput="mascararTelefone(this)">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-12">
+                        <label for="observacoes">Observações para a equipe</label>
+                        <textarea id="observacoes" name="observacoes" rows="3" placeholder="Instruções, materiais necessários, pontos de atenção, acesso ao local..."><?php echo h($agendamento['observacoes']); ?></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <?php if ($editando && !empty($agendamento['proposta_id'])): ?>
+                <div class="form-row mt-3 mb-4">
+                    <div class="form-group col-12 smart-callout smart-callout--success">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                            <input type="checkbox" name="marcar_pago" value="1" style="width: auto; margin: 0;">
+                            <strong>Confirmar pagamento recebido da proposta</strong>
+                        </label>
+                        <small style="display: block; margin-top: 5px;">Marque se o pagamento desta proposta já foi recebido. O sistema dará baixa na receita automaticamente.</small>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> 
-                    <?php echo $editando ? 'Atualizar' : 'Salvar'; ?>
-                </button>
                 <a href="<?php echo APP_URL; ?>agendamentos" class="btn btn-secondary">
                     <i class="fas fa-times"></i> Cancelar
                 </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i>
+                    <?php echo $editando ? 'Atualizar agendamento' : 'Salvar agendamento'; ?>
+                </button>
             </div>
         </form>
     </div>
@@ -290,7 +299,7 @@ function carregarDadosProposta(propostaId) {
     if (!embarcacoesOriginais && selectEmbarcacao) {
         embarcacoesOriginais = selectEmbarcacao.innerHTML;
     }
-    fetch('<?php echo APP_URL; ?>agendamentos/actions?action=buscar_proposta&proposta_id=' + propostaId)
+    fetch('<?php echo APP_URL; ?>agendamentos/actions?action=buscar_proposta&proposta_id=' + encodeURIComponent(propostaId))
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -298,9 +307,9 @@ function carregarDadosProposta(propostaId) {
                     selectCliente.value = data.cliente_id;
                 }
                 if (selectEmbarcacao && data.embarcacoes && data.embarcacoes.length > 0) {
-                    let options = '<option value="">Selecione a embarcacao</option>';
+                    let options = '<option value="">Selecione a embarcação</option>';
                     data.embarcacoes.forEach(function(emb) {
-                        const selected = (emb.id === data.embarcacao_id) ? ' selected' : '';
+                        const selected = (String(emb.id) === String(data.embarcacao_id)) ? ' selected' : '';
                         options += '<option value="' + emb.id + '"' + selected + '>' + emb.nome + '</option>';
                     });
                     selectEmbarcacao.innerHTML = options;
@@ -311,6 +320,35 @@ function carregarDadosProposta(propostaId) {
             }
         })
         .catch(err => console.error('Erro ao carregar proposta:', err));
+}
+
+function carregarEmbarcacoesCliente(clienteId) {
+    const selectEmbarcacao = document.getElementById('embarcacao_id');
+    if (!selectEmbarcacao) return;
+    if (!clienteId) {
+        restaurarEmbarcacoes();
+        return;
+    }
+
+    if (!embarcacoesOriginais) {
+        embarcacoesOriginais = selectEmbarcacao.innerHTML;
+    }
+
+    selectEmbarcacao.innerHTML = '<option value="">Carregando embarcações...</option>';
+
+    fetch('<?php echo APP_URL; ?>ajax/busca_embarcacoes.php?cliente_id=' + encodeURIComponent(clienteId))
+        .then(response => response.json())
+        .then(data => {
+            const lista = Array.isArray(data) ? data : (data.embarcacoes || []);
+            let options = '<option value="">-- Selecione a embarcação --</option>';
+            lista.forEach(function(emb) {
+                options += '<option value="' + emb.id + '">' + emb.nome + (emb.registro ? ' (' + emb.registro + ')' : '') + '</option>';
+            });
+            selectEmbarcacao.innerHTML = options;
+        })
+        .catch(() => {
+            restaurarEmbarcacoes();
+        });
 }
 
 function restaurarEmbarcacoes() {

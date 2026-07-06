@@ -6,17 +6,34 @@ services:
       dockerfile: Dockerfile
     container_name: erp_app
     ports:
-      - "8082:80"
+      - "${APP_PORT:-8082}:80"
     volumes:
       - .:/var/www/html
       - ./docker/php.ini:/usr/local/etc/php/conf.d/erp.ini
       - ./docker/000-default.conf:/etc/apache2/sites-available/000-default.conf
     environment:
       - DB_HOST=db
-      - DB_NAME=erp_sistema
-      - DB_USER=erp_user
-      - DB_PASS=erp_pass_2026
-      - APP_URL=http://localhost:8082/
+      - DB_NAME=${DB_NAME:-erp_sistema}
+      - DB_USER=${DB_USER:-erp_user}
+      - DB_PASS=${DB_PASS:-erp_pass_2026}
+      - APP_URL=${APP_URL:-http://localhost:8082/}
+      - APP_DEBUG=${APP_DEBUG:-0}
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-erp_minio_admin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-erp_minio_pass_2026}
+      - MINIO_BUCKET=${MINIO_BUCKET:-erp-storage}
+      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Sistema Amazon}
+      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-tls}
+      - BANCO_NOME=${BANCO_NOME:-Banco do Brasil}
+      - BANCO_AGENCIA=${BANCO_AGENCIA:-0000-0}
+      - BANCO_CONTA=${BANCO_CONTA:-00000-0}
+      - PIX_CHAVE=${PIX_CHAVE:-contato@amazonnaval.com.br}
+      - EMAIL_CONTATO=${EMAIL_CONTATO:-contato@amazonnaval.com.br}
+      - TELEFONE_CONTATO=${TELEFONE_CONTATO:-(91) 0000-0000}
     depends_on:
       db:
         condition: service_healthy
@@ -29,16 +46,17 @@ services:
     image: mysql:8.0
     container_name: erp_db
     ports:
-      - "3307:3306"
+      - "${DB_PORT:-3307}:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=root_pass_2026
-      - MYSQL_DATABASE=erp_sistema
-      - MYSQL_USER=erp_user
-      - MYSQL_PASSWORD=erp_pass_2026
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_pass_2026}
+      - MYSQL_DATABASE=${DB_NAME:-erp_sistema}
+      - MYSQL_USER=${DB_USER:-erp_user}
+      - MYSQL_PASSWORD=${DB_PASS:-erp_pass_2026}
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/init-custom.sql:/docker-entrypoint-initdb.d/01-init-custom.sql
       - ./docker/02-erp_sistema_mysql.sql:/docker-entrypoint-initdb.d/02-erp_sistema.sql
+      - ./docker/03-add_minio_columns.sql:/docker-entrypoint-initdb.d/03-add_minio_columns.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -54,7 +72,7 @@ services:
     image: phpmyadmin:5.2.1
     container_name: erp_phpmyadmin
     ports:
-      - "8083:80"
+      - "${PHPMYADMIN_PORT:-8083}:80"
     environment:
       - PMA_HOST=db
       - PMA_PORT=3306
@@ -66,8 +84,31 @@ services:
       - erp_network
     restart: unless-stopped
 
+  # MinIO (S3 Compatible Storage)
+  minio:
+    image: minio/minio:latest
+    container_name: erp_minio
+    ports:
+      - "${MINIO_PORT:-9002}:9000"
+      - "${MINIO_CONSOLE_PORT:-9003}:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-erp_minio_admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-erp_minio_pass_2026}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - erp_network
+    restart: unless-stopped
+
 volumes:
   db_data:
+  minio_data:
 
 networks:
   erp_network:

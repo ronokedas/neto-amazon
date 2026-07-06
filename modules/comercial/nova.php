@@ -2,7 +2,7 @@
 /**
  * MÓDULO: COMERCIAL > PROPOSTAS
  * Arquivo: nova.php - Wizard de nova proposta
- * Passo 1: Selecionar cliente → carregar embarcações automaticamente
+ * Passo 1: Selecionar cliente -> carregar embarcações automaticamente
  * Passo 2: Selecionar serviços por embarcação com preço automático, desconto e total geral
  * Passo 3: Revisão e confirmação
  */
@@ -17,9 +17,9 @@ if (getCargo() !== 'ADMIN') {
     redirecionar(APP_URL . 'dashboard');
 }
 
-// Buscar clientes ativos
+// Buscar proprietarios ativos
 try {
-    $stmtClientes = $pdo->query("SELECT id, nome, perfil, cpf_cnpj FROM clientes WHERE status = 'ATIVO' ORDER BY nome ASC");
+    $stmtClientes = $pdo->query("SELECT id, nome, perfil, cpf_cnpj FROM clientes WHERE status = 'ATIVO' AND perfil = 'proprietario' ORDER BY nome ASC");
     $clientes = $stmtClientes->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $clientes = [];
@@ -38,24 +38,35 @@ require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
 
-<div class="conteudo-principal">
+<div class="conteudo-principal flow-shell">
 
     <!-- Cabeçalho do Wizard -->
-    <div class="welcome-section" style="margin-bottom: 20px;">
+    <div class="flow-hero">
         <div>
+            <span class="flow-eyebrow"><i class="fas fa-route"></i> Etapa 1 do fluxo</span>
             <h1><i class="fas fa-file-invoice"></i> Nova Proposta</h1>
-            <p>Preencha os passos abaixo para gerar uma proposta comercial.</p>
+            <p>Escolha o proprietário, selecione os serviços por embarcação e revise os valores antes de enviar para assinatura.</p>
         </div>
-        <a href="<?php echo APP_URL; ?>comercial/propostas" class="btn btn-secondary btn-sm">
-            <i class="fas fa-times"></i> Cancelar
-        </a>
+        <div class="flow-actions">
+            <a href="<?php echo APP_URL; ?>comercial/propostas" class="btn btn-secondary btn-sm">
+                <i class="fas fa-times"></i> Cancelar
+            </a>
+        </div>
+    </div>
+
+    <div class="flow-track">
+        <div class="flow-track-step is-active"><span>01</span>Proposta</div>
+        <div class="flow-track-step"><span>02</span>Agendamento</div>
+        <div class="flow-track-step"><span>03</span>Vistoria</div>
+        <div class="flow-track-step"><span>04</span>Aprovação</div>
+        <div class="flow-track-step"><span>05</span>Certificados</div>
     </div>
 
     <!-- Indicador de Passos (Stepper) -->
     <div class="wizard-steps" id="stepper" style="display: flex; gap: 0; margin-bottom: 25px; background: var(--cor-painel); border: 1px solid var(--cor-borda); border-radius: 12px; overflow: hidden;">
         <div class="wizard-step active" data-step="1" style="flex: 1; text-align: center; padding: 15px 10px; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid transparent;">
             <span class="step-number" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cor-destaque); color: #fff; font-weight: 700; font-size: 0.85rem; margin-bottom: 6px;">1</span>
-            <span class="step-label" style="display: block; font-size: 0.8rem; color: var(--cor-destaque); font-weight: 600;">Cliente</span>
+            <span class="step-label" style="display: block; font-size: 0.8rem; color: var(--cor-destaque); font-weight: 600;">Proprietário</span>
         </div>
         <div class="wizard-step" data-step="2" style="flex: 1; text-align: center; padding: 15px 10px; cursor: pointer; transition: all 0.3s; border-bottom: 3px solid transparent; opacity: 0.5;">
             <span class="step-number" style="display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--cor-borda); color: var(--cor-texto-secundario); font-weight: 700; font-size: 0.85rem; margin-bottom: 6px;">2</span>
@@ -78,14 +89,14 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <div class="wizard-panel active" id="passo1">
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-user-tie"></i> Passo 1: Selecione o Cliente</h3>
+                    <h3><i class="fas fa-user-tie"></i> Passo 1: Selecione o Proprietário</h3>
                 </div>
                 <div class="card-body">
                     <?php if (empty($clientes)): ?>
                         <div class="tabela-vazia">
                             <i class="fas fa-user-tie"></i>
-                            <h3>Nenhum cliente cadastrado</h3>
-                            <p>Cadastre um cliente antes de criar uma proposta.</p>
+                            <h3>Nenhum proprietário cadastrado</h3>
+                            <p>Cadastre um proprietário antes de criar uma proposta.</p>
                             <a href="<?php echo APP_URL; ?>clientes/form" class="btn btn-primary">
                                 <i class="fas fa-plus"></i> Novo Cliente
                             </a>
@@ -93,16 +104,16 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <?php else: ?>
                         <div class="filtros" style="margin-bottom: 15px;">
                             <div class="form-group" style="margin-bottom: 0; flex: 1;">
-                                <label><i class="fas fa-search"></i> Buscar cliente</label>
+                                <label><i class="fas fa-search"></i> Buscar proprietário</label>
                                 <input type="text" id="buscaClienteWizard" placeholder="Nome, CPF/CNPJ..." onkeyup="filtrarClientes()">
                             </div>
                         </div>
                         <div class="cliente-grid" id="clienteGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; padding: 5px;">
                             <?php foreach ($clientes as $c): ?>
                             <label class="cliente-card" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--cor-fundo); border: 2px solid var(--cor-borda); border-radius: 10px; cursor: pointer; transition: all 0.2s;">
-                                <input type="radio" name="cliente_id" value="<?php echo h($c['id']); ?>" 
+                                <input type="radio" name="cliente_id" value="<?php echo h($c['id']); ?>"
                                        data-nome="<?php echo h($c['nome']); ?>"
-                                       data-perfil="<?php echo h(ucfirst($c['perfil'])); ?>"
+                                       data-perfil="Proprietário"
                                        data-cpfcnpj="<?php echo h($c['cpf_cnpj'] ?? '-'); ?>"
                                        onchange="clienteSelecionado(this)" style="display: none;">
                                 <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(46,204,113,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -110,9 +121,9 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 </div>
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="font-weight: 600; color: var(--cor-texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?php echo h($c['nome']); ?></div>
-                                    <small style="color: var(--cor-texto-secundario);"><?php echo h(ucfirst($c['perfil'])); ?> &middot; <?php echo h($c['cpf_cnpj'] ?? 'N/I'); ?></small>
+                                    <small style="color: var(--cor-texto-secundario);">Proprietário &middot; <?php echo h($c['cpf_cnpj'] ?? 'N/I'); ?></small>
                                 </div>
-                                <i class="fas fa-chevron-right" style="color: var(--cor-borda); transition: color 0.2s;"></i>
+                                <span class="cliente-check-indicator"><i class="fas fa-check"></i><em>Selecionado</em></span>
                             </label>
                             <?php endforeach; ?>
                         </div>
@@ -131,24 +142,24 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             <!-- Info do cliente selecionado -->
             <div id="passo2ClienteInfo" style="margin-bottom: 20px; padding: 12px 16px; background: var(--cor-painel); border: 1px solid var(--cor-borda); border-radius: 10px; display: flex; align-items: center; gap: 12px;">
                 <i class="fas fa-user-tie" style="color: var(--cor-destaque); font-size: 1.2rem;"></i>
-                <span style="color: var(--cor-texto-secundario);">Cliente: <strong id="passo2ClienteNome" style="color: var(--cor-texto);"></strong></span>
+                <span style="color: var(--cor-texto-secundario);">Proprietário: <strong id="passo2ClienteNome" style="color: var(--cor-texto);"></strong></span>
             </div>
 
             <div id="embarcacoesServicosContainer">
                 <div id="paso2Loading" style="text-align: center; padding: 40px;">
                     <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--cor-destaque);"></i>
-                    <p style="margin-top: 10px; color: var(--cor-texto-secundario);">Carregando embarcações do cliente...</p>
+                    <p style="margin-top: 10px; color: var(--cor-texto-secundario);">Carregando embarcações do proprietário...</p>
                 </div>
                 <div id="paso2Content" style="display: none;"></div>
                 <div id="paso2Vazio" style="display: none;" class="tabela-vazia">
                     <i class="fas fa-ship"></i>
                     <h3>Nenhuma embarcação vinculada</h3>
-                    <p>Este cliente não possui embarcações vinculadas. Vincule embarcações ao cliente primeiro.</p>
+                    <p>Este proprietário não possui embarcações vinculadas. Vincule embarcações ao proprietário primeiro.</p>
                 </div>
             </div>
 
             <!-- Painel de Totais -->
-            <div id="totaisPainel" style="display: none; margin-top: 25px; padding: 20px; background: var(--cor-painel); border: 1px solid var(--cor-borda); border-radius: 12px;">
+            <div id="totaisPainel" class="smart-total-panel" style="display: none; margin-top: 25px; padding: 20px; background: var(--cor-painel); border: 1px solid var(--cor-borda); border-radius: 12px;">
                 <h4 style="color: var(--cor-destaque); margin-bottom: 15px;"><i class="fas fa-calculator"></i> Resumo Financeiro</h4>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
                     <div style="text-align: center; padding: 12px; background: var(--cor-fundo); border-radius: 8px; border: 1px solid var(--cor-borda);">
@@ -158,10 +169,13 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <div style="text-align: center; padding: 12px; background: var(--cor-fundo); border-radius: 8px; border: 1px solid var(--cor-borda);">
                         <small class="text-muted" style="display: block; margin-bottom: 4px;">Desconto</small>
                         <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            <input type="number" id="descontoGlobal" name="desconto_global" value="0" min="0" max="100" step="0.01"
-                                   style="width: 80px; padding: 6px 8px; background: var(--cor-fundo); border: 1px solid var(--cor-borda); border-radius: 6px; color: var(--cor-texto); text-align: center; font-size: 0.9rem;"
-                                   onchange="atualizarTotais()" title="% de desconto sobre o subtotal">
-                            <span style="font-weight: 600; color: var(--cor-texto-secundario);">%</span>
+                            <select id="tipoDesconto" name="tipo_desconto" onchange="atualizarTotais()" style="padding: 6px; background: var(--cor-fundo); border: 2px solid var(--cor-destaque); border-radius: 6px; color: var(--cor-texto); font-weight: bold; cursor: pointer; outline: none;">
+                                <option value="perc" style="color: #000; background: #fff;">%</option>
+                                <option value="valor" style="color: #000; background: #fff;">R$</option>
+                            </select>
+                            <input type="number" id="descontoGlobal" name="desconto_global" value="0" min="0" step="0.01"
+                                   style="width: 100px; padding: 6px 8px; background: var(--cor-fundo); border: 2px solid var(--cor-borda); border-radius: 6px; color: var(--cor-texto); text-align: center; font-size: 0.9rem; font-weight: bold;"
+                                   oninput="atualizarTotais()" title="Valor do desconto">
                         </div>
                         <small id="descontoValor" class="text-muted" style="display: block; margin-top: 4px;">- R$ 0,00</small>
                     </div>
@@ -213,7 +227,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <div class="card-body">
                         <!-- Resumo Cliente -->
                         <div class="review-section" style="margin-bottom: 20px;">
-                            <h4 style="color: var(--cor-destaque); margin-bottom: 10px;"><i class="fas fa-user-tie"></i> Cliente</h4>
+                            <h4 style="color: var(--cor-destaque); margin-bottom: 10px;"><i class="fas fa-user-tie"></i> Proprietário</h4>
                             <div id="reviewCliente" style="padding: 12px 16px; background: var(--cor-fundo); border-radius: 8px; border: 1px solid var(--cor-borda);"></div>
                         </div>
                         <!-- Serviços por Embarcação -->
@@ -328,6 +342,9 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 const ALL_SERVICOS = <?php echo json_encode($servicos, JSON_UNESCAPED_UNICODE); ?>;
 let clienteSelecionadoData = null;
 let embarcacoesCarregadas = []; // { id, nome, registro }
+let embarcacaoSelecionadaId = null;
+let servicosSelecionadosPorEmbarcacao = {};
+let clientePasso2CarregadoId = null;
 
 // ============ NAVEGAÇÃO DO WIZARD ============
 function irParaPasso(numero) {
@@ -377,14 +394,14 @@ function filtrarClientes() {
 
 function clienteSelecionado(radio) {
     document.querySelectorAll('.cliente-card').forEach(c => {
+        c.classList.remove('is-selected');
         c.style.borderColor = 'var(--cor-borda)';
         c.style.background = 'var(--cor-fundo)';
-        c.querySelector('.fa-chevron-right').style.color = 'var(--cor-borda)';
     });
     const card = radio.closest('.cliente-card');
+    card.classList.add('is-selected');
     card.style.borderColor = 'var(--cor-destaque)';
     card.style.background = 'rgba(46,204,113,0.08)';
-    card.querySelector('.fa-chevron-right').style.color = 'var(--cor-destaque)';
 
     clienteSelecionadoData = {
         id: radio.value,
@@ -394,11 +411,21 @@ function clienteSelecionado(radio) {
     };
     document.getElementById('dadosCliente').value = JSON.stringify(clienteSelecionadoData);
     document.getElementById('btnPasso1').disabled = false;
+    embarcacoesCarregadas = [];
+    embarcacaoSelecionadaId = null;
+    servicosSelecionadosPorEmbarcacao = {};
+    clientePasso2CarregadoId = null;
 }
 
 // ============ PASSO 2: SERVIÇOS POR EMBARCAÇÃO ============
 function carregarPasso2() {
     if (!clienteSelecionadoData) return;
+
+    if (clientePasso2CarregadoId === clienteSelecionadoData.id && embarcacoesCarregadas.length > 0) {
+        document.getElementById('passo2ClienteNome').textContent = clienteSelecionadoData.nome;
+        construirGradeServicos(embarcacoesCarregadas);
+        return;
+    }
 
     document.getElementById('paso2Loading').style.display = 'block';
     document.getElementById('paso2Content').style.display = 'none';
@@ -418,6 +445,8 @@ function carregarPasso2() {
             }
 
             embarcacoesCarregadas = data.embarcacoes;
+            embarcacaoSelecionadaId = null;
+            clientePasso2CarregadoId = clienteSelecionadoData.id;
             construirGradeServicos(data.embarcacoes);
         })
         .catch(err => {
@@ -491,7 +520,7 @@ function construirGradeServicos(embarcacoes) {
             blocoHtml += `
                         <tr class="servico-linha" style="border-bottom: 1px solid var(--cor-borda);">
                             <td style="padding: 8px 12px; text-align: center;">
-                                <input type="checkbox" class="check-servico" data-emb-id="${emb.id}" data-serv-id="${s.id}" 
+                                <input type="checkbox" class="check-servico" data-emb-id="${emb.id}" data-serv-id="${s.id}"
                                        onchange="servicoToggled(this)" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--cor-destaque);">
                             </td>
                             <td style="padding: 8px 12px;">
@@ -605,13 +634,35 @@ function atualizarTotais() {
     });
 
     // Desconto
-    const descontoPerc = parseFloat(document.getElementById('descontoGlobal').value) || 0;
-    const descontoValor = subtotalGeral * (descontoPerc / 100);
+    const tipoDesconto = document.getElementById('tipoDesconto').value;
+    const descInput = document.getElementById('descontoGlobal');
+    let descontoValor = 0;
+    let descontoPerc = 0;
+
+    if (tipoDesconto === 'perc') {
+        descontoPerc = parseFloat(descInput.value) || 0;
+        if (descontoPerc > 100) { descontoPerc = 100; descInput.value = 100; }
+        descontoValor = subtotalGeral * (descontoPerc / 100);
+    } else {
+        descontoValor = parseFloat(descInput.value) || 0;
+        if (descontoValor > subtotalGeral && subtotalGeral > 0) {
+            descontoValor = subtotalGeral;
+            descInput.value = subtotalGeral.toFixed(2);
+        }
+        descontoPerc = subtotalGeral > 0 ? (descontoValor / subtotalGeral) * 100 : 0;
+    }
+
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
 
     // Atualiza display
     document.getElementById('subtotal').textContent = formatarMoeda(subtotalGeral);
-    document.getElementById('descontoValor').textContent = '- ' + formatarMoeda(descontoValor);
+
+    if (tipoDesconto === 'perc') {
+        document.getElementById('descontoValor').textContent = '- ' + formatarMoeda(descontoValor);
+    } else {
+        document.getElementById('descontoValor').textContent = '- ' + descontoPerc.toFixed(2).replace('.', ',') + '%';
+    }
+
     document.getElementById('totalGeral').textContent = formatarMoeda(totalGeral);
 
     // Parcelas
@@ -668,8 +719,19 @@ function montarRevisao() {
     document.getElementById('dadosServicosJson').value = JSON.stringify(dadosServicos);
 
     // Desconto e total
-    const descontoPerc = parseFloat(document.getElementById('descontoGlobal').value) || 0;
-    const descontoValor = subtotalGeral * (descontoPerc / 100);
+    const tipoDesconto = document.getElementById('tipoDesconto').value;
+    const descInput = parseFloat(document.getElementById('descontoGlobal').value) || 0;
+    let descontoValor = 0;
+    let descontoPerc = 0;
+
+    if (tipoDesconto === 'perc') {
+        descontoPerc = Math.min(100, descInput);
+        descontoValor = subtotalGeral * (descontoPerc / 100);
+    } else {
+        descontoValor = Math.min(subtotalGeral, descInput);
+        descontoPerc = subtotalGeral > 0 ? (descontoValor / subtotalGeral) * 100 : 0;
+    }
+
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
     const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
 
@@ -727,6 +789,329 @@ function montarRevisao() {
 }
 
 // ============ UTILITÁRIOS ============
+// ============ PASSO 2: SELECAO POR EMBARCACAO ============
+function construirGradeServicos(embarcacoes) {
+    const container = document.getElementById('paso2Content');
+    container.innerHTML = renderizarSeletorEmbarcacoes(embarcacoes) + '<div id="servicosEmbarcacaoAtual"></div>';
+    document.getElementById('paso2Content').style.display = 'block';
+    document.getElementById('totaisPainel').style.display = 'block';
+    renderizarServicosEmbarcacaoAtual();
+    atualizarTotais();
+}
+
+function renderizarSeletorEmbarcacoes(embarcacoes) {
+    let html = '<div class="card" style="margin-bottom: 18px;"><div class="card-header"><h3><i class="fas fa-ship"></i> Escolha a embarcação</h3></div><div class="card-body"><div class="embarcacao-selector-grid">';
+    embarcacoes.forEach(emb => {
+        const resumo = obterResumoEmbarcacao(emb.id);
+        const selecionada = embarcacaoSelecionadaId === emb.id;
+        html += `
+            <button type="button" class="embarcacao-select-card ${selecionada ? 'is-selected' : ''}" onclick="selecionarEmbarcacaoServicos('${escAttr(emb.id)}')">
+                <span class="embarcacao-select-icon"><i class="fas fa-ship"></i></span>
+                <span class="embarcacao-select-main">
+                    <strong>${esc(emb.nome)}</strong>
+                    <small>${emb.registro ? esc(emb.registro) : 'Sem registro informado'}</small>
+                </span>
+                <span class="embarcacao-select-summary">
+                    <b id="embTotal_${escAttr(emb.id)}">${formatarMoeda(resumo.total)}</b>
+                    <small>${resumo.qtd} serviço(s)</small>
+                </span>
+            </button>`;
+    });
+    html += '</div></div></div>';
+    return html;
+}
+
+function selecionarEmbarcacaoServicos(embId) {
+    embarcacaoSelecionadaId = embId;
+    construirGradeServicos(embarcacoesCarregadas);
+}
+
+function renderizarServicosEmbarcacaoAtual() {
+    const area = document.getElementById('servicosEmbarcacaoAtual');
+    if (!area) return;
+
+    if (!embarcacaoSelecionadaId) {
+        area.innerHTML = `
+            <div class="tabela-vazia" style="margin-bottom: 20px;">
+                <i class="fas fa-mouse-pointer"></i>
+                <h3>Selecione uma embarcação</h3>
+                <p>Depois de escolher a embarcação, a lista de serviços aparece aqui. Você pode voltar e escolher outra embarcação depois.</p>
+            </div>`;
+        return;
+    }
+
+    const emb = embarcacoesCarregadas.find(e => e.id === embarcacaoSelecionadaId);
+    if (!emb) {
+        area.innerHTML = '';
+        return;
+    }
+
+    let html = `
+        <div class="card embarcacao-bloco" data-emb-id="${escAttr(emb.id)}" style="margin-bottom: 20px;">
+            <div class="card-header" style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-list-check" style="color: var(--cor-destaque);"></i>
+                <h3 style="flex: 1; color: var(--cor-texto); font-size: 1rem; margin: 0;">Serviços para ${esc(emb.nome)} ${emb.registro ? '<small class="text-muted">(' + esc(emb.registro) + ')</small>' : ''}</h3>
+            </div>
+            <div class="card-body emb-body">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--cor-borda);">
+                            <th style="text-align: left; padding: 8px 12px; color: var(--cor-texto-secundario); font-size: 0.8rem; width: 40px;"></th>
+                            <th style="text-align: left; padding: 8px 12px; color: var(--cor-texto-secundario); font-size: 0.8rem;">Serviço</th>
+                            <th style="text-align: center; padding: 8px 12px; color: var(--cor-texto-secundario); font-size: 0.8rem; width: 70px;">Qtd</th>
+                            <th style="text-align: right; padding: 8px 12px; color: var(--cor-texto-secundario); font-size: 0.8rem; width: 110px;">Preço Unit.</th>
+                            <th style="text-align: right; padding: 8px 12px; color: var(--cor-texto-secundario); font-size: 0.8rem; width: 110px;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+    ALL_SERVICOS.forEach(s => {
+        const estado = servicosSelecionadosPorEmbarcacao[emb.id]?.[s.id] || null;
+        const checked = !!estado;
+        const qtd = estado?.qtd || 1;
+        const preco = parseFloat(s.preco_padrao) || 0;
+        const subtotal = checked ? preco * qtd : 0;
+        html += `
+            <tr class="servico-linha" style="border-bottom: 1px solid var(--cor-borda); ${checked ? 'background: rgba(46,204,113,0.05);' : ''}">
+                <td style="padding: 8px 12px; text-align: center;">
+                    <input type="checkbox" class="check-servico" data-emb-id="${escAttr(emb.id)}" data-serv-id="${escAttr(s.id)}"
+                           onchange="servicoToggled(this)" style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--cor-destaque);" ${checked ? 'checked' : ''}>
+                </td>
+                <td style="padding: 8px 12px;">
+                    <span style="font-weight: 500;">${esc(s.nome)}</span>
+                    ${s.descricao ? '<br><small class="text-muted">' + esc(s.descricao.length > 60 ? s.descricao.substring(0, 60) + '...' : s.descricao) + '</small>' : ''}
+                </td>
+                <td style="padding: 8px 12px; text-align: center;">
+                    <input type="number" value="${qtd}" min="1" max="99" data-emb-id="${escAttr(emb.id)}" data-serv-id="${escAttr(s.id)}"
+                           class="qtd-servico" onchange="servicoQtdChanged(this)" onfocus="this.select()"
+                           style="width: 55px; padding: 4px 6px; background: var(--cor-fundo); border: 1px solid var(--cor-borda); border-radius: 6px; color: var(--cor-texto); text-align: center; font-size: 0.85rem;" ${checked ? '' : 'disabled'}>
+                </td>
+                <td style="padding: 8px 12px; text-align: right;">
+                    <span style="font-weight: 500;">${formatarMoeda(preco)}</span>
+                </td>
+                <td style="padding: 8px 12px; text-align: right;">
+                    <span id="sub_${escAttr(emb.id)}_${escAttr(s.id)}" data-preco="${s.preco_padrao}" style="font-weight: 600; color: var(--cor-destaque);">${formatarMoeda(subtotal)}</span>
+                </td>
+            </tr>`;
+    });
+
+    html += '</tbody></table></div></div>';
+    area.innerHTML = html;
+}
+
+function servicoToggled(checkbox) {
+    const embId = checkbox.dataset.embId;
+    const servId = checkbox.dataset.servId;
+    const linha = checkbox.closest('tr');
+    const qtdInput = linha.querySelector('.qtd-servico');
+
+    if (checkbox.checked) {
+        linha.style.background = 'rgba(46,204,113,0.05)';
+        qtdInput.disabled = false;
+        qtdInput.value = 1;
+        salvarServicoSelecionado(embId, servId, qtdInput.value);
+    } else {
+        linha.style.background = '';
+        qtdInput.disabled = true;
+        qtdInput.value = 0;
+        removerServicoSelecionado(embId, servId);
+    }
+
+    atualizarSubtotalServico(embId, servId);
+    atualizarTotais();
+}
+
+function servicoQtdChanged(input) {
+    const embId = input.dataset.embId;
+    const servId = input.dataset.servId;
+    const linha = input.closest('tr');
+    const checkbox = linha.querySelector('.check-servico');
+    if (checkbox.checked) {
+        salvarServicoSelecionado(embId, servId, input.value);
+    }
+    atualizarSubtotalServico(embId, servId);
+    atualizarTotais();
+}
+
+function salvarServicoSelecionado(embId, servId, qtdValor) {
+    if (!servicosSelecionadosPorEmbarcacao[embId]) {
+        servicosSelecionadosPorEmbarcacao[embId] = {};
+    }
+    servicosSelecionadosPorEmbarcacao[embId][servId] = {
+        qtd: Math.max(1, parseInt(qtdValor) || 1)
+    };
+}
+
+function removerServicoSelecionado(embId, servId) {
+    if (!servicosSelecionadosPorEmbarcacao[embId]) return;
+    delete servicosSelecionadosPorEmbarcacao[embId][servId];
+    if (Object.keys(servicosSelecionadosPorEmbarcacao[embId]).length === 0) {
+        delete servicosSelecionadosPorEmbarcacao[embId];
+    }
+}
+
+function obterResumoEmbarcacao(embId) {
+    const selecionados = servicosSelecionadosPorEmbarcacao[embId] || {};
+    let total = 0;
+    let qtd = 0;
+
+    Object.entries(selecionados).forEach(([servId, estado]) => {
+        const servico = ALL_SERVICOS.find(s => String(s.id) === String(servId));
+        if (!servico) return;
+        const quantidade = Math.max(1, parseInt(estado.qtd) || 1);
+        total += (parseFloat(servico.preco_padrao) || 0) * quantidade;
+        qtd++;
+    });
+
+    return { total, qtd };
+}
+
+function atualizarTotais() {
+    let subtotalGeral = 0;
+    embarcacoesCarregadas.forEach(emb => {
+        const resumo = obterResumoEmbarcacao(emb.id);
+        subtotalGeral += resumo.total;
+        const embTotalEl = document.getElementById('embTotal_' + emb.id);
+        if (embTotalEl) {
+            embTotalEl.textContent = formatarMoeda(resumo.total);
+            const summarySmall = embTotalEl.closest('.embarcacao-select-summary')?.querySelector('small');
+            if (summarySmall) summarySmall.textContent = resumo.qtd + ' serviço(s)';
+        }
+    });
+
+    const tipoDesconto = document.getElementById('tipoDesconto').value;
+    const descInput = document.getElementById('descontoGlobal');
+    let descontoValor = 0;
+    let descontoPerc = 0;
+
+    if (tipoDesconto === 'perc') {
+        descontoPerc = parseFloat(descInput.value) || 0;
+        if (descontoPerc > 100) { descontoPerc = 100; descInput.value = 100; }
+        descontoValor = subtotalGeral * (descontoPerc / 100);
+    } else {
+        descontoValor = parseFloat(descInput.value) || 0;
+        if (descontoValor > subtotalGeral && subtotalGeral > 0) {
+            descontoValor = subtotalGeral;
+            descInput.value = subtotalGeral.toFixed(2);
+        }
+        descontoPerc = subtotalGeral > 0 ? (descontoValor / subtotalGeral) * 100 : 0;
+    }
+
+    const totalGeral = Math.max(0, subtotalGeral - descontoValor);
+    document.getElementById('subtotal').textContent = formatarMoeda(subtotalGeral);
+    document.getElementById('descontoValor').textContent = tipoDesconto === 'perc'
+        ? '- ' + formatarMoeda(descontoValor)
+        : '- ' + descontoPerc.toFixed(2).replace('.', ',') + '%';
+    document.getElementById('totalGeral').textContent = formatarMoeda(totalGeral);
+
+    const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
+    const valorParcela = totalGeral / parcelas;
+    let ph = '';
+    for (let i = 1; i <= parcelas; i++) {
+        ph += `<div style="padding: 3px 0;">Parcela ${i}/<strong>${parcelas}: ${formatarMoeda(valorParcela)}</strong></div>`;
+    }
+    document.getElementById('parcelasInfo').innerHTML = ph;
+}
+
+function montarRevisao() {
+    const dadosServicos = [];
+    let subtotalGeral = 0;
+
+    embarcacoesCarregadas.forEach(embData => {
+        const selecionados = servicosSelecionadosPorEmbarcacao[embData.id] || {};
+        const servicosDaEmb = [];
+        let embTotal = 0;
+
+        Object.entries(selecionados).forEach(([servId, estado]) => {
+            const servico = ALL_SERVICOS.find(s => String(s.id) === String(servId));
+            if (!servico) return;
+            const preco = parseFloat(servico.preco_padrao) || 0;
+            const qtd = Math.max(1, parseInt(estado.qtd) || 1);
+            const subtotal = preco * qtd;
+            embTotal += subtotal;
+            servicosDaEmb.push({ servico_id: servId, nome: servico.nome, preco, qtd, subtotal, quantidade: qtd });
+        });
+
+        if (servicosDaEmb.length > 0) {
+            dadosServicos.push({
+                embarcacao_id: embData.id,
+                embarcacao_nome: embData.nome,
+                embarcacao_registro: embData.registro || 'N/I',
+                total: embTotal,
+                servicos: servicosDaEmb
+            });
+            subtotalGeral += embTotal;
+        }
+    });
+
+    document.getElementById('dadosServicosJson').value = JSON.stringify(dadosServicos);
+
+    const tipoDesconto = document.getElementById('tipoDesconto').value;
+    const descInput = parseFloat(document.getElementById('descontoGlobal').value) || 0;
+    let descontoValor = 0;
+    let descontoPerc = 0;
+
+    if (tipoDesconto === 'perc') {
+        descontoPerc = Math.min(100, descInput);
+        descontoValor = subtotalGeral * (descontoPerc / 100);
+    } else {
+        descontoValor = Math.min(subtotalGeral, descInput);
+        descontoPerc = subtotalGeral > 0 ? (descontoValor / subtotalGeral) * 100 : 0;
+    }
+
+    const totalGeral = Math.max(0, subtotalGeral - descontoValor);
+    const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
+
+    document.getElementById('reviewCliente').innerHTML = `
+        <strong>${clienteSelecionadoData?.nome || ''}</strong><br>
+        <small class="text-muted">Perfil: ${clienteSelecionadoData?.perfil || ''} &middot; CPF/CNPJ: ${clienteSelecionadoData?.cpfcnpj || ''}</small>`;
+
+    let revEmbHtml = '';
+    dadosServicos.forEach(ds => {
+        revEmbHtml += `
+        <div style="margin-bottom: 15px; padding: 12px; background: var(--cor-sidebar); border-radius: 8px; border: 1px solid var(--cor-borda);">
+            <h5 style="color: var(--cor-destaque); margin-bottom: 8px;">
+                <i class="fas fa-ship"></i> ${esc(ds.embarcacao_nome)}
+                ${ds.embarcacao_registro !== 'N/I' ? '<small class="text-muted">(' + esc(ds.embarcacao_registro) + ')</small>' : ''}
+            </h5>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead><tr style="border-bottom: 1px solid var(--cor-borda);">
+                    <th style="text-align: left; padding: 6px; color: var(--cor-texto-secundario); font-size: 0.75rem;">Serviço</th>
+                    <th style="text-align: center; padding: 6px; color: var(--cor-texto-secundario); font-size: 0.75rem; width: 50px;">Qtd</th>
+                    <th style="text-align: right; padding: 6px; color: var(--cor-texto-secundario); font-size: 0.75rem; width: 90px;">Unit.</th>
+                    <th style="text-align: right; padding: 6px; color: var(--cor-texto-secundario); font-size: 0.75rem; width: 90px;">Subtotal</th>
+                </tr></thead><tbody>`;
+        ds.servicos.forEach(sv => {
+            revEmbHtml += `<tr style="border-bottom: 1px solid var(--cor-borda);">
+                <td style="padding: 6px;">${esc(sv.nome)}</td>
+                <td style="text-align: center; padding: 6px;">${sv.qtd}</td>
+                <td style="text-align: right; padding: 6px;">${formatarMoeda(sv.preco)}</td>
+                <td style="text-align: right; padding: 6px; font-weight: 600;">${formatarMoeda(sv.subtotal)}</td>
+            </tr>`;
+        });
+        revEmbHtml += `<tr><td colspan="3" style="text-align: right; padding: 6px; font-weight: 600;">Total da Embarcação:</td>
+            <td style="text-align: right; padding: 6px; font-weight: 700; color: var(--cor-destaque);">${formatarMoeda(ds.total)}</td></tr>`;
+        revEmbHtml += '</tbody></table></div>';
+    });
+    document.getElementById('reviewPorEmbarcacao').innerHTML = revEmbHtml || '<p class="text-muted">Nenhum serviço selecionado.</p>';
+
+    document.getElementById('rSubtotal').textContent = formatarMoeda(subtotalGeral);
+    document.getElementById('rDescontoPerc').textContent = descontoPerc.toFixed(2).replace('.', ',');
+    document.getElementById('rDesconto').textContent = '- ' + formatarMoeda(descontoValor);
+    document.getElementById('rTotalGeral').textContent = formatarMoeda(totalGeral);
+
+    const valorParcela = totalGeral / parcelas;
+    let rph = '';
+    for (let i = 1; i <= parcelas; i++) {
+        rph += `${i}x de <strong>${formatarMoeda(valorParcela)}</strong>`;
+        if (parcelas > 1 && i < parcelas) rph += ' &middot; ';
+    }
+    document.getElementById('rParcelas').innerHTML = rph;
+
+    document.getElementById('reviewLoading').style.display = 'none';
+    document.getElementById('reviewContent').style.display = 'block';
+}
+
 function formatarMoeda(valor) {
     return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -737,13 +1122,106 @@ function esc(str) {
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
 }
+
+function escAttr(str) {
+    return esc(String(str)).replace(/'/g, '&#39;');
+}
 </script>
 
 <style>
 .wizard-step.active .step-label { color: var(--cor-destaque) !important; font-weight: 600 !important; }
 .cliente-card:hover { border-color: var(--cor-destaque) !important; }
+.cliente-card.is-selected {
+    border-color: #56e0ad !important;
+    background: rgba(46,204,113,0.15) !important;
+    box-shadow: inset 4px 0 0 #56e0ad, 0 0 0 3px rgba(86,224,173,0.16);
+}
+.cliente-check-indicator {
+    min-width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 8px;
+    color: transparent;
+    background: transparent;
+    border: 2px solid rgba(199,244,231,0.22);
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+.cliente-card.is-selected .cliente-check-indicator {
+    color: #021210;
+    background: #56e0ad;
+    border-color: #56e0ad;
+}
+.cliente-check-indicator em {
+    display: none;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 800;
+}
+.cliente-card.is-selected .cliente-check-indicator em {
+    display: inline;
+}
 .servico-linha:hover { background: rgba(46,204,113,0.03) !important; }
 .emb-body table { font-size: 0.9rem; }
+.embarcacao-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+.embarcacao-select-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    min-height: 74px;
+    padding: 12px 14px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    text-align: left;
+    cursor: pointer;
+}
+.embarcacao-select-card:hover,
+.embarcacao-select-card.is-selected {
+    border-color: var(--cor-destaque);
+    background: rgba(46,204,113,0.08);
+}
+.embarcacao-select-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    color: var(--cor-destaque);
+    background: rgba(46,204,113,0.12);
+}
+.embarcacao-select-main strong,
+.embarcacao-select-main small,
+.embarcacao-select-summary b,
+.embarcacao-select-summary small {
+    display: block;
+}
+.embarcacao-select-main strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.embarcacao-select-main small,
+.embarcacao-select-summary small {
+    color: var(--cor-texto-secundario);
+}
+.embarcacao-select-summary {
+    text-align: right;
+}
+.embarcacao-select-summary b {
+    color: var(--cor-destaque);
+}
 </style>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

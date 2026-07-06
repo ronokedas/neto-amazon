@@ -88,8 +88,8 @@ header('Content-Type: text/html; charset=UTF-8');
             <header class="topbar">
                 <div class="topbar-search" style="position: relative;">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="buscaGlobal" placeholder="Buscar embarcação, vistoria, cliente..." autocomplete="off">
-                    <span class="search-shortcut">⌘K</span>
+                    <input type="text" id="buscaGlobal" placeholder="Buscar cliente, embarcacao, certificado..." autocomplete="off">
+                    <span class="search-shortcut">Ctrl K</span>
                     <div class="search-results" id="searchResults"></div>
                 </div>
                 <div class="topbar-right">
@@ -131,6 +131,14 @@ header('Content-Type: text/html; charset=UTF-8');
                 <span><?php echo h($msg['texto']); ?></span>
                 <button class="close-msg" onclick="this.parentElement.remove()">&times;</button>
             </div>
+            <?php if ($msg['tipo'] === 'error' && (!empty($msg['valores']) || !empty($msg['campos']))): ?>
+            <script>
+            window.__formFeedback = <?php echo json_encode([
+                'valores' => $msg['valores'] ?? [],
+                'campos' => $msg['campos'] ?? [],
+            ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+            </script>
+            <?php endif; ?>
             <?php
                 endif;
             }
@@ -163,13 +171,16 @@ header('Content-Type: text/html; charset=UTF-8');
                             return;
                         }
                         const baseUrl = '<?php echo APP_URL; ?>';
+                        const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+                            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+                        })[char]);
                         buscaResults.innerHTML = data.map(item => {
-                            const icones = { embarcacao: 'fa-ship', pessoa: 'fa-user', cliente: 'fa-building', vistoria: 'fa-clipboard-check' };
+                            const icones = { embarcacao: 'fa-ship', proprietario: 'fa-user', armador: 'fa-anchor', despachante: 'fa-briefcase', vistoria: 'fa-clipboard-check' };
                             const icon = icones[item.tipo] || 'fa-search';
-                            return '<a href="' + baseUrl + item.url + '" class="search-result-item">' +
+                            return '<a href="' + baseUrl + encodeURI(item.url) + '" class="search-result-item">' +
                                 '<i class="fa-solid ' + icon + '"></i>' +
-                                '<span class="search-result-nome">' + item.nome + '</span>' +
-                                '<span class="search-result-tipo">' + item.tipo + '</span>' +
+                                '<span class="search-result-nome">' + escapeHtml(item.nome) + '</span>' +
+                                '<span class="search-result-tipo">' + escapeHtml(item.tipo) + '</span>' +
                                 '</a>';
                         }).join('');
                         buscaResults.classList.add('show');

@@ -82,7 +82,7 @@ try {
         $sql .= " WHERE " . implode(" AND ", $where);
     }
 
-    $sql .= " ORDER BY a.data_vistoria DESC, a.hora_vistoria ASC";
+    $sql .= " ORDER BY COALESCE(a.updated_at, a.created_at) DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -171,7 +171,8 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <p>Clique em "Novo Agendamento" para criar o primeiro.</p>
             </div>
         <?php else: ?>
-            <table id="tabelaAgendamentos">
+            <div class="table-responsive">
+            <table id="tabelaAgendamentos" class="responsive-data-table agendamentos-table">
                 <thead>
                     <tr>
                         <th>Data</th>
@@ -188,7 +189,11 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <?php foreach ($agendamentos as $a): ?>
                     <tr>
                         <td>
-                            <strong><?php echo formatarData($a['data_vistoria']); ?></strong>
+                            <?php if (!empty($a['data_vistoria'])): ?>
+                                <strong><?php echo formatarData($a['data_vistoria']); ?></strong>
+                            <?php else: ?>
+                                <strong class="text-muted">Sem data</strong>
+                            <?php endif; ?>
                             <?php if ($a['hora_vistoria']): ?>
                                 <br><small><?php echo h(substr($a['hora_vistoria'], 0, 5)); ?></small>
                             <?php endif; ?>
@@ -218,20 +223,23 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 <span class="text-muted">-</span>
                             <?php endif; ?>
                         </td>
-                        <td>
-                            <div class="d-flex gap-1">
+                        <td class="td-actions">
+                            <div class="action-buttons">
                                 <?php if ($cargo !== 'VISTORIADOR'): ?>
 <a href="<?php echo APP_URL; ?>agendamentos/form?id=<?php echo urlencode($a['id']); ?>" 
                                    class="btn btn-secondary btn-sm" title="Editar">
                                     <i class="fas fa-edit"></i>
                                 </a>
                                 <?php if ($a['status'] === 'pendente' && ($cargo === 'ADMIN' || $cargo === 'VENDEDOR')): ?>
-                                <a href="<?php echo APP_URL; ?>agendamentos/actions?action=confirmar&id=<?php echo urlencode($a['id']); ?>" 
-                                   class="btn btn-primary btn-sm" 
-                                   title="Confirmar e gerar OS"
-                                   onclick="return confirm('Confirmar agendamento e gerar Ordem de Serviço?')">
-                                    <i class="fas fa-check-double"></i>
-                                </a>
+                                <form method="POST" action="<?php echo APP_URL; ?>agendamentos/actions" style="display:inline"
+                                      onsubmit="return confirm('Confirmar agendamento e gerar Ordem de Serviço?')">
+                                    <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                    <input type="hidden" name="action" value="confirmar">
+                                    <input type="hidden" name="id" value="<?php echo h($a['id']); ?>">
+                                    <button type="submit" class="btn btn-primary btn-sm" title="Confirmar e gerar OS">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                </form>
 <?php endif; ?>
                                 <?php endif; ?>
                                 <a href="<?php echo APP_URL; ?>vistorias/relatorio?agendamento_id=<?php echo urlencode($a['id']); ?>" 
@@ -240,12 +248,15 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                     <i class="fas fa-clipboard-list"></i>
                                 </a>
                                 <?php if (in_array($a['status'], ['pendente', 'confirmado']) && $cargo !== 'VISTORIADOR'): ?>
-                                <a href="<?php echo APP_URL; ?>agendamentos/actions?action=cancelar&id=<?php echo urlencode($a['id']); ?>" 
-                                   class="btn btn-danger btn-sm" 
-                                   title="Cancelar"
-                                   onclick="return confirm('Tem certeza que deseja cancelar este agendamento?')">
-                                    <i class="fas fa-ban"></i>
-                                </a>
+                                <form method="POST" action="<?php echo APP_URL; ?>agendamentos/actions" style="display:inline"
+                                      onsubmit="return confirm('Tem certeza que deseja cancelar este agendamento?')">
+                                    <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                    <input type="hidden" name="action" value="cancelar">
+                                    <input type="hidden" name="id" value="<?php echo h($a['id']); ?>">
+                                    <button type="submit" class="btn btn-danger btn-sm" title="Cancelar">
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                </form>
                                 <?php endif; ?>
                             </div>
                         </td>
@@ -253,6 +264,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php endif; ?>
 
         <!-- Resumo -->

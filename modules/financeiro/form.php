@@ -10,7 +10,10 @@ require_once __DIR__ . '/../../includes/auth.php';
 
 // Exigir login e cargo ADMIN
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('financeiro')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 // Buscar lancamento se for edicao
 $id = $_GET['id'] ?? '';
@@ -83,16 +86,87 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         </select>
                     </div>
 
-                    <!-- Data -->
+                    <!-- Frequência (Recorrência) -->
+                    <div class="form-group">
+                        <label for="frequencia">
+                            <i class="fas fa-sync"></i> Recorrência *
+                        </label>
+                        <select id="frequencia" name="frequencia" required>
+                            <option value="unica" <?php echo ($lancamento['frequencia'] ?? 'unica') === 'unica' ? 'selected' : ''; ?>>Lançamento Único</option>
+                            <option value="mensal" <?php echo ($lancamento['frequencia'] ?? '') === 'mensal' ? 'selected' : ''; ?>>Mensal</option>
+                            <option value="trimestral" <?php echo ($lancamento['frequencia'] ?? '') === 'trimestral' ? 'selected' : ''; ?>>Trimestral</option>
+                            <option value="anual" <?php echo ($lancamento['frequencia'] ?? '') === 'anual' ? 'selected' : ''; ?>>Anual</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <!-- Vencimento -->
+                    <div class="form-group">
+                        <label for="data_vencimento">
+                            <i class="fas fa-calendar"></i> Vencimento *
+                        </label>
+                        <input type="date" 
+                               id="data_vencimento" 
+                               name="data_vencimento" 
+                               required
+                               value="<?php echo h($lancamento['data_vencimento'] ?? date('Y-m-d')); ?>">
+                    </div>
+
+                    <!-- Cliente / Despachante -->
+                    <div class="form-group">
+                        <label for="cliente_id">
+                            <i class="fas fa-user-tie"></i> Pessoa / Despachante
+                        </label>
+                        <select id="cliente_id" name="cliente_id" style="width: 100%; padding: 8px 12px; border: 1px solid var(--cor-borda); border-radius: 4px;">
+                            <option value="">-- Selecione (Opcional) --</option>
+                            <?php
+                            try {
+                                $stmtCli = $pdo->query("SELECT id, nome, perfil, cpf_cnpj FROM clientes WHERE status = 'ATIVO' ORDER BY nome ASC");
+                                while ($c = $stmtCli->fetch(PDO::FETCH_ASSOC)) {
+                                    $selected = (($lancamento['cliente_id'] ?? '') == $c['id']) ? 'selected' : '';
+                                    // Adiciona badge visual (na listagem) ou sufixo para Despachantes
+                                    $sufixo = ($c['perfil'] == 'despachante') ? ' [Despachante]' : '';
+                                    echo "<option value='".h($c['id'])."' $selected>".h($c['nome'])." (".h($c['cpf_cnpj']).")" . $sufixo . "</option>";
+                                }
+                            } catch (Exception $e) {
+                                error_log('Erro ao carregar clientes no financeiro: ' . $e->getMessage());
+                            }
+                            ?>
+                        </select>
+                        <small class="text-muted">Importante para vincular pagamentos de serviços (ex: Despachantes).</small>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <!-- Status -->
+                    <div class="form-group">
+                        <label for="status">
+                            <i class="fas fa-check-circle"></i> Status *
+                        </label>
+                        <select id="status" name="status" required>
+                            <option value="PAGO" <?php echo ($lancamento['status'] ?? 'PAGO') === 'PAGO' ? 'selected' : ''; ?>>
+                                Pago / Recebido
+                            </option>
+                            <option value="PENDENTE" <?php echo ($lancamento['status'] ?? '') === 'PENDENTE' ? 'selected' : ''; ?>>
+                                Pendente
+                            </option>
+                            <option value="CANCELADO" <?php echo ($lancamento['status'] ?? '') === 'CANCELADO' ? 'selected' : ''; ?>>
+                                Cancelado
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Data Pagamento -->
                     <div class="form-group">
                         <label for="data">
-                            <i class="fas fa-calendar"></i> Data *
+                            <i class="fas fa-calendar-check"></i> Data Pagamento
                         </label>
                         <input type="date" 
                                id="data" 
                                name="data" 
-                               required
-                               value="<?php echo h($lancamento['data'] ?? date('Y-m-d')); ?>">
+                               value="<?php echo h($lancamento['data'] ?? ''); ?>">
+                        <small class="text-muted">Se pago, preencha a data</small>
                     </div>
                 </div>
 

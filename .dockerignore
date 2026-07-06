@@ -1,0 +1,14 @@
+.git
+.agents
+.codex
+.env
+.env.*
+vendor
+node_modules
+logs
+temp_pdf
+uploads
+storage
+*.log
+*.bak
+*.tmp

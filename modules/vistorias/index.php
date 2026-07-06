@@ -23,11 +23,11 @@ $cargo = getCargo();
 try {
     $sql = "SELECT v.id, v.data_vistoria, v.status, v.observacoes, v.criado_em, v.atualizado_em,
                    e.nome AS embarcacao_nome, e.registro AS embarcacao_registro,
-                   p.nome_completo AS pessoa_nome, p.cpf AS pessoa_cpf,
+                   p.nome AS pessoa_nome, p.cpf_cnpj AS pessoa_cpf,
                    u.nome AS criado_por_nome
             FROM vistorias v
             LEFT JOIN embarcacoes e ON v.embarcacao_id = e.id
-            LEFT JOIN pessoas p ON v.pessoa_id = p.id
+            LEFT JOIN clientes p ON v.pessoa_id = p.id
             LEFT JOIN usuarios u ON v.criado_por = u.id
             LEFT JOIN agendamentos a ON v.agendamento_id = a.id";
 
@@ -65,10 +65,15 @@ try {
     $sql_contadores = "SELECT v.status, COUNT(*) as total FROM vistorias v LEFT JOIN agendamentos a ON v.agendamento_id = a.id WHERE 1=1";
     if ($cargo === 'VISTORIADOR') {
         $sql_contadores .= " AND a.vistoriador_id = :vistoriador_id";
+    } elseif ($cargo === 'VENDEDOR') {
+        $sql_contadores .= " AND (a.vendedor_id = :vendedor_id OR a.id IN (SELECT id FROM agendamentos WHERE vendedor_id = :agend_vendedor_id))";
+    }
+    $sql_contadores .= " GROUP BY v.status";
+    
+    if ($cargo === 'VISTORIADOR') {
         $stmt = $pdo->prepare($sql_contadores);
         $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
     } elseif ($cargo === 'VENDEDOR') {
-        $sql_contadores .= " AND (a.vendedor_id = :vendedor_id OR a.id IN (SELECT id FROM agendamentos WHERE vendedor_id = :agend_vendedor_id))";
         $stmt = $pdo->prepare($sql_contadores);
         $stmt->execute([':vendedor_id' => $_SESSION['usuario_id'], ':agend_vendedor_id' => $_SESSION['usuario_id']]);
     } else {

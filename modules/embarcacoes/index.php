@@ -18,7 +18,7 @@ if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
 
 // Buscar apenas embarcacoes ativas
 try {
-    $stmt = $pdo->query("SELECT id, nome, tipo, registro, proprietario, ano, observacoes, ativo, criado_em, atualizado_em FROM embarcacoes WHERE ativo = 1 ORDER BY nome ASC");
+    $stmt = $pdo->query("SELECT id, nome, tipo, tipo_embarcacao, registro, proprietario, ano, observacoes, ativo, criado_em, atualizado_em FROM embarcacoes WHERE ativo = 1 ORDER BY criado_em DESC, nome ASC");
     $embarcacoes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log('Erro ao listar embarcacoes: ' . $e->getMessage());
@@ -74,7 +74,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         <td>
                             <strong><?php echo h($e['nome']); ?></strong>
                         </td>
-                        <td><?php echo h($e['tipo'] ?? '-'); ?></td>
+                        <td><?php echo h($e['tipo_embarcacao'] ?: ($e['tipo'] ?? '-')); ?></td>
                         <td><?php echo h($e['registro'] ?? '-'); ?></td>
                         <td><?php echo h($e['proprietario'] ?? '-'); ?></td>
                         <td><?php echo h($e['ano'] ?? '-'); ?></td>

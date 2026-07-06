@@ -65,6 +65,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = date('Y-m-d H:i:s');
             $stmt = $pdo->prepare("UPDATE certificados_lc SET assinante_nome=:nome, assinatura_imagem=:imagem, assinatura_ip=:ip, assinatura_em=:data, assinado=1, status='assinado' WHERE id=:id AND ativo=1");
             $stmt->execute([':nome'=>$nome_assinante,':imagem'=>$assinatura_dados,':ip'=>$ip,':data'=>$data,':id'=>$licenca['id']]);
+            
+            // Gerar e salvar PDF imediatamente
+            $dir_ano = date('Y');
+            $nome_arquivo_pdf = 'LC_' . str_replace('/', '-', $licenca['numero_lc']) . '.pdf';
+            $caminho_relativo = 'storage/certificados/' . $dir_ano . '/lc/' . $nome_arquivo_pdf;
+            $salvar_pdf_caminho = __DIR__ . '/../../../' . $caminho_relativo;
+            
+            $dir_pdf = dirname($salvar_pdf_caminho);
+            if (!is_dir($dir_pdf)) {
+                mkdir($dir_pdf, 0777, true);
+            }
+
+            // Variáveis para o pdf.php
+            $_GET['id'] = $licenca['id'];
+            $id = $licenca['id'];
+            
+            // Fazer include para gerar o PDF
+            ob_start();
+            require __DIR__ . '/pdf.php';
+            ob_end_clean();
+
+            // Salvar hash e caminho no banco
+            if (file_exists($salvar_pdf_caminho)) {
+                $hash_pdf = hash_file('sha256', $salvar_pdf_caminho);
+                $stmt_pdf = $pdo->prepare("UPDATE certificados_lc SET caminho_arquivo_pdf = :caminho, hash_arquivo_pdf = :hash WHERE id = :id");
+                $stmt_pdf->execute([
+                    ':caminho' => $caminho_relativo,
+                    ':hash' => $hash_pdf,
+                    ':id' => $licenca['id']
+                ]);
+            }
+
             log_atividade('licenca_lc_assinada', "LC {$licenca['numero_lc']} assinada por {$nome_assinante}");
             $assinado = true;
             $mensagem = 'Documento assinado com sucesso!';

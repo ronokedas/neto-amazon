@@ -9,7 +9,10 @@ require_once __DIR__ . '/../../../includes/auth.php';
 require_once __DIR__ . '/../../../includes/functions.php';
 
 verificar_sessao();
-verificar_cargo('ADMIN');
+if (!podeAcessar('documentacao')) {
+    header('Location: ' . APP_URL . 'dashboard?erro=sem_permissao');
+    exit;
+}
 
 $editando = false;
 $licenca = null;
@@ -41,7 +44,7 @@ if (!$editando) {
 }
 
 // Embarcações
-$stmt_emb = $pdo->prepare("SELECT id, nome, tipo, registro, proprietario FROM embarcacoes WHERE ativo = 1 ORDER BY nome");
+$stmt_emb = $pdo->prepare("SELECT * FROM embarcacoes WHERE ativo = 1 ORDER BY nome");
 $stmt_emb->execute();
 $embarcacoes = $stmt_emb->fetchAll(PDO::FETCH_ASSOC);
 
@@ -97,6 +100,12 @@ if (!$editando && !empty($_GET['agendamento_id'])) {
         $preenchimento['proprietario']       = h($dadosPre['proprietario'] ?? '');
     }
 }
+
+// Buscar lista de despachantes ativos
+$stmt_desp = $pdo->prepare("SELECT id, nome FROM clientes WHERE perfil = 'despachante' AND status = 'ATIVO' ORDER BY nome");
+$stmt_desp->execute();
+$despachantes_list = $stmt_desp->fetchAll(PDO::FETCH_ASSOC);
+
 $titulo_page = ($editando ? 'Editar' : 'Nova') . ' Licença de Construção/LCEC - ' . APP_NAME;
 require_once __DIR__ . '/../../../includes/header.php';
 require_once __DIR__ . '/../../../includes/sidebar.php';
@@ -123,6 +132,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
         <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
         <?php if ($editando): ?>
             <input type="hidden" name="id" value="<?php echo h($licenca['id']); ?>">
+            <input type="hidden" name="vistoria_id" value="<?php echo h($licenca['vistoria_id'] ?? ''); ?>">
         <?php endif; ?>
 
         <!-- Seção 1: Identificação -->

@@ -23,7 +23,19 @@ require_once __DIR__ . '/mailer.php';
 function enviarAssinaturaEmail(PDO $pdo, string $certificado_id, string $tabela, string $tipo_label): array
 {
     try {
-        $stmt = $pdo->prepare("SELECT id, numero, token_assinatura, nome_embarcacao, data_emissao, data_validade, status FROM {$tabela} WHERE id = :id AND ativo = 1");
+        $mapas = [
+            'certificados_csn' => 'id, numero, token_assinatura, nome_embarcacao, data_emissao, data_validade, status, NULL AS email_destinatario',
+            'certificados_cnbl' => 'id, numero, token_assinatura, nome_embarcacao, data_emissao, data_validade, status, NULL AS email_destinatario',
+            'certificados_cnarq' => 'id, numero, token_assinatura, nome_embarcacao, data_emissao, data_validade, status, NULL AS email_destinatario',
+            'certificados_lc' => 'id, numero_lc AS numero, token_assinatura, nome_embarcacao, data_emissao, data_validade, status, NULL AS email_destinatario',
+            'certificados_lp' => 'id, numero_lp AS numero, token_assinatura, nome_embarcacao, data_emissao, validade_data AS data_validade, status, NULL AS email_destinatario',
+            'certificados_cht' => 'id, COALESCE(numero_certificado, numero_relatorio_ht) AS numero, token_assinatura, profissional_empresa AS nome_embarcacao, data_emissao, data_validade, status, email_destinatario',
+        ];
+        if (!isset($mapas[$tabela])) {
+            return ['success' => false, 'message' => 'Tipo de documento não suportado para envio.'];
+        }
+
+        $stmt = $pdo->prepare("SELECT {$mapas[$tabela]} FROM {$tabela} WHERE id = :id AND ativo = 1");
         $stmt->execute([':id' => $certificado_id]);
         $cert = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -31,17 +43,23 @@ function enviarAssinaturaEmail(PDO $pdo, string $certificado_id, string $tabela,
             return ['success' => false, 'message' => 'Certificado não encontrado.'];
         }
 
-        // Buscar cliente via embarcação
-        $stmtCli = $pdo->prepare("
-            SELECT c.nome AS cliente_nome, c.email AS cliente_email
-            FROM clientes c
-            INNER JOIN clientes_embarcacoes ce ON ce.cliente_id = c.id
-            INNER JOIN embarcacoes e ON e.id = ce.embarcacao_id
-            WHERE e.nome = :emb_nome AND c.status = 'ATIVO'
-            LIMIT 1
-        ");
-        $stmtCli->execute([':emb_nome' => $cert['nome_embarcacao']]);
-        $cliente = $stmtCli->fetch(PDO::FETCH_ASSOC);
+        if ($tabela === 'certificados_cht') {
+            $cliente = [
+                'cliente_nome' => $cert['nome_embarcacao'],
+                'cliente_email' => $cert['email_destinatario'],
+            ];
+        } else {
+            $stmtCli = $pdo->prepare("
+                SELECT c.nome AS cliente_nome, c.email AS cliente_email
+                FROM clientes c
+                INNER JOIN clientes_embarcacoes ce ON ce.cliente_id = c.id
+                INNER JOIN embarcacoes e ON e.id = ce.embarcacao_id
+                WHERE e.nome = :emb_nome AND c.status = 'ATIVO'
+                LIMIT 1
+            ");
+            $stmtCli->execute([':emb_nome' => $cert['nome_embarcacao']]);
+            $cliente = $stmtCli->fetch(PDO::FETCH_ASSOC);
+        }
 
         if (!$cliente || empty($cliente['cliente_email'])) {
             return ['success' => false, 'message' => 'Cliente não encontrado ou sem e-mail cadastrado para esta embarcação.'];
@@ -62,7 +80,7 @@ function enviarAssinaturaEmail(PDO $pdo, string $certificado_id, string $tabela,
             '{{EMBARCACAO_NOME}}'    => h($cert['nome_embarcacao']),
             '{{NUMERO_CERTIFICADO}}' => h($cert['numero']),
             '{{DATA_EMISSAO}}'       => date('d/m/Y', strtotime($cert['data_emissao'])),
-            '{{DATA_VALIDADE}}'      => date('d/m/Y', strtotime($cert['data_validade'])),
+            '{{DATA_VALIDADE}}'      => !empty($cert['data_validade']) ? date('d/m/Y', strtotime($cert['data_validade'])) : 'Não se aplica',
             '{{LINK_ASSINATURA}}'    => $link_assinatura,
             '{{EMAIL_CONTATO}}'      => EMAIL_CONTATO,
             '{{TELEFONE_CONTATO}}'   => TELEFONE_CONTATO,

@@ -29,6 +29,11 @@ $busca         = $_GET['busca'] ?? '';
 // Processar reenvio
 $mensagem_reenvio = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reenviar') {
+    if (!verificarCSRF($_POST['csrf_token'] ?? '')) {
+        setMensagem('error', 'Token de seguranca invalido. Tente novamente.');
+        redirecionar(APP_URL . 'emails');
+    }
+
     $email_id = $_POST['id'] ?? '';
     if (!empty($email_id)) {
         try {
@@ -263,12 +268,19 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 </small>
                             <?php endif; ?>
                         </td>
-                        <td><?php echo h($e['usuario_nome'] ?? '-'); ?></td>
+                        <td>
+                            <?php if (!empty($e['enviado_por'])): ?>
+                                <span class="badge badge-info"><i class="fas fa-user"></i> <?php echo h($e['usuario_nome']); ?></span>
+                            <?php else: ?>
+                                <span class="badge badge-secondary"><i class="fas fa-robot"></i> Automático</span>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <div class="d-flex gap-1">
                                 <?php if ($e['status'] === 'erro'): ?>
                                 <form method="POST" style="display: inline;" 
                                       onsubmit="return confirm('Reenviar este e-mail para <?php echo h(addslashes($e['destinatario'])); ?>?')">
+                                    <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
                                     <input type="hidden" name="action" value="reenviar">
                                     <input type="hidden" name="id" value="<?php echo h($e['id']); ?>">
                                     <button type="submit" class="btn btn-warning btn-sm" title="Reenviar">

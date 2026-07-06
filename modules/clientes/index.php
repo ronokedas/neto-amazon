@@ -25,7 +25,7 @@ try {
         LEFT JOIN clientes_embarcacoes ce ON ce.cliente_id = c.id
         WHERE c.status = 'ATIVO'
         GROUP BY c.id
-        ORDER BY c.nome ASC
+        ORDER BY c.criado_em DESC, c.nome ASC
     ");
     $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {

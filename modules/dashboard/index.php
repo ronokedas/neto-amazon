@@ -280,17 +280,15 @@ try {
         $agendamentos_pendentes_lista = [];
     }
 
-    if (!$is_vistoriador) {
-        try {
-            $stmt = $pdo->query("SELECT COUNT(*) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
-            $propostas_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    try {
+        $stmt = $pdo->query("SELECT COUNT(*) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+        $propostas_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-            $stmt = $pdo->query("SELECT COALESCE(SUM(valor_total), 0) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
-            $valor_propostas_mes = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
-        } catch (Exception $e) {
-            $propostas_mes = 0;
-            $valor_propostas_mes = 0.00;
-        }
+        $stmt = $pdo->query("SELECT COALESCE(SUM(valor_total), 0) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+        $valor_propostas_mes = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    } catch (Exception $e) {
+        $propostas_mes = 0;
+        $valor_propostas_mes = 0.00;
     }
 
     $perc_meta = ($meta_mensal_valor > 0) ? round(($valor_propostas_mes / $meta_mensal_valor) * 100, 1) : 0;
@@ -461,13 +459,12 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
             <div class="kpi-card kpi-card--goal">
                 <div class="kpi-topline">
-                    <div class="kpi-label">PROPRIET&Aacute;RIOS</div>
-                    <div class="kpi-icon"><i class="fa-solid fa-user-tie"></i></div>
+                    <div class="kpi-label">META ATINGIDA</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-bullseye"></i></div>
                 </div>
-                <div class="kpi-value"><?= number_format($total_proprietarios, 0, ',', '.') ?></div>
-                <div class="kpi-delta kpi-delta--up">
-                    <i class="fa-solid fa-user-check"></i>
-                    Clientes dos seus agendamentos
+                <div class="kpi-value"><?= $perc_meta ?>%</div>
+                <div class="kpi-meta-bar">
+                    <div class="kpi-meta-fill" style="width: <?= min($perc_meta, 100) ?>%"></div>
                 </div>
             </div>
         <?php else: ?>

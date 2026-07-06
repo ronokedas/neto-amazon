@@ -278,12 +278,57 @@ Rebuild:
 docker compose up -d --build
 ```
 
-## 11. Atualizar o sistema no VPS
+## 11. Enviar alteracoes locais para o GitHub
+
+Use estes comandos no computador local, dentro da pasta do sistema:
+
+```powershell
+cd C:\sistema
+git status
+git add .
+git commit -m "Descreva aqui o que foi alterado"
+git push
+```
+
+O que cada comando faz:
+
+- `git status`: mostra quais arquivos foram modificados
+- `git add .`: prepara todos os arquivos modificados para envio
+- `git commit -m "..."`: salva um pacote de alteracoes com uma descricao
+- `git push`: envia esse pacote para o repositorio no GitHub
+
+Exemplo:
+
+```powershell
+git commit -m "Ajusta dashboard e manual de instalacao"
+```
+
+Se quiser enviar somente alguns arquivos, use:
+
+```powershell
+git add modules/dashboard/index.php docs/DEPLOY_UBUNTU_24_DOCKER.md
+git commit -m "Atualiza dashboard e manual"
+git push
+```
+
+## 12. Atualizar o sistema no VPS a partir do GitHub
 
 ```bash
 cd /opt/sistema-amazon
 git pull
 docker compose up -d --build
+```
+
+Depois confira se os containers estao rodando:
+
+```bash
+docker compose ps
+```
+
+Se quiser acompanhar os logs:
+
+```bash
+docker compose logs -f app
 ```
 
 Se houver nova migration SQL manual, aplique uma por vez:
@@ -292,7 +337,19 @@ Se houver nova migration SQL manual, aplique uma por vez:
 docker compose exec -T db mysql -u root -p erp_sistema < migrations/048_pre_agendamentos_sem_data.sql
 ```
 
-## 12. Backup do banco
+Quando existir uma migration nova, troque o nome do arquivo no comando. Exemplo:
+
+```bash
+docker compose exec -T db mysql -u root -p erp_sistema < migrations/049_checklist_respostas_unicas.sql
+```
+
+O terminal vai pedir a senha do MySQL root:
+
+```text
+root_pass_2026
+```
+
+## 13. Backup do banco
 
 Criar backup:
 
@@ -307,7 +364,7 @@ Restaurar backup:
 docker compose exec -T db mysql -u root -p erp_sistema < ~/backups-amazon/arquivo.sql
 ```
 
-## 13. Atualizar Ubuntu e imagens Docker
+## 14. Atualizar Ubuntu e imagens Docker
 
 ```bash
 sudo apt update
@@ -317,7 +374,7 @@ docker compose pull
 docker compose up -d --build
 ```
 
-## 14. Segurança recomendada
+## 15. Segurança recomendada
 
 - Troque todas as senhas do `.env`.
 - Não envie `.env` para o GitHub.

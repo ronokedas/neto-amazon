@@ -40,6 +40,7 @@ services:
     networks:
       - erp_network
     restart: unless-stopped
+    command: sh -c "composer install --no-interaction --prefer-dist --no-dev && apache2-foreground"
 
   # Banco de Dados MySQL
   db:

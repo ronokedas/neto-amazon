@@ -331,6 +331,15 @@ Se quiser acompanhar os logs:
 docker compose logs -f app
 ```
 
+Se aparecer erro de PDF dizendo `Autoloader do Composer nao encontrado`, rode:
+
+```bash
+docker compose exec app composer install --no-interaction --prefer-dist --no-dev
+docker compose restart app
+```
+
+Esse comando instala as bibliotecas usadas para gerar PDFs, enviar e-mails e usar o MinIO. O `docker-compose.yml` atual ja faz isso automaticamente quando o container sobe, mas este comando resolve manualmente se o VPS estiver com uma versao antiga.
+
 Se houver nova migration SQL manual, aplique uma por vez:
 
 ```bash

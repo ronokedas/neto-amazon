@@ -464,6 +464,10 @@ switch ($action) {
                 // Remover exigencias antigas para reinserir
                 $stmtDel = $pdo->prepare("DELETE FROM vistoria_exigencias WHERE vistoria_id = :vistoria_id");
                 $stmtDel->execute([':vistoria_id' => $vistoria_id]);
+
+                // Remover respostas antigas do checklist para gravar apenas o estado atual do formulario.
+                $stmtDelChecklist = $pdo->prepare("DELETE FROM vistoria_checklist_respostas WHERE vistoria_id = :vistoria_id");
+                $stmtDelChecklist->execute([':vistoria_id' => $vistoria_id]);
             }
 
             // Inserir respostas do Checklist e Exigencias associadas

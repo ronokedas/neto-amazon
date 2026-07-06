@@ -24,6 +24,28 @@ $titulo_page = 'Aprovação de Relatórios - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
+<style>
+.approval-table {
+    table-layout: auto !important;
+    min-width: 940px;
+}
+.approval-table th:last-child,
+.approval-table td:last-child {
+    width: 84px;
+    min-width: 84px;
+    text-align: center;
+    white-space: nowrap;
+}
+.approval-action-btn {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    white-space: nowrap;
+}
+</style>
 <div class="conteudo-principal">
     <div class="page-header">
         <h1><i class="fas fa-clipboard-check"></i> Aprovação de Relatórios</h1>
@@ -44,7 +66,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 </p>
             <?php else: ?>
                 <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover approval-table">
                     <thead>
                         <tr>
                             <th>Número</th>
@@ -74,9 +96,11 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <a href="<?= APP_URL ?>vistorias/relatorio?agendamento_id=<?= urlencode($rel['agendamento_id'] ?? '') ?>" 
-                                   class="btn btn-primary btn-sm">
-                                    <i class="fas fa-eye"></i> Revisar e Aprovar
+                                <a href="<?= APP_URL ?>vistorias/relatorio?agendamento_id=<?= urlencode($rel['agendamento_id'] ?? '') ?>"
+                                   class="btn btn-primary btn-sm approval-action-btn"
+                                   title="Revisar e aprovar"
+                                   aria-label="Revisar e aprovar">
+                                    <i class="fas fa-eye"></i>
                                 </a>
                             </td>
                         </tr>

@@ -16,6 +16,7 @@ requireLogin();
 
 $cargo = getCargo();
 $is_admin = ($cargo === 'ADMIN');
+$is_vistoriador = ($cargo === 'VISTORIADOR');
 
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (
@@ -54,16 +55,49 @@ $vistorias_pendentes_lista = [];
 $agendamentos_pendentes_lista = [];
 $relatorios_aprovacao_lista = [];
 $total_relatorios_aprovacao = 0;
+$meus_agendamentos_abertos = 0;
 $labels_6meses = [];
 $receitas_6meses = [];
 $despesas_6meses = [];
 
 try {
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM embarcacoes WHERE ativo = 1");
-    $total_embarcacoes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    if ($is_vistoriador) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT e.id) as total
+            FROM embarcacoes e
+            INNER JOIN agendamentos a ON a.embarcacao_id = e.id
+            WHERE e.ativo = 1
+              AND a.vistoriador_id = :vistoriador_id
+        ");
+        $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
+        $total_embarcacoes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM clientes WHERE perfil = 'proprietario' AND status = 'ATIVO'");
-    $total_proprietarios = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT c.id) as total
+            FROM clientes c
+            INNER JOIN agendamentos a ON a.cliente_id = c.id
+            WHERE c.perfil = 'proprietario'
+              AND c.status = 'ATIVO'
+              AND a.vistoriador_id = :vistoriador_id
+        ");
+        $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
+        $total_proprietarios = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total
+            FROM agendamentos
+            WHERE vistoriador_id = :vistoriador_id
+              AND status IN ('pendente', 'confirmado', 'em_andamento')
+        ");
+        $stmt->execute([':vistoriador_id' => $_SESSION['usuario_id']]);
+        $meus_agendamentos_abertos = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    } else {
+        $stmt = $pdo->query("SELECT COUNT(*) as total FROM embarcacoes WHERE ativo = 1");
+        $total_embarcacoes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+
+        $stmt = $pdo->query("SELECT COUNT(*) as total FROM clientes WHERE perfil = 'proprietario' AND status = 'ATIVO'");
+        $total_proprietarios = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    }
 
     $sql_vistorias_mes = "
         SELECT COUNT(*) as total
@@ -246,15 +280,17 @@ try {
         $agendamentos_pendentes_lista = [];
     }
 
-    try {
-        $stmt = $pdo->query("SELECT COUNT(*) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
-        $propostas_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    if (!$is_vistoriador) {
+        try {
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+            $propostas_mes = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-        $stmt = $pdo->query("SELECT COALESCE(SUM(valor_total), 0) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
-        $valor_propostas_mes = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    } catch (Exception $e) {
-        $propostas_mes = 0;
-        $valor_propostas_mes = 0.00;
+            $stmt = $pdo->query("SELECT COALESCE(SUM(valor_total), 0) as total FROM propostas WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+            $valor_propostas_mes = (float)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+        } catch (Exception $e) {
+            $propostas_mes = 0;
+            $valor_propostas_mes = 0.00;
+        }
     }
 
     $perc_meta = ($meta_mensal_valor > 0) ? round(($valor_propostas_mes / $meta_mensal_valor) * 100, 1) : 0;
@@ -372,21 +408,35 @@ require_once __DIR__ . '/../../includes/sidebar.php';
     <?php endif; ?>
 
     <div class="kpi-grid">
-        <div class="kpi-card kpi-card--revenue">
-            <div class="kpi-topline">
-                <div class="kpi-label">RECEITAS DO MÊS</div>
-                <div class="kpi-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+        <?php if ($is_vistoriador): ?>
+            <div class="kpi-card kpi-card--inspections">
+                <div class="kpi-topline">
+                    <div class="kpi-label">MEUS AGENDAMENTOS</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                </div>
+                <div class="kpi-value"><?= number_format($meus_agendamentos_abertos, 0, ',', '.') ?></div>
+                <div class="kpi-delta kpi-delta--warn">
+                    <i class="fa-solid fa-clock"></i>
+                    Pendentes, confirmados e em andamento
+                </div>
             </div>
-            <div class="kpi-value">R$ <?= number_format($total_receitas, 2, ',', '.') ?></div>
-            <div class="kpi-delta kpi-delta--up">
-                <i class="fa-solid fa-arrow-trend-up"></i>
-                Receita registrada no mês
+        <?php else: ?>
+            <div class="kpi-card kpi-card--revenue">
+                <div class="kpi-topline">
+                    <div class="kpi-label">RECEITAS DO M&Ecirc;S</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+                </div>
+                <div class="kpi-value">R$ <?= number_format($total_receitas, 2, ',', '.') ?></div>
+                <div class="kpi-delta kpi-delta--up">
+                    <i class="fa-solid fa-arrow-trend-up"></i>
+                    Receita registrada no m&ecirc;s
+                </div>
             </div>
-        </div>
+        <?php endif; ?>
 
         <div class="kpi-card kpi-card--inspections">
             <div class="kpi-topline">
-                <div class="kpi-label">VISTORIAS DO MÊS</div>
+                <div class="kpi-label">VISTORIAS DO M&Ecirc;S</div>
                 <div class="kpi-icon"><i class="fa-solid fa-clipboard-check"></i></div>
             </div>
             <div class="kpi-value"><?= number_format($total_vistorias_mes, 0, ',', '.') ?></div>
@@ -396,46 +446,73 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             </div>
         </div>
 
-        <div class="kpi-card kpi-card--proposals">
-            <div class="kpi-topline">
-                <div class="kpi-label">PROPOSTAS DO MÊS</div>
-                <div class="kpi-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        <?php if ($is_vistoriador): ?>
+            <div class="kpi-card kpi-card--proposals">
+                <div class="kpi-topline">
+                    <div class="kpi-label">MINHAS EMBARCA&Ccedil;&Otilde;ES</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-ship"></i></div>
+                </div>
+                <div class="kpi-value"><?= number_format($total_embarcacoes, 0, ',', '.') ?></div>
+                <div class="kpi-delta kpi-delta--up">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    Com agendamento vinculado a voc&ecirc;
+                </div>
             </div>
-            <div class="kpi-value">R$ <?= number_format($valor_propostas_mes, 2, ',', '.') ?></div>
-            <div class="kpi-delta kpi-delta--up">
-                <i class="fa-solid fa-arrow-trend-up"></i>
-                <?= $propostas_mes ?> propostas
-            </div>
-        </div>
 
-        <div class="kpi-card kpi-card--goal">
-            <div class="kpi-topline">
-                <div class="kpi-label">META ATINGIDA</div>
-                <div class="kpi-icon"><i class="fa-solid fa-bullseye"></i></div>
+            <div class="kpi-card kpi-card--goal">
+                <div class="kpi-topline">
+                    <div class="kpi-label">PROPRIET&Aacute;RIOS</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-user-tie"></i></div>
+                </div>
+                <div class="kpi-value"><?= number_format($total_proprietarios, 0, ',', '.') ?></div>
+                <div class="kpi-delta kpi-delta--up">
+                    <i class="fa-solid fa-user-check"></i>
+                    Clientes dos seus agendamentos
+                </div>
             </div>
-            <div class="kpi-value"><?= $perc_meta ?>%</div>
-            <div class="kpi-meta-bar">
-                <div class="kpi-meta-fill" style="width: <?= min($perc_meta, 100) ?>%"></div>
-            </div>
-            <?php if (!in_array($cargo, ['VISTORIADOR', 'VENDEDOR'], true)): ?>
+        <?php else: ?>
+            <div class="kpi-card kpi-card--proposals">
+                <div class="kpi-topline">
+                    <div class="kpi-label">PROPOSTAS DO M&Ecirc;S</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                </div>
+                <div class="kpi-value">R$ <?= number_format($valor_propostas_mes, 2, ',', '.') ?></div>
                 <div class="kpi-delta kpi-delta--up">
                     <i class="fa-solid fa-arrow-trend-up"></i>
-                    Meta R$ <?= number_format($meta_mensal_valor, 0, ',', '.') ?>
+                    <?= $propostas_mes ?> propostas
                 </div>
-            <?php endif; ?>
-        </div>
+            </div>
+
+            <div class="kpi-card kpi-card--goal">
+                <div class="kpi-topline">
+                    <div class="kpi-label">META ATINGIDA</div>
+                    <div class="kpi-icon"><i class="fa-solid fa-bullseye"></i></div>
+                </div>
+                <div class="kpi-value"><?= $perc_meta ?>%</div>
+                <div class="kpi-meta-bar">
+                    <div class="kpi-meta-fill" style="width: <?= min($perc_meta, 100) ?>%"></div>
+                </div>
+                <?php if ($cargo !== 'VENDEDOR'): ?>
+                    <div class="kpi-delta kpi-delta--up">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        Meta R$ <?= number_format($meta_mensal_valor, 0, ',', '.') ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     </div>
 
     <div class="stats-secondary">
-        <span>Embarcações <strong><?= number_format($total_embarcacoes, 0, ',', '.') ?></strong></span>
-        <span class="dot">·</span>
-        <span>Proprietários <strong><?= number_format($total_proprietarios, 0, ',', '.') ?></strong></span>
-        <span class="dot">·</span>
-        <span>Despesas <strong>R$ <?= number_format($total_despesas, 2, ',', '.') ?></strong></span>
-        <span class="dot">·</span>
-        <span>Valor propostas <strong>R$ <?= number_format($valor_propostas_mes, 2, ',', '.') ?></strong></span>
+        <span><?= $is_vistoriador ? 'Minhas embarca&ccedil;&otilde;es' : 'Embarca&ccedil;&otilde;es' ?> <strong><?= number_format($total_embarcacoes, 0, ',', '.') ?></strong></span>
+        <span class="dot">&middot;</span>
+        <span><?= $is_vistoriador ? 'Propriet&aacute;rios vinculados' : 'Propriet&aacute;rios' ?> <strong><?= number_format($total_proprietarios, 0, ',', '.') ?></strong></span>
+        <?php if (!$is_vistoriador): ?>
+            <span class="dot">&middot;</span>
+            <span>Despesas <strong>R$ <?= number_format($total_despesas, 2, ',', '.') ?></strong></span>
+            <span class="dot">&middot;</span>
+            <span>Valor propostas <strong>R$ <?= number_format($valor_propostas_mes, 2, ',', '.') ?></strong></span>
+        <?php endif; ?>
     </div>
-
     <div class="dashboard-grid <?= $is_admin && !empty($labels_6meses) ? 'dashboard-grid--admin' : 'dashboard-grid--compact' ?>">
         <?php if ($is_admin && !empty($labels_6meses)): ?>
             <div class="chart-card">

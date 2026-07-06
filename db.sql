@@ -2103,6 +2103,15 @@ ALTER TABLE `vistoria_checklist_respostas`
 --
 -- Restrições para tabelas `vistoria_exigencias`
 --
+-- Limpeza de dados orfaos antes de criar FKs.
+-- Alguns registros antigos podem apontar para catalogo_id que nao existe mais em exigencias_catalogo.
+-- Como a regra da FK e ON DELETE SET NULL, a correcao segura e manter a exigencia e remover so o vinculo antigo.
+UPDATE `vistoria_exigencias` ve
+LEFT JOIN `exigencias_catalogo` ec ON ec.`id` = ve.`catalogo_id`
+SET ve.`catalogo_id` = NULL
+WHERE ve.`catalogo_id` IS NOT NULL
+  AND ec.`id` IS NULL;
+
 ALTER TABLE `vistoria_exigencias`
   ADD CONSTRAINT `fk_vistoria_exig_catalogo` FOREIGN KEY (`catalogo_id`) REFERENCES `exigencias_catalogo` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_vistoria_exig_origem` FOREIGN KEY (`exigencia_origem_id`) REFERENCES `vistoria_exigencias` (`id`) ON DELETE SET NULL,

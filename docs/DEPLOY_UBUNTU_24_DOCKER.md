@@ -131,6 +131,38 @@ docker compose exec -T db mysql -u root -p erp_sistema < db.sql
 
 O terminal vai pedir a senha definida em `MYSQL_ROOT_PASSWORD`.
 
+### Se o phpMyAdmin der erro na FK `fk_vistoria_exig_catalogo`
+
+Se ao importar um dump antigo aparecer erro parecido com:
+
+```text
+#1452 - Cannot add or update a child row:
+CONSTRAINT `fk_vistoria_exig_catalogo`
+```
+
+Isso significa que existem registros antigos em `vistoria_exigencias.catalogo_id` apontando para itens que nao existem mais em `exigencias_catalogo.id`.
+
+O `db.sql` atual ja contem essa limpeza antes da criacao da FK. Entao a forma mais simples e baixar a versao atualizada do repositorio, limpar o banco e importar novamente.
+
+Se quiser corrigir sem reiniciar a importacao, execute no phpMyAdmin:
+
+```sql
+UPDATE `vistoria_exigencias` ve
+LEFT JOIN `exigencias_catalogo` ec ON ec.`id` = ve.`catalogo_id`
+SET ve.`catalogo_id` = NULL
+WHERE ve.`catalogo_id` IS NOT NULL
+  AND ec.`id` IS NULL;
+```
+
+Depois rode novamente o bloco que falhou:
+
+```sql
+ALTER TABLE `vistoria_exigencias`
+  ADD CONSTRAINT `fk_vistoria_exig_catalogo` FOREIGN KEY (`catalogo_id`) REFERENCES `exigencias_catalogo` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_vistoria_exig_origem` FOREIGN KEY (`exigencia_origem_id`) REFERENCES `vistoria_exigencias` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `vistoria_exigencias_ibfk_1` FOREIGN KEY (`vistoria_id`) REFERENCES `vistorias` (`id`) ON DELETE CASCADE;
+```
+
 ## 8. Permissões das pastas de runtime
 
 Normalmente o Dockerfile já prepara as permissões. Se precisar corrigir:

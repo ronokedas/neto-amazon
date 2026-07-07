@@ -27,7 +27,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
     
     try {
         $stmt = $pdo->prepare("
-            SELECT p.cliente_id, c.nome AS cliente_nome
+            SELECT p.cliente_id, p.armador_id, c.nome AS cliente_nome
             FROM propostas p
             INNER JOIN clientes c ON p.cliente_id = c.id
             WHERE p.id = :id
@@ -64,6 +64,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
             'success'          => true,
             'cliente_id'       => $proposta['cliente_id'],
             'cliente_nome'     => $proposta['cliente_nome'],
+            'armador_id'       => $proposta['armador_id'] ?? null,
             'embarcacoes'      => $embarcacoes,
             'embarcacao_id'    => !empty($embarcacoes) ? $embarcacoes[0]['id'] : null,
             'tipo_vistoria'    => !empty($servicos) ? implode(', ', $servicos) : '',
@@ -120,6 +121,7 @@ switch ($action) {
             $proposta_id     = !empty($_POST['proposta_id']) ? $_POST['proposta_id'] : null;
             $embarcacao_id   = $_POST['embarcacao_id'] ?? '';
             $cliente_id      = $_POST['cliente_id'] ?? '';
+            $armador_id      = $_POST['armador_id'] ?? null;
             $tipo_vistoria   = sanitizar($_POST['tipo_vistoria'] ?? '');
             $data_vistoria   = $_POST['data_vistoria'] ?? '';
             $hora_vistoria   = $_POST['hora_vistoria'] ?? null;
@@ -159,11 +161,11 @@ switch ($action) {
 
             $stmt = $pdo->prepare("
                 INSERT INTO agendamentos (
-                    id, proposta_id, embarcacao_id, cliente_id, vistoriador_id, vendedor_id,
+                    id, proposta_id, embarcacao_id, cliente_id, armador_id, vistoriador_id, vendedor_id,
                     tipo_vistoria, data_vistoria, hora_vistoria, local,
                     contato_nome, contato_telefone, status, observacoes, criado_por
                 ) VALUES (
-                    UUID(), :proposta_id, :embarcacao_id, :cliente_id, :vistoriador_id, :vendedor_id,
+                    UUID(), :proposta_id, :embarcacao_id, :cliente_id, :armador_id, :vistoriador_id, :vendedor_id,
                     :tipo_vistoria, :data_vistoria, :hora_vistoria, :local,
                     :contato_nome, :contato_telefone, 'pendente', :observacoes, :criado_por
                 )
@@ -172,6 +174,7 @@ switch ($action) {
                 ':proposta_id'     => $proposta_id,
                 ':embarcacao_id'   => $embarcacao_id,
                 ':cliente_id'      => $cliente_id,
+                ':armador_id'      => $armador_id ?: null,
                 ':vistoriador_id'  => $vistoriador_id ?: null,
                 ':vendedor_id'     => $vendedor_id ?: null,
                 ':tipo_vistoria'   => $tipo_vistoria,
@@ -207,6 +210,7 @@ switch ($action) {
             $proposta_id     = !empty($_POST['proposta_id']) ? $_POST['proposta_id'] : null;
             $embarcacao_id   = $_POST['embarcacao_id'] ?? '';
             $cliente_id      = $_POST['cliente_id'] ?? '';
+            $armador_id      = $_POST['armador_id'] ?? null;
             $tipo_vistoria   = sanitizar($_POST['tipo_vistoria'] ?? '');
             $data_vistoria   = $_POST['data_vistoria'] ?? '';
             $hora_vistoria   = $_POST['hora_vistoria'] ?? null;
@@ -256,6 +260,7 @@ switch ($action) {
                 SET proposta_id = :proposta_id,
                     embarcacao_id = :embarcacao_id,
                     cliente_id = :cliente_id,
+                    armador_id = :armador_id,
                     vistoriador_id = :vistoriador_id,
                     vendedor_id = :vendedor_id,
                     tipo_vistoria = :tipo_vistoria,
@@ -271,6 +276,7 @@ switch ($action) {
                 ':proposta_id'     => $proposta_id,
                 ':embarcacao_id'   => $embarcacao_id,
                 ':cliente_id'      => $cliente_id,
+                ':armador_id'      => $armador_id ?: null,
                 ':vistoriador_id'  => $vistoriador_id ?: null,
                 ':vendedor_id'     => $vendedor_id ?: null,
                 ':tipo_vistoria'   => $tipo_vistoria,

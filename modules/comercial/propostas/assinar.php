@@ -134,10 +134,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
         $stmtAgendamento = $pdo->prepare("
             INSERT INTO agendamentos (
-                id, proposta_id, embarcacao_id, cliente_id, vendedor_id,
+                id, proposta_id, embarcacao_id, cliente_id, armador_id, vendedor_id,
                 tipo_vistoria, status, observacoes, criado_por, data_vistoria, hora_vistoria
             ) VALUES (
-                :id, :proposta_id, :embarcacao_id, :cliente_id, :vendedor_id,
+                :id, :proposta_id, :embarcacao_id, :cliente_id, :armador_id, :vendedor_id,
                 :tipo_vistoria, 'pendente', :observacoes, :criado_por, NULL, NULL
             )
         ");
@@ -149,6 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 ':proposta_id'   => $prop['id'],
                 ':embarcacao_id' => $emb['embarcacao_id'],
                 ':cliente_id'    => $prop['cliente_id'],
+                ':armador_id'    => $prop['armador_id'] ?? null,
                 ':vendedor_id'   => $prop['criado_por'] ?? null,
                 ':tipo_vistoria' => !empty($emb['servicos_nomes']) ? $emb['servicos_nomes'] : 'Vistoria Geral',
                 ':observacoes'   => 'Agendamento gerado automaticamente a partir da proposta assinada. Favor definir data e vistoriador.',

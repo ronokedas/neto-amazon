@@ -34,6 +34,7 @@ CREATE TABLE `agendamentos` (
   `proposta_id` char(36) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `embarcacao_id` char(36) COLLATE utf8mb4_general_ci NOT NULL,
   `cliente_id` char(36) COLLATE utf8mb4_general_ci NOT NULL,
+  `armador_id` char(36) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `vistoriador_id` char(36) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `vendedor_id` char(36) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `tipo_vistoria` text COLLATE utf8mb4_general_ci NOT NULL,
@@ -1235,6 +1236,7 @@ CREATE TABLE `propostas` (
   `id` char(36) COLLATE utf8mb4_general_ci NOT NULL DEFAULT (uuid()),
   `numero` varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
   `cliente_id` char(36) COLLATE utf8mb4_general_ci NOT NULL,
+  `armador_id` char(36) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `data_emissao` date NOT NULL,
   `data_validade` date DEFAULT NULL,
   `parcelas` tinyint UNSIGNED NOT NULL DEFAULT '3',
@@ -1660,6 +1662,7 @@ ALTER TABLE `agendamentos`
   ADD KEY `proposta_id` (`proposta_id`),
   ADD KEY `embarcacao_id` (`embarcacao_id`),
   ADD KEY `cliente_id` (`cliente_id`),
+  ADD KEY `idx_agendamentos_armador_id` (`armador_id`),
   ADD KEY `vistoriador_id` (`vistoriador_id`),
   ADD KEY `status` (`status`),
   ADD KEY `data_vistoria` (`data_vistoria`),
@@ -1844,6 +1847,7 @@ ALTER TABLE `propostas`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `numero` (`numero`),
   ADD KEY `cliente_id` (`cliente_id`),
+  ADD KEY `idx_propostas_armador_id` (`armador_id`),
   ADD KEY `status` (`status`),
   ADD KEY `criado_por` (`criado_por`);
 
@@ -1955,6 +1959,7 @@ ALTER TABLE `agendamentos`
   ADD CONSTRAINT `agendamentos_ibfk_1` FOREIGN KEY (`proposta_id`) REFERENCES `propostas` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `agendamentos_ibfk_2` FOREIGN KEY (`embarcacao_id`) REFERENCES `embarcacoes` (`id`) ON DELETE RESTRICT,
   ADD CONSTRAINT `agendamentos_ibfk_3` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `fk_agendamentos_armador` FOREIGN KEY (`armador_id`) REFERENCES `clientes` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `agendamentos_ibfk_4` FOREIGN KEY (`vistoriador_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `agendamentos_ibfk_5` FOREIGN KEY (`criado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL;
 
@@ -2065,6 +2070,7 @@ ALTER TABLE `ordens_servico`
 --
 ALTER TABLE `propostas`
   ADD CONSTRAINT `propostas_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON DELETE RESTRICT,
+  ADD CONSTRAINT `fk_propostas_armador` FOREIGN KEY (`armador_id`) REFERENCES `clientes` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `propostas_ibfk_2` FOREIGN KEY (`criado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL;
 
 --

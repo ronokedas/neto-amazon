@@ -70,6 +70,7 @@ switch ($action) {
             $clienteData  = json_decode($cliente_json, true);
             $cliente_id   = $clienteData['id'] ?? '';
             $cliente_nome = $clienteData['nome'] ?? 'Desconhecido';
+            $armador_id   = trim($_POST['armador_id'] ?? '');
 
             // Novo formato: serviços por embarcação via JSON
             $dados_servicos_json = $_POST['dados_servicos_json'] ?? '[]';
@@ -82,6 +83,18 @@ switch ($action) {
 
             if (empty($cliente_id)) {
                 setMensagem('error', 'Cliente não selecionado.');
+                redirecionar(APP_URL . 'comercial/nova');
+            }
+
+            if (empty($armador_id)) {
+                setMensagem('error', 'Selecione o armador responsavel pela vistoria.');
+                redirecionar(APP_URL . 'comercial/nova');
+            }
+
+            $stmtArmador = $pdo->prepare("SELECT id FROM clientes WHERE id = :id AND perfil = 'armador' AND status = 'ATIVO'");
+            $stmtArmador->execute([':id' => $armador_id]);
+            if (!$stmtArmador->fetchColumn()) {
+                setMensagem('error', 'Armador selecionado nao encontrado ou inativo.');
                 redirecionar(APP_URL . 'comercial/nova');
             }
 
@@ -154,12 +167,13 @@ switch ($action) {
             $token_assinatura = md5(uniqid(rand(), true)) . uniqid();
             
             $stmtProp = $pdo->prepare("
-                INSERT INTO propostas (id, numero, cliente_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
-                VALUES (UUID(), :numero, :cliente_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
+                INSERT INTO propostas (id, numero, cliente_id, armador_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
+                VALUES (UUID(), :numero, :cliente_id, :armador_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
             ");
             $stmtProp->execute([
                 ':numero'              => $numero,
                 ':cliente_id'          => $cliente_id,
+                ':armador_id'          => $armador_id,
                 ':parcelas'            => $parcelas,
                 ':forma_pagamento'     => $forma_pagamento,
                 ':valor_total'         => $valor_total,

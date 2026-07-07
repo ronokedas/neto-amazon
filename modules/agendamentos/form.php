@@ -23,6 +23,7 @@ $agendamento = [
     'proposta_id'      => '',
     'embarcacao_id'    => '',
     'cliente_id'       => '',
+    'armador_id'       => '',
     'vistoriador_id'   => '',
     'tipo_vistoria'    => '',
     'data_vistoria'    => '',
@@ -59,9 +60,10 @@ if ($editando) {
 
 try {
     $clientes = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE status = 'ATIVO' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $armadores = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE status = 'ATIVO' AND perfil = 'armador' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
 
     $propostas = $pdo->query("
-        SELECT p.id, p.numero, c.nome AS cliente_nome, p.valor_total
+        SELECT p.id, p.numero, p.armador_id, c.nome AS cliente_nome, p.valor_total
         FROM propostas p
         INNER JOIN clientes c ON p.cliente_id = c.id
         WHERE p.status IN ('enviada','aprovada','assinada')
@@ -78,6 +80,7 @@ try {
 } catch (Exception $e) {
     error_log('Erro ao carregar listas: ' . $e->getMessage());
     $clientes = [];
+    $armadores = [];
     $propostas = [];
     $vistoriadores = [];
     $servicos = [];
@@ -138,12 +141,26 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                             <?php foreach ($propostas as $prop): ?>
                                 <option value="<?php echo h($prop['id']); ?>"
                                         data-cliente="<?php echo h($prop['cliente_nome']); ?>"
+                                        data-armador-id="<?php echo h($prop['armador_id'] ?? ''); ?>"
                                         <?php echo $agendamento['proposta_id'] === $prop['id'] ? 'selected' : ''; ?>>
                                     <?php echo h($prop['numero']); ?> — <?php echo h($prop['cliente_nome']); ?> (<?php echo formatarMoeda($prop['valor_total']); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
                         <small>Use preferencialmente propostas já assinadas para manter a esteira comercial organizada.</small>
+                    </div>
+                    <div class="form-group col-6">
+                        <label for="armador_id">Armador responsável</label>
+                        <select id="armador_id" name="armador_id">
+                            <option value="">-- Selecione o armador, se houver --</option>
+                            <?php foreach ($armadores as $arm): ?>
+                                <option value="<?php echo h($arm['id']); ?>"
+                                        <?php echo ($agendamento['armador_id'] ?? '') === $arm['id'] ? 'selected' : ''; ?>>
+                                    <?php echo h($arm['nome']); ?> <?php echo $arm['cpf_cnpj'] ? '(' . h($arm['cpf_cnpj']) . ')' : ''; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small>Pessoa responsável pela operação da embarcação no dia da vistoria.</small>
                     </div>
                 </div>
             </div>
@@ -289,9 +306,11 @@ function mascararTelefone(input) {
 function carregarDadosProposta(propostaId) {
     const selectEmbarcacao = document.getElementById('embarcacao_id');
     const selectCliente = document.getElementById('cliente_id');
+    const selectArmador = document.getElementById('armador_id');
     const campoVistoria = document.getElementById('tipo_vistoria');
     if (!propostaId) {
         if (selectCliente) selectCliente.value = '';
+        if (selectArmador) selectArmador.value = '';
         if (campoVistoria) campoVistoria.value = '';
         restaurarEmbarcacoes();
         return;
@@ -305,6 +324,9 @@ function carregarDadosProposta(propostaId) {
             if (data.success) {
                 if (data.cliente_id && selectCliente) {
                     selectCliente.value = data.cliente_id;
+                }
+                if (selectArmador && data.armador_id) {
+                    selectArmador.value = data.armador_id;
                 }
                 if (selectEmbarcacao && data.embarcacoes && data.embarcacoes.length > 0) {
                     let options = '<option value="">Selecione a embarcação</option>';

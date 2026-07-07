@@ -335,7 +335,8 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         try {
                             $stmtArm = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE perfil = 'armador' AND status = 'ATIVO' ORDER BY nome ASC");
                             while ($a = $stmtArm->fetch(PDO::FETCH_ASSOC)) {
-                                $selected = (($vistoria['armador_id'] ?? '') === $a['id']) ? 'selected' : '';
+                                $armadorAtualId = $vistoria['armador_id'] ?? $ag['armador_id'] ?? '';
+                                $selected = ($armadorAtualId === $a['id']) ? 'selected' : '';
                                 echo "<option value='".h($a['id'])."' $selected style='background: #2a2a3e; color: #ddd;'>".h($a['nome'])." (".h($a['cpf_cnpj']).")</option>";
                             }
                         } catch (Exception $e) {

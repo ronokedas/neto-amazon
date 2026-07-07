@@ -25,6 +25,47 @@ try {
     $clientes = [];
 }
 
+// Buscar armadores ativos
+try {
+    $stmtArmadores = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE status = 'ATIVO' AND perfil = 'armador' ORDER BY nome ASC");
+    $armadores = $stmtArmadores->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $armadores = [];
+}
+
+$clientePreSelecionadoId = $_GET['cliente_id'] ?? '';
+$clientePreSelecionadoEncontrado = false;
+$armadorPreSelecionadoId = $_GET['armador_id'] ?? '';
+$armadorPreSelecionadoEncontrado = false;
+
+if (!empty($clientes)) {
+    foreach ($clientes as $cliente) {
+        if (!empty($clientePreSelecionadoId) && $cliente['id'] === $clientePreSelecionadoId) {
+            $clientePreSelecionadoEncontrado = true;
+            break;
+        }
+    }
+
+    if (!$clientePreSelecionadoEncontrado && count($clientes) === 1) {
+        $clientePreSelecionadoId = $clientes[0]['id'];
+        $clientePreSelecionadoEncontrado = true;
+    }
+}
+
+if (!empty($armadores)) {
+    foreach ($armadores as $armador) {
+        if (!empty($armadorPreSelecionadoId) && $armador['id'] === $armadorPreSelecionadoId) {
+            $armadorPreSelecionadoEncontrado = true;
+            break;
+        }
+    }
+
+    if (!$armadorPreSelecionadoEncontrado && count($armadores) === 1) {
+        $armadorPreSelecionadoId = $armadores[0]['id'];
+        $armadorPreSelecionadoEncontrado = true;
+    }
+}
+
 // Buscar todos os serviços ativos
 try {
     $stmtServicos = $pdo->query("SELECT id, nome, descricao, preco_padrao FROM servicos WHERE ativo = 1 ORDER BY nome ASC");
@@ -45,7 +86,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <div>
             <span class="flow-eyebrow"><i class="fas fa-route"></i> Etapa 1 do fluxo</span>
             <h1><i class="fas fa-file-invoice"></i> Nova Proposta</h1>
-            <p>Escolha o proprietário, selecione os serviços por embarcação e revise os valores antes de enviar para assinatura.</p>
+            <p>Escolha o proprietário, informe o armador responsável e revise os valores antes de enviar para assinatura.</p>
         </div>
         <div class="flow-actions">
             <a href="<?php echo APP_URL; ?>comercial/propostas" class="btn btn-secondary btn-sm">
@@ -89,9 +130,13 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <div class="wizard-panel active" id="passo1">
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="fas fa-user-tie"></i> Passo 1: Selecione o Proprietário</h3>
+                    <h3><i class="fas fa-user-tie"></i> Passo 1: Proprietário e Armador</h3>
                 </div>
                 <div class="card-body">
+                    <div class="wizard-helper">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Primeiro escolha o proprietário da embarcação. Em seguida informe o armador, que é a pessoa responsável pela operação no dia da vistoria.</span>
+                    </div>
                     <?php if (empty($clientes)): ?>
                         <div class="tabela-vazia">
                             <i class="fas fa-user-tie"></i>
@@ -110,11 +155,13 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <div class="cliente-grid" id="clienteGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; padding: 5px;">
                             <?php foreach ($clientes as $c): ?>
-                            <label class="cliente-card" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--cor-fundo); border: 2px solid var(--cor-borda); border-radius: 10px; cursor: pointer; transition: all 0.2s;">
+                            <?php $clienteMarcado = $clientePreSelecionadoEncontrado && $clientePreSelecionadoId === $c['id']; ?>
+                            <label class="cliente-card<?php echo $clienteMarcado ? ' is-selected' : ''; ?>" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--cor-fundo); border: 2px solid var(--cor-borda); border-radius: 10px; cursor: pointer; transition: all 0.2s;">
                                 <input type="radio" name="cliente_id" value="<?php echo h($c['id']); ?>"
                                        data-nome="<?php echo h($c['nome']); ?>"
                                        data-perfil="Proprietário"
                                        data-cpfcnpj="<?php echo h($c['cpf_cnpj'] ?? '-'); ?>"
+                                       <?php echo $clienteMarcado ? 'checked' : ''; ?>
                                        onchange="clienteSelecionado(this)" style="display: none;">
                                 <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(46,204,113,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                                     <i class="fas fa-user-tie" style="color: var(--cor-destaque);"></i>
@@ -126,6 +173,28 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 <span class="cliente-check-indicator"><i class="fas fa-check"></i><em>Selecionado</em></span>
                             </label>
                             <?php endforeach; ?>
+                        </div>
+
+                        <div class="armador-box">
+                            <div>
+                                <label for="armador_id"><i class="fas fa-hard-hat"></i> Armador responsável pela vistoria <span class="text-danger">*</span></label>
+                                <small>Informe quem estará responsável pela embarcação no dia da vistoria. Pode ser diferente do proprietário.</small>
+                            </div>
+                            <?php if (empty($armadores)): ?>
+                                <div class="wizard-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Nenhum armador ativo cadastrado. Cadastre um armador para concluir a proposta.</span>
+                                </div>
+                            <?php else: ?>
+                                <select id="armador_id" name="armador_id" onchange="atualizarPasso1()" required>
+                                    <option value="">Selecione o armador responsável...</option>
+                                    <?php foreach ($armadores as $a): ?>
+                                        <option value="<?php echo h($a['id']); ?>" <?php echo ($armadorPreSelecionadoEncontrado && $armadorPreSelecionadoId === $a['id']) ? 'selected' : ''; ?>>
+                                            <?php echo h($a['nome']); ?><?php echo !empty($a['cpf_cnpj']) ? ' - ' . h($a['cpf_cnpj']) : ''; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -229,6 +298,10 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         <div class="review-section" style="margin-bottom: 20px;">
                             <h4 style="color: var(--cor-destaque); margin-bottom: 10px;"><i class="fas fa-user-tie"></i> Proprietário</h4>
                             <div id="reviewCliente" style="padding: 12px 16px; background: var(--cor-fundo); border-radius: 8px; border: 1px solid var(--cor-borda);"></div>
+                        </div>
+                        <div class="review-section" style="margin-bottom: 20px;">
+                            <h4 style="color: var(--cor-destaque); margin-bottom: 10px;"><i class="fas fa-hard-hat"></i> Armador responsável</h4>
+                            <div id="reviewArmador" style="padding: 12px 16px; background: var(--cor-fundo); border-radius: 8px; border: 1px solid var(--cor-borda);"></div>
                         </div>
                         <!-- Serviços por Embarcação -->
                         <div class="review-section" style="margin-bottom: 20px;">
@@ -341,6 +414,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 // ============ DADOS GLOBAIS ============
 const ALL_SERVICOS = <?php echo json_encode($servicos, JSON_UNESCAPED_UNICODE); ?>;
 let clienteSelecionadoData = null;
+let armadorSelecionadoData = null;
 let embarcacoesCarregadas = []; // { id, nome, registro }
 let embarcacaoSelecionadaId = null;
 let servicosSelecionadosPorEmbarcacao = {};
@@ -410,12 +484,29 @@ function clienteSelecionado(radio) {
         cpfcnpj: radio.dataset.cpfcnpj
     };
     document.getElementById('dadosCliente').value = JSON.stringify(clienteSelecionadoData);
-    document.getElementById('btnPasso1').disabled = false;
+    atualizarPasso1();
     embarcacoesCarregadas = [];
     embarcacaoSelecionadaId = null;
     servicosSelecionadosPorEmbarcacao = {};
     clientePasso2CarregadoId = null;
 }
+
+function atualizarPasso1() {
+    const armadorSelect = document.getElementById('armador_id');
+    const armadorOption = armadorSelect?.selectedOptions?.[0] || null;
+    armadorSelecionadoData = armadorSelect?.value ? {
+        id: armadorSelect.value,
+        nome: armadorOption ? armadorOption.textContent.trim() : ''
+    } : null;
+
+    document.getElementById('btnPasso1').disabled = !(clienteSelecionadoData && armadorSelecionadoData);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const clienteMarcado = document.querySelector('input[name="cliente_id"]:checked');
+    if (clienteMarcado) clienteSelecionado(clienteMarcado);
+    atualizarPasso1();
+});
 
 // ============ PASSO 2: SERVIÇOS POR EMBARCAÇÃO ============
 function carregarPasso2() {
@@ -739,6 +830,9 @@ function montarRevisao() {
     document.getElementById('reviewCliente').innerHTML = `
         <strong>${clienteSelecionadoData?.nome || ''}</strong><br>
         <small class="text-muted">Perfil: ${clienteSelecionadoData?.perfil || ''} &middot; CPF/CNPJ: ${clienteSelecionadoData?.cpfcnpj || ''}</small>`;
+    document.getElementById('reviewArmador').innerHTML = `
+        <strong>${armadorSelecionadoData?.nome || 'Armador não selecionado'}</strong><br>
+        <small class="text-muted">Responsável operacional no dia da vistoria.</small>`;
 
     let revEmbHtml = '';
     dadosServicos.forEach(ds => {
@@ -1065,6 +1159,9 @@ function montarRevisao() {
     document.getElementById('reviewCliente').innerHTML = `
         <strong>${clienteSelecionadoData?.nome || ''}</strong><br>
         <small class="text-muted">Perfil: ${clienteSelecionadoData?.perfil || ''} &middot; CPF/CNPJ: ${clienteSelecionadoData?.cpfcnpj || ''}</small>`;
+    document.getElementById('reviewArmador').innerHTML = `
+        <strong>${armadorSelecionadoData?.nome || 'Armador não selecionado'}</strong><br>
+        <small class="text-muted">Responsável operacional no dia da vistoria.</small>`;
 
     let revEmbHtml = '';
     dadosServicos.forEach(ds => {
@@ -1209,6 +1306,51 @@ document.addEventListener('keydown', avancarWizardComEnter);
 .cliente-card.is-selected .cliente-check-indicator em {
     display: inline;
 }
+.wizard-helper,
+.wizard-warning,
+.armador-box {
+    border: 1px solid var(--cor-borda);
+    border-radius: 10px;
+    background: rgba(46,204,113,0.06);
+    padding: 12px 14px;
+}
+.wizard-helper,
+.wizard-warning {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    color: var(--cor-texto-secundario);
+}
+.wizard-helper i {
+    color: var(--cor-destaque);
+    margin-top: 2px;
+}
+.wizard-warning {
+    background: rgba(255,193,7,0.08);
+}
+.wizard-warning i {
+    color: #ffc107;
+    margin-top: 2px;
+}
+.armador-box {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1.2fr);
+    gap: 14px;
+    align-items: center;
+}
+.armador-box label,
+.armador-box small {
+    display: block;
+}
+.armador-box small {
+    color: var(--cor-texto-secundario);
+    margin-top: 4px;
+}
+.armador-box select {
+    width: 100%;
+}
 .servico-linha:hover { background: rgba(46,204,113,0.03) !important; }
 .emb-body table { font-size: 0.9rem; }
 .embarcacao-selector-grid {
@@ -1265,6 +1407,11 @@ document.addEventListener('keydown', avancarWizardComEnter);
 }
 .embarcacao-select-summary b {
     color: var(--cor-destaque);
+}
+@media (max-width: 720px) {
+    .armador-box {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 

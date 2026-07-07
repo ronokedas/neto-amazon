@@ -29,6 +29,7 @@ $despachante = [
     'endereco' => '',
     'status' => 'ATIVO',
     'embarcacoes_ids' => [],
+    'tipos_embarcacao_ids' => [],
 ];
 
 // Se editando, carregar dados do despachante
@@ -43,6 +44,10 @@ if ($editando) {
             $stmtEmb = $pdo->prepare("SELECT embarcacao_id FROM clientes_embarcacoes WHERE cliente_id = :cliente_id");
             $stmtEmb->execute([':cliente_id' => $id]);
             $despachante['embarcacoes_ids'] = array_column($stmtEmb->fetchAll(PDO::FETCH_ASSOC), 'embarcacao_id');
+
+            $stmtTipos = $pdo->prepare("SELECT tipo_embarcacao_id FROM clientes_tipos_embarcacao WHERE cliente_id = :cliente_id");
+            $stmtTipos->execute([':cliente_id' => $id]);
+            $despachante['tipos_embarcacao_ids'] = array_column($stmtTipos->fetchAll(PDO::FETCH_ASSOC), 'tipo_embarcacao_id');
         } else {
             setMensagem('error', 'Despachante nao encontrado.');
             redirecionar(APP_URL . 'despachantes');
@@ -54,12 +59,12 @@ if ($editando) {
     }
 }
 
-// Buscar embarcacoes ativas para vincular
+// Buscar tipos de embarcacao ativos para indicar a atuacao do despachante
 try {
-    $stmtEmb = $pdo->query("SELECT id, nome, registro FROM embarcacoes WHERE ativo = 1 ORDER BY nome ASC");
-    $embarcacoes = $stmtEmb->fetchAll(PDO::FETCH_ASSOC);
+    $stmtTipos = $pdo->query("SELECT id, nome FROM tipos_embarcacao WHERE ativo = 1 ORDER BY nome ASC");
+    $tipos_embarcacao = $stmtTipos->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    $embarcacoes = [];
+    $tipos_embarcacao = [];
 }
 
 $titulo_page = ($editando ? 'Editar' : 'Novo') . ' Despachante - ERP Sistema';
@@ -150,10 +155,39 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 </div>
             </div>
 
-            
+            <div class="form-row mt-4">
+                <div class="form-group col-12">
+                    <h4 style="border-bottom: 1px solid var(--cor-borda); padding-bottom: 10px;">
+                        <i class="fas fa-ship"></i> Tipos de embarcação que atende
+                    </h4>
+                    <p class="text-muted" style="margin: 8px 0 14px;">
+                        Marque os tipos de embarcação em que este despachante costuma trabalhar. Esse campo é opcional e ajuda a equipe a escolher o contato certo.
+                    </p>
+
+                    <?php if (empty($tipos_embarcacao)): ?>
+                        <div class="tabela-vazia" style="padding: 20px;">
+                            <i class="fas fa-ship"></i>
+                            <p>Nenhum tipo de embarcação cadastrado.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="tipo-embarcacao-grid">
+                            <?php foreach ($tipos_embarcacao as $tipo): ?>
+                                <?php $marcado = in_array($tipo['id'], $despachante['tipos_embarcacao_ids'] ?? [], true); ?>
+                                <label class="tipo-embarcacao-chip<?php echo $marcado ? ' is-selected' : ''; ?>">
+                                    <input type="checkbox"
+                                           name="tipos_embarcacao[]"
+                                           value="<?php echo h($tipo['id']); ?>"
+                                           <?php echo $marcado ? 'checked' : ''; ?>
+                                           onchange="atualizarTipoChip(this)">
+                                    <i class="fas fa-check"></i>
+                                    <span><?php echo h($tipo['nome']); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
 
-            
             <div class="form-row mt-4">
                 <div class="form-group col-12">
                     <h4 style="border-bottom: 1px solid var(--cor-borda); padding-bottom: 10px;"><i class="fas fa-money-bill"></i> Dados Bancários / PIX</h4>
@@ -211,7 +245,59 @@ require_once __DIR__ . '/../../includes/sidebar.php';
     </div>
 
 
+<style>
+.tipo-embarcacao-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+}
+.tipo-embarcacao-chip {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+.tipo-embarcacao-chip input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.tipo-embarcacao-chip i {
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--cor-borda);
+    border-radius: 50%;
+    color: transparent;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+.tipo-embarcacao-chip.is-selected {
+    border-color: #56e0ad;
+    background: rgba(46,204,113,0.12);
+    box-shadow: 0 0 0 2px rgba(86,224,173,0.16);
+}
+.tipo-embarcacao-chip.is-selected i {
+    border-color: #56e0ad;
+    background: #56e0ad;
+    color: #021210;
+}
+</style>
+
 <script>
+function atualizarTipoChip(input) {
+    const chip = input.closest('.tipo-embarcacao-chip');
+    if (chip) chip.classList.toggle('is-selected', input.checked);
+}
+
 function toggleCpfCnpj(limparValor = false) {
     const tipo = document.getElementById('tipo_pessoa').value;
     const input = document.getElementById('cpf_cnpj');

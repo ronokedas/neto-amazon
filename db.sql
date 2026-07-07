@@ -470,6 +470,18 @@ INSERT INTO `clientes_embarcacoes` (`id`, `cliente_id`, `embarcacao_id`, `criado
 -- --------------------------------------------------------
 
 --
+-- Estrutura para tabela `clientes_tipos_embarcacao`
+--
+
+CREATE TABLE `clientes_tipos_embarcacao` (
+  `cliente_id` char(36) COLLATE utf8mb4_general_ci NOT NULL,
+  `tipo_embarcacao_id` char(36) COLLATE utf8mb4_general_ci NOT NULL,
+  `criado_em` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estrutura para tabela `configuracoes`
 --
 
@@ -1758,6 +1770,13 @@ ALTER TABLE `clientes_embarcacoes`
   ADD KEY `embarcacao_id` (`embarcacao_id`);
 
 --
+-- Ãndices de tabela `clientes_tipos_embarcacao`
+--
+ALTER TABLE `clientes_tipos_embarcacao`
+  ADD PRIMARY KEY (`cliente_id`,`tipo_embarcacao_id`),
+  ADD KEY `idx_cte_tipo_embarcacao` (`tipo_embarcacao_id`);
+
+--
 -- Índices de tabela `configuracoes`
 --
 ALTER TABLE `configuracoes`
@@ -2012,6 +2031,13 @@ ALTER TABLE `clientes`
 ALTER TABLE `clientes_embarcacoes`
   ADD CONSTRAINT `clientes_embarcacoes_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `clientes_embarcacoes_ibfk_2` FOREIGN KEY (`embarcacao_id`) REFERENCES `embarcacoes` (`id`) ON DELETE CASCADE;
+
+--
+-- RestriÃ§Ãµes para tabelas `clientes_tipos_embarcacao`
+--
+ALTER TABLE `clientes_tipos_embarcacao`
+  ADD CONSTRAINT `fk_cte_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_cte_tipo_embarcacao` FOREIGN KEY (`tipo_embarcacao_id`) REFERENCES `tipos_embarcacao` (`id`) ON DELETE CASCADE;
 
 --
 -- Restrições para tabelas `contratos`

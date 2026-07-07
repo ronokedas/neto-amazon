@@ -25,6 +25,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+function salvarTiposEmbarcacaoDespachante(PDO $pdo, string $cliente_id, array $tipos_ids): void
+{
+    $tipos_ids = array_values(array_unique(array_filter(array_map('trim', $tipos_ids))));
+
+    $stmtDel = $pdo->prepare("DELETE FROM clientes_tipos_embarcacao WHERE cliente_id = :cliente_id");
+    $stmtDel->execute([':cliente_id' => $cliente_id]);
+
+    if (empty($tipos_ids)) {
+        return;
+    }
+
+    $stmtValidar = $pdo->prepare("SELECT id FROM tipos_embarcacao WHERE id = :id AND ativo = 1");
+    $stmtIns = $pdo->prepare("
+        INSERT INTO clientes_tipos_embarcacao (cliente_id, tipo_embarcacao_id)
+        VALUES (:cliente_id, :tipo_embarcacao_id)
+    ");
+
+    foreach ($tipos_ids as $tipo_id) {
+        $stmtValidar->execute([':id' => $tipo_id]);
+        if (!$stmtValidar->fetchColumn()) {
+            continue;
+        }
+
+        $stmtIns->execute([
+            ':cliente_id' => $cliente_id,
+            ':tipo_embarcacao_id' => $tipo_id,
+        ]);
+    }
+}
+
 switch ($action) {
 
     case 'inserir':
@@ -42,6 +72,7 @@ switch ($action) {
             $banco            = sanitizar($_POST['banco'] ?? '');
             $agencia          = sanitizar($_POST['agencia'] ?? '');
             $conta            = sanitizar($_POST['conta'] ?? '');
+            $tipos_embarcacao = $_POST['tipos_embarcacao'] ?? [];
 
             if (empty($nome)) {
                 setMensagem('error', 'O nome do despachante é obrigatório.', [
@@ -98,6 +129,8 @@ switch ($action) {
                 ':criado_por' => $_SESSION['usuario_id'],
             ]);
 
+            salvarTiposEmbarcacaoDespachante($pdo, $cliente_id, is_array($tipos_embarcacao) ? $tipos_embarcacao : []);
+
             $pdo->commit();
 
             log_atividade('despachante_criado', "Despachante '{$nome}' criado.");
@@ -135,6 +168,7 @@ switch ($action) {
             $banco            = sanitizar($_POST['banco'] ?? '');
             $agencia          = sanitizar($_POST['agencia'] ?? '');
             $conta            = sanitizar($_POST['conta'] ?? '');
+            $tipos_embarcacao = $_POST['tipos_embarcacao'] ?? [];
 
             if (empty($id) || empty($nome)) {
                 setMensagem('error', 'Dados inválidos.');
@@ -174,6 +208,8 @@ switch ($action) {
                 ':conta'      => $conta ?: null,
                 ':id'         => $id,
             ]);
+
+            salvarTiposEmbarcacaoDespachante($pdo, $id, is_array($tipos_embarcacao) ? $tipos_embarcacao : []);
 
             $pdo->commit();
 

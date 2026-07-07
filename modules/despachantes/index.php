@@ -20,9 +20,12 @@ if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
 try {
     $stmt = $pdo->query("
         SELECT c.*, 
-               COUNT(ce.id) AS total_embarcacoes
+               COUNT(DISTINCT ce.id) AS total_embarcacoes,
+               GROUP_CONCAT(DISTINCT te.nome ORDER BY te.nome SEPARATOR ', ') AS tipos_atendidos
         FROM clientes c
         LEFT JOIN clientes_embarcacoes ce ON ce.cliente_id = c.id
+        LEFT JOIN clientes_tipos_embarcacao cte ON cte.cliente_id = c.id
+        LEFT JOIN tipos_embarcacao te ON te.id = cte.tipo_embarcacao_id
         WHERE c.perfil = 'despachante' AND c.status = 'ATIVO'
         GROUP BY c.id
         ORDER BY c.criado_em DESC, c.nome ASC
@@ -73,6 +76,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         <th>CPF/CNPJ</th>
                         <th>Telefone</th>
                         <th>Email</th>
+                        <th>Tipos atendidos</th>
                         <th>Embarcações</th>
                         <th>Ações</th>
                     </tr>
@@ -91,6 +95,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         <td><?php echo h($c['cpf_cnpj'] ?? '-'); ?></td>
                         <td><?php echo h($c['telefone'] ?? '-'); ?></td>
                         <td><?php echo h($c['email'] ?? '-'); ?></td>
+                        <td><?php echo !empty($c['tipos_atendidos']) ? h($c['tipos_atendidos']) : '<span class="text-muted">Não informado</span>'; ?></td>
                         <td class="text-center"><?php echo (int)$c['total_embarcacoes']; ?></td>
                         <td>
                             <div class="d-flex gap-1">

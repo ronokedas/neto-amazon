@@ -235,18 +235,24 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         <small class="text-muted" style="display: block; margin-bottom: 4px;">Subtotal</small>
                         <span id="subtotal" style="font-size: 1.2rem; font-weight: 700; color: var(--cor-texto);">R$ 0,00</span>
                     </div>
-                    <div style="text-align: center; padding: 12px; background: var(--cor-fundo); border-radius: 8px; border: 1px solid var(--cor-borda);">
-                        <small class="text-muted" style="display: block; margin-bottom: 4px;">Desconto</small>
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            <select id="tipoDesconto" name="tipo_desconto" onchange="atualizarTotais()" style="padding: 6px; background: var(--cor-fundo); border: 2px solid var(--cor-destaque); border-radius: 6px; color: var(--cor-texto); font-weight: bold; cursor: pointer; outline: none;">
-                                <option value="perc" style="color: #000; background: #fff;">%</option>
-                                <option value="valor" style="color: #000; background: #fff;">R$</option>
-                            </select>
-                            <input type="number" id="descontoGlobal" name="desconto_global" value="0" min="0" step="0.01"
-                                   style="width: 100px; padding: 6px 8px; background: var(--cor-fundo); border: 2px solid var(--cor-borda); border-radius: 6px; color: var(--cor-texto); text-align: center; font-size: 0.9rem; font-weight: bold;"
-                                   oninput="atualizarTotais()" title="Valor do desconto">
+                    <div class="discount-card">
+                        <small class="text-muted">Desconto</small>
+                        <select id="tipoDesconto" name="tipo_desconto" onchange="setTipoDesconto(this.value)" class="discount-hidden-select" aria-label="Tipo de desconto">
+                            <option value="perc">%</option>
+                            <option value="valor">R$</option>
+                        </select>
+                        <div class="discount-control" role="group" aria-label="Tipo e valor do desconto">
+                            <div class="discount-mode">
+                                <button type="button" class="discount-mode-btn is-active" data-discount-type="perc" onclick="setTipoDesconto('perc')" title="Desconto em porcentagem">%</button>
+                                <button type="button" class="discount-mode-btn" data-discount-type="valor" onclick="setTipoDesconto('valor')" title="Desconto em reais">R$</button>
+                            </div>
+                            <label class="discount-input-wrap" for="descontoGlobal">
+                                <span id="descontoPrefixo">%</span>
+                                <input type="number" id="descontoGlobal" name="desconto_global" value="0" min="0" step="0.01"
+                                       oninput="atualizarTotais()" title="Valor do desconto" inputmode="decimal">
+                            </label>
                         </div>
-                        <small id="descontoValor" class="text-muted" style="display: block; margin-top: 4px;">- R$ 0,00</small>
+                        <small id="descontoValor" class="discount-feedback">- R$ 0,00</small>
                     </div>
                     <div style="text-align: center; padding: 12px; background: rgba(46,204,113,0.08); border-radius: 8px; border: 1px solid var(--cor-destaque);">
                         <small style="display: block; margin-bottom: 4px; color: var(--cor-destaque); font-weight: 500;">TOTAL GERAL</small>
@@ -700,6 +706,26 @@ function atualizarSubtotalServico(embId, servId) {
 }
 
 // ============ TOTAIS ============
+function setTipoDesconto(tipo) {
+    const tipoSeguro = tipo === 'valor' ? 'valor' : 'perc';
+    const select = document.getElementById('tipoDesconto');
+    const prefixo = document.getElementById('descontoPrefixo');
+    const input = document.getElementById('descontoGlobal');
+
+    if (select) select.value = tipoSeguro;
+    if (prefixo) prefixo.textContent = tipoSeguro === 'valor' ? 'R$' : '%';
+    if (input) {
+        input.placeholder = tipoSeguro === 'valor' ? '0,00' : '0';
+        input.max = tipoSeguro === 'perc' ? '100' : '';
+    }
+
+    document.querySelectorAll('.discount-mode-btn').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.discountType === tipoSeguro);
+    });
+
+    atualizarTotais();
+}
+
 function atualizarTotais() {
     let subtotalGeral = 0;
 
@@ -748,11 +774,9 @@ function atualizarTotais() {
     // Atualiza display
     document.getElementById('subtotal').textContent = formatarMoeda(subtotalGeral);
 
-    if (tipoDesconto === 'perc') {
-        document.getElementById('descontoValor').textContent = '- ' + formatarMoeda(descontoValor);
-    } else {
-        document.getElementById('descontoValor').textContent = '- ' + descontoPerc.toFixed(2).replace('.', ',') + '%';
-    }
+    document.getElementById('descontoValor').textContent = tipoDesconto === 'perc'
+        ? descontoPerc.toFixed(2).replace('.', ',') + '% = - ' + formatarMoeda(descontoValor)
+        : '- ' + formatarMoeda(descontoValor) + ' (' + descontoPerc.toFixed(2).replace('.', ',') + '%)';
 
     document.getElementById('totalGeral').textContent = formatarMoeda(totalGeral);
 
@@ -1094,8 +1118,8 @@ function atualizarTotais() {
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
     document.getElementById('subtotal').textContent = formatarMoeda(subtotalGeral);
     document.getElementById('descontoValor').textContent = tipoDesconto === 'perc'
-        ? '- ' + formatarMoeda(descontoValor)
-        : '- ' + descontoPerc.toFixed(2).replace('.', ',') + '%';
+        ? descontoPerc.toFixed(2).replace('.', ',') + '% = - ' + formatarMoeda(descontoValor)
+        : '- ' + formatarMoeda(descontoValor) + ' (' + descontoPerc.toFixed(2).replace('.', ',') + '%)';
     document.getElementById('totalGeral').textContent = formatarMoeda(totalGeral);
 
     const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
@@ -1350,6 +1374,91 @@ document.addEventListener('keydown', avancarWizardComEnter);
 }
 .armador-box select {
     width: 100%;
+}
+.discount-card {
+    text-align: center;
+    padding: 12px;
+    background: var(--cor-fundo);
+    border-radius: 8px;
+    border: 1px solid var(--cor-borda);
+}
+.discount-card > small:first-child {
+    display: block;
+    margin-bottom: 8px;
+}
+.discount-hidden-select {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+.discount-control {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 8px;
+}
+.discount-mode {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 44px);
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--cor-sidebar);
+}
+.discount-mode-btn {
+    height: 40px;
+    border: 0;
+    border-right: 1px solid var(--cor-borda);
+    background: transparent;
+    color: var(--cor-texto-secundario);
+    font-weight: 800;
+    cursor: pointer;
+}
+.discount-mode-btn:last-child {
+    border-right: 0;
+}
+.discount-mode-btn.is-active {
+    background: var(--cor-destaque);
+    color: #021210;
+}
+.discount-input-wrap {
+    min-width: 140px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    background: var(--cor-sidebar);
+    overflow: hidden;
+}
+.discount-input-wrap span {
+    min-width: 44px;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    color: var(--cor-destaque);
+    font-weight: 800;
+    border-right: 1px solid var(--cor-borda);
+}
+.discount-input-wrap input {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--cor-texto);
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 800;
+}
+.discount-feedback {
+    display: block;
+    margin-top: 8px;
+    color: var(--cor-texto-secundario);
 }
 .servico-linha:hover { background: rgba(46,204,113,0.03) !important; }
 .emb-body table { font-size: 0.9rem; }

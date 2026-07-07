@@ -33,9 +33,6 @@ switch ($action) {
         $data_emissao = $_POST['data_emissao'] ?? null;
         if (empty($data_emissao)) $data_emissao = null;
 
-        $data_vencimento = $_POST['data_vencimento'] ?? null;
-        if (empty($data_vencimento)) $data_vencimento = null;
-
         $valor_total = $_POST['valor_total'] ?? 0;
         $conteudo = $_POST['conteudo'] ?? '';
         
@@ -52,6 +49,8 @@ switch ($action) {
             setMensagem('error', 'Revise os campos obrigatorios indicados.', $campos);
             redirecionar(APP_URL . 'contratos/form' . ($id ? "?id=$id" : ''));
         }
+
+        $data_vencimento = date('Y-m-d', strtotime($data_emissao . ' +30 days'));
 
         // Calcula próximo faturamento inicial se for recorrente
         $proximo_faturamento = null;

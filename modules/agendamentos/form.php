@@ -90,7 +90,17 @@ try {
 $titulo_page = ($editando ? 'Editar' : 'Novo') . ' Agendamento - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
+
+$servicosTravados = !empty($agendamento['proposta_id']);
+$horaSelecionada = !empty($agendamento['hora_vistoria']) ? substr($agendamento['hora_vistoria'], 0, 5) : '';
 ?>
+
+<style>
+.readonly-field {
+    background: var(--cor-sidebar, #f5f7f8);
+    cursor: not-allowed;
+}
+</style>
 
 <div class="conteudo-principal flow-shell">
     <div class="flow-hero">
@@ -289,6 +299,52 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
 <script>
 var embarcacoesOriginais = null;
+var servicosIniciamTravados = <?php echo $servicosTravados ? 'true' : 'false'; ?>;
+
+function atualizarEstadoServicosTravados(travado) {
+    const campoVistoria = document.getElementById('tipo_vistoria');
+    let hint = document.getElementById('servicosTravadosHint');
+    if (!campoVistoria) return;
+
+    campoVistoria.readOnly = travado;
+    campoVistoria.classList.toggle('readonly-field', travado);
+
+    if (!hint) {
+        hint = document.createElement('small');
+        hint.id = 'servicosTravadosHint';
+        hint.textContent = 'Servi?os vindos da proposta vinculada. Para alterar, ajuste a proposta antes do agendamento.';
+        campoVistoria.insertAdjacentElement('afterend', hint);
+    }
+    hint.style.display = travado ? '' : 'none';
+}
+
+function transformarHoraEmSelecao() {
+    const campoHora = document.getElementById('hora_vistoria');
+    if (!campoHora || campoHora.tagName.toLowerCase() === 'select') return;
+
+    const valorAtual = (campoHora.value || '').slice(0, 5);
+    const selectHora = document.createElement('select');
+    selectHora.id = campoHora.id;
+    selectHora.name = campoHora.name;
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '-- Selecione --';
+    selectHora.appendChild(placeholder);
+
+    for (let minutos = 0; minutos < 24 * 60; minutos += 30) {
+        const hora = String(Math.floor(minutos / 60)).padStart(2, '0');
+        const minuto = String(minutos % 60).padStart(2, '0');
+        const valor = `${hora}:${minuto}`;
+        const option = document.createElement('option');
+        option.value = valor;
+        option.textContent = valor;
+        option.selected = valorAtual === valor;
+        selectHora.appendChild(option);
+    }
+
+    campoHora.replaceWith(selectHora);
+}
 
 function mascararTelefone(input) {
     let valor = input.value.replace(/\D/g, '');
@@ -312,6 +368,7 @@ function carregarDadosProposta(propostaId) {
         if (selectCliente) selectCliente.value = '';
         if (selectArmador) selectArmador.value = '';
         if (campoVistoria) campoVistoria.value = '';
+        atualizarEstadoServicosTravados(false);
         restaurarEmbarcacoes();
         return;
     }
@@ -338,6 +395,7 @@ function carregarDadosProposta(propostaId) {
                 }
                 if (campoVistoria && data.tipo_vistoria) {
                     campoVistoria.value = data.tipo_vistoria;
+                    atualizarEstadoServicosTravados(true);
                 }
             }
         })
@@ -379,6 +437,9 @@ function restaurarEmbarcacoes() {
         selectEmbarcacao.innerHTML = embarcacoesOriginais;
     }
 }
+
+transformarHoraEmSelecao();
+atualizarEstadoServicosTravados(servicosIniciamTravados);
 </script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

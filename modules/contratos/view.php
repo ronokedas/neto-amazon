@@ -29,25 +29,32 @@ $stmt->execute([':id' => $id]);
 $contrato = $stmt->fetch();
 
 if (!$contrato) {
-    setMensagem('error', 'Contrato não encontrado.');
+    setMensagem('error', 'Contrato nÃ£o encontrado.');
     redirecionar(APP_URL . 'contratos');
 }
 
 $doc_cliente = $contrato['cpf_cnpj'] ?? '';
+$contrato_expirado = !empty($contrato['data_vencimento'])
+    && date('Y-m-d') > $contrato['data_vencimento']
+    && $contrato['status'] !== 'ASSINADO';
 
-// Assinar contrato via action?
 if (isset($_POST['assinar'])) {
     if (!verificarCSRF($_POST['csrf_token'] ?? '')) {
-        setMensagem('error', 'Token inválido.');
+        setMensagem('error', 'Token invÃ¡lido.');
         redirecionar(APP_URL . "contratos/view?id=$id");
     }
-    
+
+    if ($contrato_expirado) {
+        setMensagem('error', 'Este contrato expirou e nÃ£o pode mais ser assinado.');
+        redirecionar(APP_URL . "contratos/view?id=$id");
+    }
+
     $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     $nome = $_SESSION['usuario_nome'] ?? 'Interno';
-    
+
     $stmtAssinar = $pdo->prepare("
-        UPDATE contratos 
-        SET status = 'ASSINADO', assinado_por = :nome, assinado_ip = :ip, assinado_em = NOW() 
+        UPDATE contratos
+        SET status = 'ASSINADO', assinado_por = :nome, assinado_ip = :ip, assinado_em = NOW()
         WHERE id = :id
     ");
     $stmtAssinar->execute([
@@ -55,7 +62,7 @@ if (isset($_POST['assinar'])) {
         ':ip' => $ip,
         ':id' => $id
     ]);
-    
+
     setMensagem('success', 'Contrato marcado como Assinado!');
     redirecionar(APP_URL . "contratos/view?id=$id");
 }
@@ -93,7 +100,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <div>
             <a href="<?= APP_URL ?>contratos" class="btn-link mb-1"><i class="fa-solid fa-arrow-left"></i> Voltar</a>
             <h1 class="page-title">Contrato <?= h($contrato['numero']) ?></h1>
-            <p class="page-subtitle">Visualização e impressão do contrato</p>
+            <p class="page-subtitle">VisualizaÃ§Ã£o e impressÃ£o do contrato</p>
         </div>
         <div class="d-flex gap-2">
             <button onclick="window.print()" class="btn btn-secondary">
@@ -103,40 +110,49 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <a href="<?= APP_URL ?>contratos/form?id=<?= $id ?>" class="btn btn-secondary">
                     <i class="fa-solid fa-pen"></i> Editar
                 </a>
-                <form method="POST" style="display:inline;" onsubmit="return confirm('Marcar este contrato como assinado?');">
-                    <input type="hidden" name="csrf_token" value="<?= gerarCSRF() ?>">
-                    <button type="submit" name="assinar" class="btn btn-success">
-                        <i class="fa-solid fa-signature"></i> Assinar
-                    </button>
-                </form>
+                <?php if (!$contrato_expirado): ?>
+                    <form method="POST" style="display:inline;" onsubmit="return confirm('Marcar este contrato como assinado?');">
+                        <input type="hidden" name="csrf_token" value="<?= gerarCSRF() ?>">
+                        <button type="submit" name="assinar" class="btn btn-success">
+                            <i class="fa-solid fa-signature"></i> Assinar
+                        </button>
+                    </form>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
 
+    <?php if ($contrato_expirado): ?>
+        <div class="alert alert-warning mb-3">
+            Este contrato expirou em <?= formatarData($contrato['data_vencimento']) ?> e precisa ser reemitido para uma nova assinatura.
+        </div>
+    <?php endif; ?>
+
     <div class="documento-papel">
-        <h3>CONTRATO DE PRESTAÇÃO DE SERVIÇOS</h3>
-        <p style="text-align: right;"><strong>Número:</strong> <?= h($contrato['numero']) ?></p>
-        
+        <h3>CONTRATO DE PRESTACAO DE SERVICOS</h3>
+        <p style="text-align: right;"><strong>NÃºmero:</strong> <?= h($contrato['numero']) ?></p>
+
         <hr style="border:1px solid #ccc; margin: 20px 0;">
-        
+
         <p><strong>CONTRATANTE:</strong> <?= h($contrato['nome_completo']) ?>, inscrito(a) no CPF/CNPJ <?= h($doc_cliente) ?>, residente/sediado(a) em <?= h($contrato['endereco'] ?: 'N/A') ?>.</p>
         <p><strong>CONTRATADA:</strong> <?= APP_NAME ?>, com sede e dados conforme registro oficial.</p>
-        
+
         <?php if ($contrato['proposta_numero']): ?>
-            <p><strong>PROPOSTA REFERÊNCIA:</strong> <?= h($contrato['proposta_numero']) ?></p>
+            <p><strong>PROPOSTA REFERÃŠNCIA:</strong> <?= h($contrato['proposta_numero']) ?></p>
         <?php endif; ?>
-        
+
         <p><strong>VALOR TOTAL:</strong> R$ <?= number_format($contrato['valor_total'], 2, ',', '.') ?></p>
-        <p><strong>DATA DE EMISSÃO:</strong> <?= formatarData($contrato['data_emissao']) ?></p>
-        
+        <p><strong>DATA DE EMISS?O:</strong> <?= formatarData($contrato['data_emissao']) ?></p>
+        <p><strong>VALIDADE PARA ASSINATURA:</strong> <?= $contrato['data_vencimento'] ? formatarData($contrato['data_vencimento']) : 'N/A' ?></p>
+
         <hr style="border:1px solid #ccc; margin: 20px 0;">
-        
+
         <div style="white-space: pre-wrap;">
             <?= h($contrato['conteudo']) ?>
         </div>
-        
+
         <hr style="border:1px solid #ccc; margin: 40px 0;">
-        
+
         <?php if ($contrato['status'] === 'ASSINADO'): ?>
             <div style="text-align: center; color: green; border: 2px solid green; padding: 20px; border-radius: 8px;">
                 <i class="fa-solid fa-check-circle" style="font-size: 24px;"></i><br>

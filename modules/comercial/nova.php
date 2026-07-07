@@ -254,6 +254,15 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                         </div>
                         <small id="descontoValor" class="discount-feedback">- R$ 0,00</small>
                     </div>
+                    <div class="entry-card">
+                        <small class="text-muted">Entrada</small>
+                        <label class="discount-input-wrap" for="valorEntrada" style="margin: 0 auto;">
+                            <span>R$</span>
+                            <input type="number" id="valorEntrada" name="valor_entrada" value="0" min="0" step="0.01"
+                                   oninput="atualizarTotais()" title="Valor de entrada" inputmode="decimal">
+                        </label>
+                        <small id="entradaResumo" class="discount-feedback">Sem entrada informada</small>
+                    </div>
                     <div style="text-align: center; padding: 12px; background: rgba(46,204,113,0.08); border-radius: 8px; border: 1px solid var(--cor-destaque);">
                         <small style="display: block; margin-bottom: 4px; color: var(--cor-destaque); font-weight: 500;">TOTAL GERAL</small>
                         <span id="totalGeral" style="font-size: 1.5rem; font-weight: 700; color: var(--cor-destaque);">R$ 0,00</span>
@@ -323,6 +332,14 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                 <span class="text-muted">Desconto (<span id="rDescontoPerc">0</span>%):</span>
                                 <span id="rDesconto" style="font-weight: 600; color: var(--cor-erro);">- R$ 0,00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span class="text-muted">Entrada:</span>
+                                <span id="rEntrada" style="font-weight: 600; color: var(--cor-texto);">R$ 0,00</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span class="text-muted">Saldo restante:</span>
+                                <span id="rSaldo" style="font-weight: 600; color: var(--cor-texto);">R$ 0,00</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--cor-borda);">
                                 <span style="font-weight: 600; color: var(--cor-destaque);">TOTAL GERAL:</span>
@@ -726,6 +743,20 @@ function setTipoDesconto(tipo) {
     atualizarTotais();
 }
 
+function obterValorEntrada(totalGeral) {
+    const entradaInput = document.getElementById('valorEntrada');
+    if (!entradaInput) return 0;
+
+    let valorEntrada = parseFloat(entradaInput.value) || 0;
+    if (valorEntrada < 0) valorEntrada = 0;
+    if (valorEntrada > totalGeral) {
+        valorEntrada = totalGeral;
+        entradaInput.value = totalGeral.toFixed(2);
+    }
+
+    return valorEntrada;
+}
+
 function atualizarTotais() {
     let subtotalGeral = 0;
 
@@ -770,6 +801,8 @@ function atualizarTotais() {
     }
 
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
+    const valorEntrada = obterValorEntrada(totalGeral);
+    const saldoRestante = Math.max(0, totalGeral - valorEntrada);
 
     // Atualiza display
     document.getElementById('subtotal').textContent = formatarMoeda(subtotalGeral);
@@ -782,8 +815,18 @@ function atualizarTotais() {
 
     // Parcelas
     const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
-    const valorParcela = totalGeral / parcelas;
+    const valorParcela = parcelas > 0 ? saldoRestante / parcelas : saldoRestante;
+    const entradaResumo = document.getElementById('entradaResumo');
+    if (entradaResumo) {
+        entradaResumo.textContent = valorEntrada > 0
+            ? 'Entrada de ' + formatarMoeda(valorEntrada) + ' e saldo restante de ' + formatarMoeda(saldoRestante)
+            : 'Sem entrada informada';
+    }
+
     let ph = '';
+    if (valorEntrada > 0) {
+        ph += `<div style="padding: 3px 0;">Entrada imediata: <strong>${formatarMoeda(valorEntrada)}</strong></div>`;
+    }
     for (let i = 1; i <= parcelas; i++) {
         ph += `<div style="padding: 3px 0;">Parcela ${i}/<strong>${parcelas}: ${formatarMoeda(valorParcela)}</strong></div>`;
     }
@@ -848,6 +891,8 @@ function montarRevisao() {
     }
 
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
+    const valorEntrada = obterValorEntrada(totalGeral);
+    const saldoRestante = Math.max(0, totalGeral - valorEntrada);
     const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
 
     // Monta HTML da revisão
@@ -891,13 +936,15 @@ function montarRevisao() {
     document.getElementById('rSubtotal').textContent = formatarMoeda(subtotalGeral);
     document.getElementById('rDescontoPerc').textContent = descontoPerc.toFixed(2).replace('.', ',');
     document.getElementById('rDesconto').textContent = '- ' + formatarMoeda(descontoValor);
+    document.getElementById('rEntrada').textContent = formatarMoeda(valorEntrada);
+    document.getElementById('rSaldo').textContent = formatarMoeda(saldoRestante);
     document.getElementById('rTotalGeral').textContent = formatarMoeda(totalGeral);
 
-    const valorParcela = totalGeral / parcelas;
-    let rph = '';
+    const valorParcela = parcelas > 0 ? saldoRestante / parcelas : saldoRestante;
+    let rph = valorEntrada > 0 ? `Entrada de <strong>${formatarMoeda(valorEntrada)}</strong>` : '';
     for (let i = 1; i <= parcelas; i++) {
+        if (rph) rph += ' &middot; ';
         rph += `${i}x de <strong>${formatarMoeda(valorParcela)}</strong>`;
-        if (parcelas > 1 && i < parcelas) rph += ' &middot; ';
     }
     document.getElementById('rParcelas').innerHTML = rph;
 
@@ -1116,6 +1163,8 @@ function atualizarTotais() {
     }
 
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
+    const valorEntrada = obterValorEntrada(totalGeral);
+    const saldoRestante = Math.max(0, totalGeral - valorEntrada);
     document.getElementById('subtotal').textContent = formatarMoeda(subtotalGeral);
     document.getElementById('descontoValor').textContent = tipoDesconto === 'perc'
         ? descontoPerc.toFixed(2).replace('.', ',') + '% = - ' + formatarMoeda(descontoValor)
@@ -1123,8 +1172,18 @@ function atualizarTotais() {
     document.getElementById('totalGeral').textContent = formatarMoeda(totalGeral);
 
     const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
-    const valorParcela = totalGeral / parcelas;
+    const valorParcela = parcelas > 0 ? saldoRestante / parcelas : saldoRestante;
+    const entradaResumo = document.getElementById('entradaResumo');
+    if (entradaResumo) {
+        entradaResumo.textContent = valorEntrada > 0
+            ? 'Entrada de ' + formatarMoeda(valorEntrada) + ' e saldo restante de ' + formatarMoeda(saldoRestante)
+            : 'Sem entrada informada';
+    }
+
     let ph = '';
+    if (valorEntrada > 0) {
+        ph += `<div style="padding: 3px 0;">Entrada imediata: <strong>${formatarMoeda(valorEntrada)}</strong></div>`;
+    }
     for (let i = 1; i <= parcelas; i++) {
         ph += `<div style="padding: 3px 0;">Parcela ${i}/<strong>${parcelas}: ${formatarMoeda(valorParcela)}</strong></div>`;
     }
@@ -1178,6 +1237,8 @@ function montarRevisao() {
     }
 
     const totalGeral = Math.max(0, subtotalGeral - descontoValor);
+    const valorEntrada = obterValorEntrada(totalGeral);
+    const saldoRestante = Math.max(0, totalGeral - valorEntrada);
     const parcelas = parseInt(document.getElementById('parcelas').value) || 1;
 
     document.getElementById('reviewCliente').innerHTML = `
@@ -1219,13 +1280,15 @@ function montarRevisao() {
     document.getElementById('rSubtotal').textContent = formatarMoeda(subtotalGeral);
     document.getElementById('rDescontoPerc').textContent = descontoPerc.toFixed(2).replace('.', ',');
     document.getElementById('rDesconto').textContent = '- ' + formatarMoeda(descontoValor);
+    document.getElementById('rEntrada').textContent = formatarMoeda(valorEntrada);
+    document.getElementById('rSaldo').textContent = formatarMoeda(saldoRestante);
     document.getElementById('rTotalGeral').textContent = formatarMoeda(totalGeral);
 
-    const valorParcela = totalGeral / parcelas;
-    let rph = '';
+    const valorParcela = parcelas > 0 ? saldoRestante / parcelas : saldoRestante;
+    let rph = valorEntrada > 0 ? `Entrada de <strong>${formatarMoeda(valorEntrada)}</strong>` : '';
     for (let i = 1; i <= parcelas; i++) {
+        if (rph) rph += ' &middot; ';
         rph += `${i}x de <strong>${formatarMoeda(valorParcela)}</strong>`;
-        if (parcelas > 1 && i < parcelas) rph += ' &middot; ';
     }
     document.getElementById('rParcelas').innerHTML = rph;
 

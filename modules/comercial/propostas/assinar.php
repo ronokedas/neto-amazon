@@ -379,6 +379,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
                 <span class="info-label">Valor Total:</span>
                 <span class="info-valor">R$ <?php echo number_format($prop['valor_total'], 2, ',', '.'); ?></span>
             </div>
+            <div class="info-row">
+                <span class="info-label">Entrada:</span>
+                <span class="info-valor">R$ <?php echo number_format((float)($prop['valor_entrada'] ?? 0), 2, ',', '.'); ?></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Saldo Restante:</span>
+                <span class="info-valor">R$ <?php echo number_format(max(0, (float)$prop['valor_total'] - (float)($prop['valor_entrada'] ?? 0)), 2, ',', '.'); ?></span>
+            </div>
 
             <?php if ($prop['assinado']): ?>
                 <!-- JÁ ASSINADO -->

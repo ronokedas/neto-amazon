@@ -517,6 +517,15 @@ $valorParcela = ($parcelas > 0) ? round($totalGeral / $parcelas, 2) : $totalGera
 // Ajustar última parcela para fechar valor exato
 $somaParcelas = $valorParcela * ($parcelas - 1);
 $ultimaParcela = round($totalGeral - $somaParcelas, 2);
+$valorEntrada = round((float)($proposta['valor_entrada'] ?? 0), 2);
+if ($valorEntrada > $totalGeral) {
+    $valorEntrada = $totalGeral;
+}
+$saldoParcelado = max(0, round($totalGeral - $valorEntrada, 2));
+$parcelas = max(1, $parcelas);
+$valorParcela = ($parcelas > 0) ? round($saldoParcelado / $parcelas, 2) : $saldoParcelado;
+$somaParcelas = $valorParcela * max(0, ($parcelas - 1));
+$ultimaParcela = round($saldoParcelado - $somaParcelas, 2);
 
 $pdf->SetFont('helvetica', '', 8);
 $formaPagamentoTexto = '';
@@ -528,7 +537,11 @@ switch ($proposta['forma_pagamento'] ?? 'parcelado') {
     default:         $formaPagamentoTexto = 'Parcelado';
 }
 
-$pdf->Cell(0, 5, 'Forma de pagamento: ' . $formaPagamentoTexto . ' | Parcelas: ' . $parcelas . 'x', 0, 1, 'L');
+$resumoParcelas = $parcelas . 'x';
+if ($valorEntrada > 0) {
+    $resumoParcelas .= ' + entrada';
+}
+$pdf->Cell(0, 5, 'Forma de pagamento: ' . $formaPagamentoTexto . ' | Parcelas: ' . $resumoParcelas, 0, 1, 'L');
 $pdf->Ln(2);
 
 // Tabela de parcelas
@@ -543,27 +556,26 @@ $pdf->Cell($colParc[3], 6, 'VALOR', 1, 1, 'C', true);
 
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('helvetica', '', 8);
+$linhaParcela = 1;
+if ($valorEntrada > 0) {
+    $pdf->SetFillColor(255, 251, 252);
+    $pdf->Cell($colParc[0], 6, 'Entrada', 1, 0, 'C', true);
+    $pdf->Cell($colParc[1], 6, 'Entrada (ato da assinatura)', 1, 0, 'L', true);
+    $pdf->Cell($colParc[2], 6, 'Na assinatura', 1, 0, 'C', true);
+    $pdf->Cell($colParc[3], 6, 'R$ ' . formatarMoedaPDF($valorEntrada), 1, 1, 'R', true);
+}
 
 for ($i = 1; $i <= $parcelas; $i++) {
     $valor = ($i == $parcelas) ? $ultimaParcela : $valorParcela;
-    $vencimento = '';
-    if ($i == 1) {
-        $vencimento = 'Na assinatura';
-    } elseif ($i == 2 && $parcelas == 3) {
-        $vencimento = '30 dias após assinatura';
-    } elseif ($i == 3 && $parcelas == 3) {
-        $vencimento = '60 dias após assinatura';
-    } else {
-        $vencimento = ($i - 1) * 30 . ' dias após assinatura';
-    }
+    $vencimento = $i === 1 ? '30 dias ap?s assinatura' : ($i * 30) . ' dias ap?s assinatura';
+    $condicao = ($i == 1) ? '1? parcela' : (($i == $parcelas) ? '?ltima parcela' : 'Parcela intermedi?ria');
 
-    $condicao = ($i == 1) ? 'Entrada (ato da assinatura)' : (($i == $parcelas) ? 'Última parcela' : 'Parcela intermediária');
-
-    $pdf->SetFillColor(($i % 2 == 0) ? 250 : 255, 251, 252);
+    $pdf->SetFillColor(($linhaParcela % 2 == 0) ? 250 : 255, 251, 252);
     $pdf->Cell($colParc[0], 6, $i . '/' . $parcelas, 1, 0, 'C', true);
     $pdf->Cell($colParc[1], 6, $condicao, 1, 0, 'L', true);
     $pdf->Cell($colParc[2], 6, $vencimento, 1, 0, 'C', true);
     $pdf->Cell($colParc[3], 6, 'R$ ' . formatarMoedaPDF($valor), 1, 1, 'R', true);
+    $linhaParcela++;
 }
 
 // Total parcelado

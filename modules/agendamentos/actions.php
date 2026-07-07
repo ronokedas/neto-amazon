@@ -113,6 +113,38 @@ function validarCamposAgendamento(string $data_vistoria, string $embarcacao_id, 
     return $errosCampos;
 }
 
+function obterTipoVistoriaDaProposta(PDO $pdo, ?string $proposta_id): string
+{
+    if (empty($proposta_id)) {
+        return '';
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT s.nome
+        FROM propostas_servicos ps
+        INNER JOIN servicos s ON ps.servico_id = s.id
+        WHERE ps.proposta_id = :id
+        ORDER BY s.nome ASC
+    ");
+    $stmt->execute([':id' => $proposta_id]);
+    $servicos = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'nome');
+
+    return !empty($servicos) ? implode(', ', $servicos) : '';
+}
+
+function horaVistoriaValida(?string $hora_vistoria): bool
+{
+    if (empty($hora_vistoria)) {
+        return true;
+    }
+
+    if (!preg_match('/^([01]\d|2[0-3]):([03]0)(?::00)?$/', $hora_vistoria, $matches)) {
+        return false;
+    }
+
+    return in_array($matches[2], ['00', '30'], true);
+}
+
 switch ($action) {
 
     // ==================== INSERIR ====================
@@ -131,6 +163,18 @@ switch ($action) {
             $observacoes     = sanitizar($_POST['observacoes'] ?? '');
             $vistoriador_id  = $_POST['vistoriador_id'] ?? null;
             $vendedor_id     = $_POST['vendedor_id'] ?? null;
+
+            if (!empty($proposta_id)) {
+                $tipoVistoriaProposta = obterTipoVistoriaDaProposta($pdo, $proposta_id);
+                if (!empty($tipoVistoriaProposta)) {
+                    $tipo_vistoria = $tipoVistoriaProposta;
+                }
+            }
+            if (!horaVistoriaValida($hora_vistoria)) {
+                setMensagem('error', 'Selecione um horario redondo, de meia em meia hora.');
+                redirecionar(APP_URL . 'agendamentos/form');
+            }
+            $hora_vistoria = !empty($hora_vistoria) ? substr($hora_vistoria, 0, 5) : null;
 
             $errosCampos = validarCamposAgendamento($data_vistoria, $embarcacao_id, $cliente_id, $tipo_vistoria);
             if (!empty($errosCampos)) {
@@ -220,6 +264,18 @@ switch ($action) {
             $observacoes     = sanitizar($_POST['observacoes'] ?? '');
             $vistoriador_id  = $_POST['vistoriador_id'] ?? null;
             $vendedor_id     = $_POST['vendedor_id'] ?? null;
+
+            if (!empty($proposta_id)) {
+                $tipoVistoriaProposta = obterTipoVistoriaDaProposta($pdo, $proposta_id);
+                if (!empty($tipoVistoriaProposta)) {
+                    $tipo_vistoria = $tipoVistoriaProposta;
+                }
+            }
+            if (!horaVistoriaValida($hora_vistoria)) {
+                setMensagem('error', 'Selecione um horario redondo, de meia em meia hora.');
+                redirecionar(APP_URL . 'agendamentos/form?id=' . urlencode($id));
+            }
+            $hora_vistoria = !empty($hora_vistoria) ? substr($hora_vistoria, 0, 5) : null;
 
             $errosCampos = validarCamposAgendamento($data_vistoria, $embarcacao_id, $cliente_id, $tipo_vistoria);
             if (empty($id)) {

@@ -80,6 +80,7 @@ switch ($action) {
             $tipo_desconto       = $_POST['tipo_desconto'] ?? 'perc';
             $desconto_input      = (float)($_POST['desconto_global'] ?? 0);
             $parcelas            = max(1, min(12, (int)($_POST['parcelas'] ?? 3)));
+            $valor_entrada_input = (float)($_POST['valor_entrada'] ?? 0);
 
             if (empty($cliente_id)) {
                 setMensagem('error', 'Cliente não selecionado.');
@@ -154,6 +155,7 @@ switch ($action) {
                 $desconto_valor = round($subtotal_geral * ($desconto_percentual / 100), 2);
             }
             $valor_total = round($subtotal_geral - $desconto_valor, 2);
+            $valor_entrada = round(max(0, min($valor_total, $valor_entrada_input)), 2);
 
             // Forma de pagamento e observações
             $forma_pagamento = $_POST['forma_pagamento'] ?? 'parcelado';
@@ -167,8 +169,8 @@ switch ($action) {
             $token_assinatura = md5(uniqid(rand(), true)) . uniqid();
             
             $stmtProp = $pdo->prepare("
-                INSERT INTO propostas (id, numero, cliente_id, armador_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
-                VALUES (UUID(), :numero, :cliente_id, :armador_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
+                INSERT INTO propostas (id, numero, cliente_id, armador_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, valor_entrada, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
+                VALUES (UUID(), :numero, :cliente_id, :armador_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :valor_entrada, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
             ");
             $stmtProp->execute([
                 ':numero'              => $numero,
@@ -177,6 +179,7 @@ switch ($action) {
                 ':parcelas'            => $parcelas,
                 ':forma_pagamento'     => $forma_pagamento,
                 ':valor_total'         => $valor_total,
+                ':valor_entrada'       => $valor_entrada,
                 ':desconto_percentual' => $desconto_percentual,
                 ':desconto_valor'      => $desconto_valor,
                 ':observacoes'         => $observacoes,
@@ -219,7 +222,7 @@ switch ($action) {
 
             $pdo->commit();
 
-            log_atividade('proposta_criada', "Proposta {$numero} criada para cliente '{$cliente_nome}'. Subtotal: R$ " . number_format($subtotal_geral, 2, ',', '.') . " | Desconto: {$desconto_percentual}% | Total: R$ " . number_format($valor_total, 2, ',', '.'));
+            log_atividade('proposta_criada', "Proposta {$numero} criada para cliente '{$cliente_nome}'. Subtotal: R$ " . number_format($subtotal_geral, 2, ',', '.') . " | Desconto: {$desconto_percentual}% | Entrada: R$ " . number_format($valor_entrada, 2, ',', '.') . " | Total: R$ " . number_format($valor_total, 2, ',', '.'));
             setMensagem('success', "Proposta {$numero} criada com sucesso!");
             redirecionar(APP_URL . 'comercial/propostas');
 
@@ -269,7 +272,13 @@ switch ($action) {
 
             // Substituir placeholders
             $valorTotal = 'R$ ' . number_format((float)$proposta['valor_total'], 2, ',', '.');
-            $parcelasTexto = (int)$proposta['parcelas'] . 'x de R$ ' . number_format((float)$proposta['valor_total'] / max(1, (int)$proposta['parcelas']), 2, ',', '.');
+            $valorEntrada = (float)($proposta['valor_entrada'] ?? 0);
+            $saldoRestante = max(0, (float)$proposta['valor_total'] - $valorEntrada);
+            $parcelasQtd = max(1, (int)$proposta['parcelas']);
+            $parcelasTexto = $parcelasQtd . 'x de R$ ' . number_format($saldoRestante / $parcelasQtd, 2, ',', '.');
+            if ($valorEntrada > 0) {
+                $parcelasTexto = 'Entrada de R$ ' . number_format($valorEntrada, 2, ',', '.') . ' + ' . $parcelasTexto;
+            }
 
             $replacements = [
                 '{{NOME_CLIENTE}}'    => h($proposta['cliente_nome']),

@@ -101,7 +101,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                             <th>Cliente</th>
                             <th>Proposta</th>
                             <th>Emissão</th>
-                            <th>Vencimento</th>
+                            <th>Validade Assinatura</th>
                             <th>Valor/Parc.</th>
                             <th>Frequência</th>
                             <th>Status</th>

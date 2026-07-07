@@ -1130,12 +1130,16 @@ function escAttr(str) {
 function deveIgnorarEnterWizard(event) {
     const alvo = event.target;
     const tag = (alvo?.tagName || '').toLowerCase();
+    const tipo = (alvo?.type || '').toLowerCase();
 
     if (event.key !== 'Enter') return true;
     if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return true;
     if (alvo?.isContentEditable) return true;
     if (['textarea', 'select', 'button', 'a'].includes(tag)) return true;
-    if (tag === 'input' && (alvo.type || '').toLowerCase() === 'number') return true;
+    if (tag === 'input' && !['checkbox', 'radio'].includes(tipo)) {
+        event.preventDefault();
+        return true;
+    }
 
     return false;
 }

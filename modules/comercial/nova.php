@@ -1126,6 +1126,46 @@ function esc(str) {
 function escAttr(str) {
     return esc(String(str)).replace(/'/g, '&#39;');
 }
+
+function deveIgnorarEnterWizard(event) {
+    const alvo = event.target;
+    const tag = (alvo?.tagName || '').toLowerCase();
+
+    if (event.key !== 'Enter') return true;
+    if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return true;
+    if (alvo?.isContentEditable) return true;
+    if (['textarea', 'select', 'button', 'a'].includes(tag)) return true;
+    if (tag === 'input' && (alvo.type || '').toLowerCase() === 'number') return true;
+
+    return false;
+}
+
+function obterPassoAtualWizard() {
+    const painelVisivel = Array.from(document.querySelectorAll('.wizard-panel')).find(painel => {
+        const style = window.getComputedStyle(painel);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+    const match = painelVisivel?.id?.match(/^passo(\d+)$/);
+    return match ? parseInt(match[1], 10) : 1;
+}
+
+function avancarWizardComEnter(event) {
+    if (deveIgnorarEnterWizard(event)) return;
+
+    const passoAtual = obterPassoAtualWizard();
+    let botao = null;
+
+    if (passoAtual === 1) botao = document.getElementById('btnPasso1');
+    if (passoAtual === 2) botao = document.getElementById('btnPasso2');
+    if (passoAtual === 3) botao = document.querySelector('#passo3 button[type="submit"]');
+
+    if (!botao || botao.disabled) return;
+
+    event.preventDefault();
+    botao.click();
+}
+
+document.addEventListener('keydown', avancarWizardComEnter);
 </script>
 
 <style>

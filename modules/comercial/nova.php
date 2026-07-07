@@ -1407,21 +1407,27 @@ document.addEventListener('keydown', avancarWizardComEnter);
     border-radius: 8px;
     overflow: hidden;
     background: var(--cor-sidebar);
+    padding: 3px;
+    gap: 3px;
 }
 .discount-mode-btn {
     height: 40px;
-    border: 0;
-    border-right: 1px solid var(--cor-borda);
+    border: 1px solid transparent;
+    border-radius: 6px;
     background: transparent;
     color: var(--cor-texto-secundario);
     font-weight: 800;
     cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s;
 }
-.discount-mode-btn:last-child {
-    border-right: 0;
+.discount-mode-btn:hover {
+    color: var(--cor-texto);
+    border-color: rgba(86,224,173,0.35);
 }
 .discount-mode-btn.is-active {
-    background: var(--cor-destaque);
+    background: #56e0ad;
+    border-color: #56e0ad;
+    box-shadow: 0 0 0 2px rgba(86,224,173,0.22);
     color: #021210;
 }
 .discount-input-wrap {

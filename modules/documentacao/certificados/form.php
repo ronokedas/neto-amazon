@@ -165,6 +165,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
         <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
         <?php if ($editando): ?>
             <input type="hidden" name="id" value="<?php echo h($certificado['id']); ?>">
+            <input type="hidden" name="vistoria_id" value="<?php echo h($certificado['vistoria_id'] ?? ''); ?>">
         <?php endif; ?>
 
         <!-- SEÇÃO 1: Identificação do Certificado -->
@@ -217,6 +218,33 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         <label for="local_emissao">Local de Emissão</label>
                         <input type="text" name="local_emissao" id="local_emissao" class="form-control"
                                value="<?php echo $editando ? h($certificado['local_emissao']) : 'Belém-PA'; ?>">
+                    </div>
+                </div>
+                <div class="grid-3">
+                    <div class="form-group">
+                        <label for="emitente">Emitente</label>
+                        <input type="text" name="emitente" id="emitente" class="form-control"
+                               placeholder="Capitania, Delegacia, Agência, Certificadora ou Sociedade Classificadora"
+                               value="<?php echo $editando ? h($certificado['emitente'] ?? '') : ''; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="normam_aplicavel">NORMAM aplicável</label>
+                        <?php $normamAtual = $editando ? ($certificado['normam_aplicavel'] ?? '') : ''; ?>
+                        <select name="normam_aplicavel" id="normam_aplicavel" class="form-control">
+                            <option value="">-- Selecione --</option>
+                            <option value="NORMAM-01" <?php echo $normamAtual === 'NORMAM-01' ? 'selected' : ''; ?>>NORMAM-01</option>
+                            <option value="NORMAM-02" <?php echo $normamAtual === 'NORMAM-02' ? 'selected' : ''; ?>>NORMAM-02</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tipo_vistoria_certificado">Tipo de vistoria no certificado</label>
+                        <?php $tipoVistoriaAtual = $editando ? ($certificado['tipo_vistoria_certificado'] ?? '') : ''; ?>
+                        <select name="tipo_vistoria_certificado" id="tipo_vistoria_certificado" class="form-control">
+                            <option value="">-- Selecione --</option>
+                            <option value="Inicial" <?php echo $tipoVistoriaAtual === 'Inicial' ? 'selected' : ''; ?>>Inicial</option>
+                            <option value="Renovacao" <?php echo $tipoVistoriaAtual === 'Renovacao' ? 'selected' : ''; ?>>Renovação</option>
+                            <option value="Intermediaria" <?php echo $tipoVistoriaAtual === 'Intermediaria' ? 'selected' : ''; ?>>Intermediária</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -411,6 +439,10 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         </label>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label for="observacoes_verso">Observações do verso do CSN</label>
+                    <textarea name="observacoes_verso" id="observacoes_verso" class="form-control" rows="4"><?php echo $editando ? h($certificado['observacoes_verso'] ?? '') : ''; ?></textarea>
+                </div>
             </div>
         </div>
 
@@ -448,40 +480,66 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                 <h3><i class="fas fa-users"></i> Distribuição de Passageiros</h3>
             </div>
             <div class="card-body">
+                <?php
+                $linhasDistribuicaoPadrao = [
+                    ['passageiros_sentados', 'Passageiros sentados', 'passageiros'],
+                    ['passageiros_camarote', 'Passageiros em camarote', 'passageiros'],
+                    ['passageiros_redes', 'Passageiros em redes', 'passageiros'],
+                    ['passageiros_em_pe', 'Passageiros em pé', 'passageiros'],
+                    ['porao_carga_01', 'Porão de carga 01 (carga geral)', 't'],
+                    ['paiol_casco', 'Paiol no casco (mantimentos e materiais diversos)', 't'],
+                    ['almoxarifado_conves_principal', 'Almoxarifado no convés principal', 't'],
+                    ['deposito_conves_principal', 'Depósito no convés principal', 't'],
+                    ['deposito_conves_superior', 'Depósito no convés superior', 't'],
+                ];
+                $distribuicaoPorCodigo = [];
+                foreach ($distribuicao as $distItem) {
+                    $codigo = $distItem['item_codigo'] ?? '';
+                    if ($codigo !== '') {
+                        $distribuicaoPorCodigo[$codigo] = $distItem;
+                    }
+                }
+                ?>
                 <table class="tabela" id="tabelaPassageiros">
                     <thead>
                         <tr>
-                            <th style="width: 70%;">Local</th>
-                            <th style="width: 20%;">Quantidade</th>
-                            <th style="width: 10%; text-align: center;">Ação</th>
+                            <th style="width: 34%;">Item oficial</th>
+                            <th>Convés principal</th>
+                            <th>Convés superior</th>
+                            <th>Área de lazer</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (!empty($distribuicao)): ?>
-                            <?php foreach ($distribuicao as $i => $d): ?>
-                                <tr class="row-passageiro">
-                                    <td>
-                                        <input type="text" name="passageiro_local[]" class="form-control" 
-                                               placeholder="Ex: Convés Superior"
-                                               value="<?php echo h($d['local_nome']); ?>">
-                                    </td>
-                                    <td>
-                                        <input type="number" name="passageiro_qtd[]" class="form-control" min="0"
-                                               value="<?php echo h($d['quantidade']); ?>">
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <button type="button" class="btn btn-sm btn-danger" onclick="removerLinha(this)" title="Remover">
-                                            <i class="fas fa-times"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                        <?php foreach ($linhasDistribuicaoPadrao as $linhaDist): ?>
+                            <?php
+                            [$codigoDist, $rotuloDist, $unidadeDist] = $linhaDist;
+                            $d = $distribuicaoPorCodigo[$codigoDist] ?? [];
+                            $valorLegado = empty($d['item_codigo'] ?? '') ? ($d['quantidade'] ?? '') : '';
+                            ?>
+                            <tr class="row-passageiro">
+                                <td>
+                                    <input type="hidden" name="passageiro_codigo[]" value="<?php echo h($codigoDist); ?>">
+                                    <input type="hidden" name="passageiro_unidade[]" value="<?php echo h($unidadeDist); ?>">
+                                    <input type="hidden" name="passageiro_qtd[]" value="<?php echo h($valorLegado); ?>">
+                                    <input type="text" name="passageiro_local[]" class="form-control"
+                                           value="<?php echo h($rotuloDist); ?>" readonly style="background: var(--cor-sidebar);">
+                                </td>
+                                <td>
+                                    <input type="text" name="passageiro_conves_principal[]" class="form-control"
+                                           value="<?php echo h($d['conves_principal'] ?? $valorLegado); ?>">
+                                </td>
+                                <td>
+                                    <input type="text" name="passageiro_conves_superior[]" class="form-control"
+                                           value="<?php echo h($d['conves_superior'] ?? ''); ?>">
+                                </td>
+                                <td>
+                                    <input type="text" name="passageiro_area_lazer[]" class="form-control"
+                                           value="<?php echo h($d['area_lazer'] ?? ''); ?>">
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
-                <button type="button" class="btn btn-sm btn-success" onclick="adicionarLinhaPassageiro()" style="margin-top: 10px;">
-                    <i class="fas fa-plus"></i> Adicionar Linha
-                </button>
             </div>
         </div>
 
@@ -580,33 +638,6 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
         </div>
     </form>
 </div>
-
-<script>
-function adicionarLinhaPassageiro() {
-    const tbody = document.querySelector('#tabelaPassageiros tbody');
-    const row = document.createElement('tr');
-    row.classList.add('row-passageiro');
-    row.innerHTML = `
-        <td>
-            <input type="text" name="passageiro_local[]" class="form-control" placeholder="Ex: Convés Superior">
-        </td>
-        <td>
-            <input type="number" name="passageiro_qtd[]" class="form-control" min="0" value="0">
-        </td>
-        <td style="text-align: center;">
-            <button type="button" class="btn btn-sm btn-danger" onclick="removerLinha(this)" title="Remover">
-                <i class="fas fa-times"></i>
-            </button>
-        </td>
-    `;
-    tbody.appendChild(row);
-}
-
-function removerLinha(btn) {
-    const row = btn.closest('tr');
-    row.remove();
-}
-</script>
 
 <?php if ($editando && $certificado['assinado']): ?>
 <script>

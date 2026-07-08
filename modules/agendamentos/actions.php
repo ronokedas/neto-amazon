@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * MODULO: AGENDAMENTOS
  * Arquivo: actions.php - Processar POST/GET (insert/update/confirmar/gerar OS/cancelar)
@@ -21,7 +21,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
     $proposta_id = $_GET['proposta_id'] ?? '';
     
     if (empty($proposta_id)) {
-        echo json_encode(['success' => false, 'message' => 'ID da proposta nÃ£o informado.']);
+        echo json_encode(['success' => false, 'message' => 'ID da proposta não informado.']);
         exit;
     }
     
@@ -36,11 +36,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
         $proposta = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$proposta) {
-            echo json_encode(['success' => false, 'message' => 'Proposta nÃ£o encontrada.']);
+            echo json_encode(['success' => false, 'message' => 'Proposta não encontrada.']);
             exit;
         }
         
-        // Buscar embarcaÃ§Ãµes da proposta
+        // Buscar embarcações da proposta
         $stmtEmb = $pdo->prepare("
             SELECT e.id, e.nome 
             FROM propostas_embarcacoes pe
@@ -50,7 +50,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
         $stmtEmb->execute([':id' => $proposta_id]);
         $embarcacoes = $stmtEmb->fetchAll(PDO::FETCH_ASSOC);
         
-        // Buscar serviÃ§os da proposta
+        // Buscar serviços da proposta
         $stmtSrv = $pdo->prepare("
             SELECT s.nome 
             FROM propostas_servicos ps
@@ -81,7 +81,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
 // Validar CSRF token para POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf_token']) || !verificarCSRF($_POST['csrf_token'])) {
-        setMensagem('error', 'Token de seguranÃ§a invÃ¡lido. Tente novamente.');
+        setMensagem('error', 'Token de segurança inválido. Tente novamente.');
         redirecionar(APP_URL . 'agendamentos');
     }
 }
@@ -97,7 +97,7 @@ function validarCamposAgendamento(string $data_vistoria, string $embarcacao_id, 
     }
 
     if (empty($embarcacao_id)) {
-        $errosCampos['embarcacao_id'] = 'Selecione a embarcaÃ§Ã£o.';
+        $errosCampos['embarcacao_id'] = 'Selecione a embarcação.';
     }
 
     if (empty($tipo_vistoria)) {
@@ -107,7 +107,7 @@ function validarCamposAgendamento(string $data_vistoria, string $embarcacao_id, 
     if (empty($data_vistoria)) {
         $errosCampos['data_vistoria'] = 'Informe a data da vistoria.';
     } elseif ($data_vistoria < date('Y-m-d')) {
-        $errosCampos['data_vistoria'] = 'A data da vistoria nÃ£o pode ser no passado.';
+        $errosCampos['data_vistoria'] = 'A data da vistoria não pode ser no passado.';
     }
 
     return $errosCampos;
@@ -197,7 +197,7 @@ switch ($action) {
                 }
             }
             if (!horaVistoriaValida($hora_vistoria)) {
-                setMensagem('error', 'Selecione um horario redondo, de meia em meia hora.');
+                setMensagem('error', 'Selecione um horário redondo, de meia em meia hora.');
                 redirecionar(APP_URL . 'agendamentos/form');
             }
             $hora_vistoria = !empty($hora_vistoria) ? substr($hora_vistoria, 0, 5) : null;
@@ -208,7 +208,7 @@ switch ($action) {
 
             $errosCampos = validarCamposAgendamento($data_vistoria, $embarcacao_id, $cliente_id, $tipo_vistoria);
             if (empty($vistoriador_id)) {
-                $errosCampos['vistoriador_id'] = 'Selecione o vistoriador responsavel.';
+                $errosCampos['vistoriador_id'] = 'Selecione o vistoriador responsável.';
             }
             if (!empty($errosCampos)) {
                 setMensagem('error', 'Revise os campos destacados e tente novamente.', $errosCampos);
@@ -216,13 +216,13 @@ switch ($action) {
             }
 
             if (empty($embarcacao_id) || empty($cliente_id) || empty($tipo_vistoria) || empty($data_vistoria)) {
-                setMensagem('error', 'Preencha todos os campos obrigatÃ³rios (cliente, embarcaÃ§Ã£o, tipo e data).');
+                setMensagem('error', 'Preencha todos os campos obrigatórios (cliente, embarcação, tipo e data).');
                 redirecionar(APP_URL . 'agendamentos/form');
             }
 
-            // Validar que a data da vistoria nao esta no passado
+            // Validar que a data da vistoria não está no passado
             if ($data_vistoria < date('Y-m-d')) {
-                setMensagem('error', 'A data da vistoria nÃ£o pode ser no passado.');
+                setMensagem('error', 'A data da vistoria não pode ser no passado.');
                 redirecionar(APP_URL . 'agendamentos/form');
             }
 
@@ -273,9 +273,9 @@ switch ($action) {
     // ==================== EDITAR ====================
     case 'editar':
         try {
-        // VISTORIADOR nao pode editar agendamentos
+        // VISTORIADOR não pode editar agendamentos
         if ($cargo === 'VISTORIADOR') {
-            setMensagem('error', 'Acesso negado. Vistoriadores nao podem editar agendamentos.');
+            setMensagem('error', 'Acesso negado. Vistoriadores não podem editar agendamentos.');
             redirecionar(APP_URL . 'agendamentos');
         }
             $id              = $_POST['id'] ?? '';
@@ -314,7 +314,7 @@ switch ($action) {
                 }
             }
             if (!horaVistoriaValida($hora_vistoria)) {
-                setMensagem('error', 'Selecione um horario redondo, de meia em meia hora.');
+                setMensagem('error', 'Selecione um horário redondo, de meia em meia hora.');
                 redirecionar(APP_URL . 'agendamentos/form?id=' . urlencode($id));
             }
             $hora_vistoria = !empty($hora_vistoria) ? substr($hora_vistoria, 0, 5) : null;
@@ -325,10 +325,10 @@ switch ($action) {
 
             $errosCampos = validarCamposAgendamento($data_vistoria, $embarcacao_id, $cliente_id, $tipo_vistoria);
             if (empty($id)) {
-                $errosCampos['id'] = 'Agendamento nÃ£o informado.';
+                $errosCampos['id'] = 'Agendamento não informado.';
             }
             if (empty($vistoriador_id)) {
-                $errosCampos['vistoriador_id'] = 'Selecione o vistoriador responsavel.';
+                $errosCampos['vistoriador_id'] = 'Selecione o vistoriador responsável.';
             }
 
             if (!empty($errosCampos)) {
@@ -340,7 +340,7 @@ switch ($action) {
             }
 
             if (empty($id) || empty($embarcacao_id) || empty($cliente_id) || empty($tipo_vistoria) || empty($data_vistoria)) {
-                setMensagem('error', 'Dados incompletos para atualizaÃ§Ã£o.');
+                setMensagem('error', 'Dados incompletos para atualização.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
@@ -397,14 +397,14 @@ switch ($action) {
     case 'confirmar':
         try {
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-                setMensagem('error', 'Requisicao invalida.');
+                setMensagem('error', 'Requisição inválida.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
             $id = $_POST['id'] ?? '';
 
             if (empty($id)) {
-                setMensagem('error', 'ID do agendamento nÃ£o informado.');
+                setMensagem('error', 'ID do agendamento não informado.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
@@ -414,7 +414,7 @@ switch ($action) {
             $ag = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$ag) {
-                setMensagem('error', 'Agendamento nÃ£o encontrado.');
+                setMensagem('error', 'Agendamento não encontrado.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
@@ -424,23 +424,23 @@ switch ($action) {
             }
 
             if (empty($ag['vistoriador_id'])) {
-                setMensagem('error', 'Antes de confirmar, atribua um vistoriador responsÃ¡vel ao agendamento.');
+                setMensagem('error', 'Antes de confirmar, atribua um vistoriador responsável ao agendamento.');
                 redirecionar(APP_URL . 'agendamentos/form?id=' . urlencode($id));
             }
 
-            // Verificar se ja existe OS para este agendamento
+            // Verificar se já existe OS para este agendamento
             $stmtCheck = $pdo->prepare("SELECT id FROM ordens_servico WHERE agendamento_id = :agendamento_id");
             $stmtCheck->execute([':agendamento_id' => $id]);
             $os_existente = $stmtCheck->fetch();
 
             if ($os_existente) {
-                setMensagem('error', 'JÃ¡ existe uma Ordem de ServiÃ§o para este agendamento.');
+                setMensagem('error', 'Já existe uma Ordem de Serviço para este agendamento.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
             $pdo->beginTransaction();
 
-            // Gerar numero da OS
+            // Gerar número da OS
             $numero_os = gerarNumeroDocumento('OS', 'AM-OS');
 
             // Atualizar status do agendamento para confirmado
@@ -483,7 +483,7 @@ switch ($action) {
             log_atividade('os_gerada', "OS {$numero_os} gerada a partir do agendamento ID: {$id}.");
 
             // ============================================================
-            // DISPARO AUTOMÃTICO DE E-MAIL DE CONFIRMAÃ‡ÃƒO
+            // DISPARO AUTOMÁTICO DE E-MAIL DE CONFIRMAÇÃO
             // ============================================================
             try {
                 $stmtEmail = $pdo->prepare("
@@ -504,10 +504,10 @@ switch ($action) {
 
                         $hora = !empty($ag['hora_vistoria']) ? substr($ag['hora_vistoria'], 0, 5) . 'h' : 'A confirmar';
                         $local = !empty($ag['local']) ? $ag['local'] : 'A definir';
-                        $contatoNome = !empty($ag['contato_nome']) ? $ag['contato_nome'] : 'NÃ£o informado';
+                        $contatoNome = !empty($ag['contato_nome']) ? $ag['contato_nome'] : 'Não informado';
                         $contatoTel = !empty($ag['contato_telefone']) ? $ag['contato_telefone'] : '-';
                         $obsHtml = !empty($ag['observacoes'])
-                            ? '<div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 4px; margin: 15px 0;"><strong>ObservaÃ§Ãµes:</strong><br>' . h($ag['observacoes']) . '</div>'
+                            ? '<div style="background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 4px; margin: 15px 0;"><strong>Observações:</strong><br>' . h($ag['observacoes']) . '</div>'
                             : '';
 
                         $replacements = [
@@ -531,7 +531,7 @@ switch ($action) {
                         $resultado = enviarEmail(
                             $dadosEmail['cliente_email'],
                             $dadosEmail['cliente_nome'],
-                            'ConfirmaÃ§Ã£o de Agendamento - ' . $ag['tipo_vistoria'],
+                            'Confirmação de Agendamento - ' . $ag['tipo_vistoria'],
                             $htmlBody
                         );
 
@@ -542,7 +542,7 @@ switch ($action) {
                         ");
                         $stmtLog->execute([
                             ':destinatario'  => $dadosEmail['cliente_email'],
-                            ':assunto'       => 'ConfirmaÃ§Ã£o de Agendamento - ' . $ag['tipo_vistoria'],
+                            ':assunto'       => 'Confirmação de Agendamento - ' . $ag['tipo_vistoria'],
                             ':referencia_id' => $id,
                             ':status'        => $resultado['success'] ? 'enviado' : 'erro',
                             ':mensagem_erro' => $resultado['success'] ? null : $resultado['message'],
@@ -551,16 +551,16 @@ switch ($action) {
                     }
                 }
             } catch (Exception $emailErr) {
-                error_log('Erro ao enviar e-mail de confirmaÃ§Ã£o de agendamento: ' . $emailErr->getMessage());
+                error_log('Erro ao enviar e-mail de confirmação de agendamento: ' . $emailErr->getMessage());
             }
 
-            setMensagem('success', "Agendamento confirmado! Ordem de ServiÃ§o <strong>{$numero_os}</strong> gerada com sucesso.");
+            setMensagem('success', "Agendamento confirmado! Ordem de Serviço <strong>{$numero_os}</strong> gerada com sucesso.");
             redirecionar(APP_URL . 'agendamentos');
 
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             error_log('Erro ao confirmar agendamento: ' . $e->getMessage());
-            setMensagem('error', 'Erro ao gerar Ordem de ServiÃ§o.');
+            setMensagem('error', 'Erro ao gerar Ordem de Serviço.');
             redirecionar(APP_URL . 'agendamentos');
         }
         break;
@@ -569,19 +569,19 @@ switch ($action) {
     case 'cancelar':
         try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            setMensagem('error', 'Requisicao invalida.');
+            setMensagem('error', 'Requisição inválida.');
             redirecionar(APP_URL . 'agendamentos');
         }
 
-        // VISTORIADOR nao pode cancelar agendamentos
+        // VISTORIADOR não pode cancelar agendamentos
         if ($cargo === 'VISTORIADOR') {
-            setMensagem('error', 'Acesso negado. Vistoriadores nao podem cancelar agendamentos.');
+            setMensagem('error', 'Acesso negado. Vistoriadores não podem cancelar agendamentos.');
             redirecionar(APP_URL . 'agendamentos');
         }
                     $id = $_POST['id'] ?? '';
 
             if (empty($id)) {
-                setMensagem('error', 'ID do agendamento nÃ£o informado.');
+                setMensagem('error', 'ID do agendamento não informado.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
@@ -591,7 +591,7 @@ switch ($action) {
             $ag = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$ag) {
-                setMensagem('error', 'Agendamento nÃ£o encontrado.');
+                setMensagem('error', 'Agendamento não encontrado.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
@@ -632,7 +632,7 @@ switch ($action) {
 
             $status_validos = ['pendente', 'confirmado', 'em_andamento', 'concluido', 'cancelado'];
             if (empty($id) || !in_array($status, $status_validos)) {
-                setMensagem('error', 'Dados invÃ¡lidos para alteraÃ§Ã£o de status.');
+                setMensagem('error', 'Dados inválidos para alteração de status.');
                 redirecionar(APP_URL . 'agendamentos');
             }
 
@@ -641,7 +641,7 @@ switch ($action) {
             $stmt = $pdo->prepare("UPDATE agendamentos SET status = :status WHERE id = :id");
             $stmt->execute([':status' => $status, ':id' => $id]);
 
-            // Se estiver marcando como concluido, atualizar a OS para em_andamento
+            // Se estiver marcando como concluído, atualizar a OS para em_andamento
             if ($status === 'concluido') {
                 $stmtOs = $pdo->prepare("UPDATE ordens_servico SET status = 'executado' WHERE agendamento_id = :agendamento_id AND status = 'pendente'");
                 $stmtOs->execute([':agendamento_id' => $id]);
@@ -662,7 +662,7 @@ switch ($action) {
         break;
 
     default:
-        setMensagem('error', 'AÃ§Ã£o invÃ¡lida.');
+        setMensagem('error', 'Ação inválida.');
         redirecionar(APP_URL . 'agendamentos');
         break;
 }

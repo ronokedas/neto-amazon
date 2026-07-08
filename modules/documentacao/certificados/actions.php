@@ -45,6 +45,10 @@ if ($action === 'salvar') {
     $autorizado_carga   = isset($_POST['autorizado_carga']) ? (int)$_POST['autorizado_carga'] : 0;
     $qtd_passageiros    = (int)($_POST['qtd_passageiros'] ?? 0);
     $obs_passageiros    = trim($_POST['obs_passageiros'] ?? '');
+    $emitente           = trim($_POST['emitente'] ?? '');
+    $normam_aplicavel   = trim($_POST['normam_aplicavel'] ?? '');
+    $tipo_vistoria_certificado = trim($_POST['tipo_vistoria_certificado'] ?? '');
+    $observacoes_verso  = trim($_POST['observacoes_verso'] ?? '');
 
     // Checkboxes (arrays)
     $tipo_navegacao = isset($_POST['tipo_navegacao']) ? implode(',', $_POST['tipo_navegacao']) : '';
@@ -158,6 +162,10 @@ if ($action === 'salvar') {
                             autorizado_carga = :autorizado_carga,
                             qtd_passageiros = :qtd_passageiros,
                             obs_passageiros = :obs_passageiros,
+                            emitente = :emitente,
+                            normam_aplicavel = :normam_aplicavel,
+                            tipo_vistoria_certificado = :tipo_vistoria_certificado,
+                            observacoes_verso = :observacoes_verso,
                             relatorio_numero = :relatorio_numero,
                             data_vistoria_seco = :data_vistoria_seco,
                             data_vistoria_flutuando = :data_vistoria_flutuando,
@@ -191,6 +199,10 @@ if ($action === 'salvar') {
                     ':autorizado_carga'     => $autorizado_carga,
                     ':qtd_passageiros'      => $qtd_passageiros,
                     ':obs_passageiros'      => $obs_passageiros,
+                    ':emitente'             => $emitente,
+                    ':normam_aplicavel'     => $normam_aplicavel,
+                    ':tipo_vistoria_certificado' => $tipo_vistoria_certificado,
+                    ':observacoes_verso'    => $observacoes_verso,
                     ':relatorio_numero'     => $relatorio_numero,
                     ':data_vistoria_seco'   => $data_vistoria_seco,
                     ':data_vistoria_flutuando' => $data_vistoria_flutuando,
@@ -205,6 +217,7 @@ if ($action === 'salvar') {
                     ':assinante_registro'   => $assinante_registro,
                     ':status'               => $status,
                     ':vistoria_id'          => $vistoria_id,
+                    ':despachante_id'       => $despachante_id,
                     ':id'                   => $id,
                 ]);
 
@@ -234,6 +247,7 @@ if ($action === 'salvar') {
                         comprimento_m, arqueacao_bruta, tipo_navegacao, area_navegacao,
                         fabricante_motor, potencia_kw, material_casco,
                         autorizado_carga, qtd_passageiros, obs_passageiros,
+                        emitente, normam_aplicavel, tipo_vistoria_certificado, observacoes_verso,
                         relatorio_numero, data_vistoria_seco, data_vistoria_flutuando,
                         local_vistoria, acessibilidade_sim, acessibilidade_nao,
                         data_emissao, data_validade, local_emissao,
@@ -245,6 +259,7 @@ if ($action === 'salvar') {
                         :comprimento_m, :arqueacao_bruta, :tipo_navegacao, :area_navegacao,
                         :fabricante_motor, :potencia_kw, :material_casco,
                         :autorizado_carga, :qtd_passageiros, :obs_passageiros,
+                        :emitente, :normam_aplicavel, :tipo_vistoria_certificado, :observacoes_verso,
                         :relatorio_numero, :data_vistoria_seco, :data_vistoria_flutuando,
                         :local_vistoria, :acessibilidade_sim, :acessibilidade_nao,
                         :data_emissao, :data_validade, :local_emissao,
@@ -275,6 +290,10 @@ if ($action === 'salvar') {
                 ':autorizado_carga'     => $autorizado_carga,
                 ':qtd_passageiros'      => $qtd_passageiros,
                 ':obs_passageiros'      => $obs_passageiros,
+                ':emitente'             => $emitente,
+                ':normam_aplicavel'     => $normam_aplicavel,
+                ':tipo_vistoria_certificado' => $tipo_vistoria_certificado,
+                ':observacoes_verso'    => $observacoes_verso,
                 ':relatorio_numero'     => $relatorio_numero,
                 ':data_vistoria_seco'   => $data_vistoria_seco,
                 ':data_vistoria_flutuando' => $data_vistoria_flutuando,
@@ -298,20 +317,33 @@ if ($action === 'salvar') {
             // Salvar distribuição de passageiros
             $passageiros_local = $_POST['passageiro_local'] ?? [];
             $passageiros_qtd   = $_POST['passageiro_qtd'] ?? [];
+            $passageiros_codigo = $_POST['passageiro_codigo'] ?? [];
+            $passageiros_conves_principal = $_POST['passageiro_conves_principal'] ?? [];
+            $passageiros_conves_superior = $_POST['passageiro_conves_superior'] ?? [];
+            $passageiros_area_lazer = $_POST['passageiro_area_lazer'] ?? [];
+            $passageiros_unidade = $_POST['passageiro_unidade'] ?? [];
 
             $stmt_dist = $pdo->prepare("INSERT INTO csn_distribuicao_passageiros 
-                                        (id, certificado_id, local_nome, quantidade) 
-                                        VALUES (:id, :cert_id, :local, :qtd)");
+                                        (id, certificado_id, item_codigo, local_nome, quantidade, conves_principal, conves_superior, area_lazer, unidade) 
+                                        VALUES (:id, :cert_id, :codigo, :local, :qtd, :conves_principal, :conves_superior, :area_lazer, :unidade)");
 
             for ($i = 0; $i < count($passageiros_local); $i++) {
                 $local = trim($passageiros_local[$i] ?? '');
                 $qtd   = (int)($passageiros_qtd[$i] ?? 0);
-                if (!empty($local) || $qtd > 0) {
+                $principal = trim($passageiros_conves_principal[$i] ?? '');
+                $superior = trim($passageiros_conves_superior[$i] ?? '');
+                $lazer = trim($passageiros_area_lazer[$i] ?? '');
+                if (!empty($local) || $qtd > 0 || $principal !== '' || $superior !== '' || $lazer !== '') {
                     $stmt_dist->execute([
                         ':id'      => gerarUUID(),
                         ':cert_id' => $id,
+                        ':codigo'  => trim($passageiros_codigo[$i] ?? ''),
                         ':local'   => $local,
                         ':qtd'     => $qtd,
+                        ':conves_principal' => $principal,
+                        ':conves_superior' => $superior,
+                        ':area_lazer' => $lazer,
+                        ':unidade' => trim($passageiros_unidade[$i] ?? ''),
                     ]);
                 }
             }

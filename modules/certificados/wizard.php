@@ -31,6 +31,28 @@ $modelo_nome = $modelo_nomes[$modelo] ?? $modelo;
 $erro = '';
 $tipo_selecionado = $_POST['tipo'] ?? ($_SESSION['wizard_certificado']['tipo'] ?? '');
 $modelos_sem_tipo = ['LP', 'LC', 'CHT'];
+$relatorio_status = '';
+
+if (!empty($agendamento_id)) {
+    try {
+        $stmtRelatorioStatus = $pdo->prepare("
+            SELECT status
+            FROM vistorias
+            WHERE agendamento_id = :agendamento_id
+            ORDER BY criado_em DESC
+            LIMIT 1
+        ");
+        $stmtRelatorioStatus->execute([':agendamento_id' => $agendamento_id]);
+        $relatorio_status = (string)($stmtRelatorioStatus->fetchColumn() ?: '');
+    } catch (Exception $e) {
+        error_log('Erro ao buscar status do relatorio no wizard: ' . $e->getMessage());
+    }
+}
+
+$bloquear_definitivo = ($relatorio_status === 'APROVADA_COM_EXIGENCIAS');
+if ($bloquear_definitivo && $tipo_selecionado === 'Definitivo') {
+    $tipo_selecionado = '';
+}
 
 if (in_array($modelo, $modelos_sem_tipo, true) && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     $_SESSION['wizard_certificado'] = [
@@ -51,6 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $erro = 'Sessão expirada. Atualize a página e tente novamente.';
     } elseif (empty($tipo)) {
         $erro = 'Selecione o tipo do certificado antes de avançar.';
+    } elseif ($bloquear_definitivo && $tipo === 'Definitivo') {
+        $erro = 'Relatorio aprovado com exigencias nao permite certificado Definitivo. Use Provisorio ou Condicional.';
     } else {
         $_SESSION['wizard_certificado'] = [
             'modelo' => $modelo,
@@ -167,6 +191,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
                 <div class="cert-type-grid">
                     <?php foreach ($tipos as $tipo): ?>
+                        <?php if ($bloquear_definitivo && ($tipo['valor'] ?? '') === 'Definitivo') continue; ?>
                         <?php $checked = $tipo_selecionado === $tipo['valor']; ?>
                         <label class="cert-type-card">
                             <input type="radio" name="tipo" value="<?= h($tipo['valor']) ?>" <?= $checked ? 'checked' : '' ?> required>

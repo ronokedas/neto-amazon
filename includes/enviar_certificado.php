@@ -9,6 +9,7 @@
  */
 
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/documento_pdf.php';
 
 /**
  * Envia certificado por e-mail, anexando o PDF e registrando no email_logs
@@ -91,23 +92,9 @@ function enviarCertificadoEmail(PDO $pdo, string $certificado_id, string $tabela
         ];
         $htmlBody = str_replace(array_keys($replacements), array_values($replacements), $htmlBody);
 
-        // Gerar PDF via requisição HTTP interna com cookie de sessão
-        $pdfDir  = __DIR__ . '/../temp_pdf/';
-        if (!is_dir($pdfDir)) {
-            mkdir($pdfDir, 0755, true);
-        }
-        $pdfFile = $pdfDir . $tabela . '_' . $certificado_id . '.pdf';
-
-        $pdfUrl = APP_URL . $pdf_rel_path . '?id=' . urlencode($certificado_id);
-        $opts = [
-            'http' => [
-                'method' => 'GET',
-                'header' => "Cookie: " . session_name() . "=" . session_id() . "\r\n",
-                'timeout' => 30,
-            ]
-        ];
-        $context = stream_context_create($opts);
-        $pdfContent = @file_get_contents($pdfUrl, false, $context);
+        // Gerar PDF internamente, sem depender de APP_URL/localhost.
+        $pdfFile = gerarDocumentoPdfTemporario($certificado_id, $pdf_rel_path, $tabela, __DIR__ . '/../temp_pdf/');
+        $pdfContent = file_get_contents($pdfFile);
 
         if (!$pdfContent || strlen($pdfContent) < 200) {
             return ['success' => false, 'message' => 'Não foi possível gerar o PDF do certificado.'];

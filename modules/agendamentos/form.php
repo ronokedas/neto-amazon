@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * MODULO: AGENDAMENTOS
  * Arquivo: form.php - Formulario cadastro/edicao de agendamento
@@ -37,7 +37,7 @@ $agendamento = [
 
 if ($editando) {
     if ($cargo === 'VISTORIADOR') {
-        setMensagem('error', 'Acesso negado. Vistoriadores nÃ£o podem editar agendamentos.');
+        setMensagem('error', 'Acesso negado. Vistoriadores não podem editar agendamentos.');
         redirecionar(APP_URL . 'agendamentos');
     }
 
@@ -48,7 +48,7 @@ if ($editando) {
         if ($dados) {
             $agendamento = array_merge($agendamento, $dados);
         } else {
-            setMensagem('error', 'Agendamento nÃ£o encontrado.');
+            setMensagem('error', 'Agendamento não encontrado.');
             redirecionar(APP_URL . 'agendamentos');
         }
     } catch (Exception $e) {
@@ -117,7 +117,7 @@ if (!empty($agendamento['proposta_id'])) {
         <div>
             <span class="flow-eyebrow"><i class="fas fa-route"></i> Etapa 2 do fluxo</span>
             <h1><?php echo $editando ? 'Editar Agendamento' : 'Novo Agendamento'; ?></h1>
-            <p>Transforme a proposta assinada em uma vistoria clara para a equipe: cliente, embarcaÃ§Ã£o, data, responsÃ¡vel e orientaÃ§Ãµes do local.</p>
+            <p>Transforme a proposta assinada em uma vistoria clara para a equipe: cliente, embarcação, data, responsável e orientações do local.</p>
         </div>
         <div class="flow-actions">
             <a href="<?php echo APP_URL; ?>agendamentos" class="btn btn-secondary btn-sm">
@@ -130,14 +130,14 @@ if (!empty($agendamento['proposta_id'])) {
         <div class="flow-track-step"><span>01</span>Proposta</div>
         <div class="flow-track-step is-active"><span>02</span>Agendamento</div>
         <div class="flow-track-step"><span>03</span>Vistoria</div>
-        <div class="flow-track-step"><span>04</span>AprovaÃ§Ã£o</div>
+        <div class="flow-track-step"><span>04</span>Aprovação</div>
         <div class="flow-track-step"><span>05</span>Certificados</div>
     </div>
 
     <div class="form-container">
         <div class="form-header">
             <h3><i class="fas fa-calendar-check"></i> <?php echo $editando ? 'Editar Agendamento' : 'Novo Agendamento'; ?></h3>
-            <span class="help-text">Campos com * sÃ£o obrigatÃ³rios</span>
+            <span class="help-text">Campos com * são obrigatórios</span>
         </div>
 
         <form action="<?php echo APP_URL; ?>agendamentos/actions" method="POST" class="form-padrao">
@@ -149,6 +149,9 @@ if (!empty($agendamento['proposta_id'])) {
             <?php if ($editando): ?>
                 <input type="hidden" name="id" value="<?php echo h($agendamento['id']); ?>">
             <?php endif; ?>
+            <?php if ($editando && !$origemTravada): ?>
+                <input type="hidden" name="armador_id" value="<?php echo h($agendamento['armador_id']); ?>">
+            <?php endif; ?>
             <?php if ($origemTravada): ?>
                 <input type="hidden" name="proposta_id" value="<?php echo h($agendamento['proposta_id']); ?>">
                 <input type="hidden" name="armador_id" value="<?php echo h($agendamento['armador_id']); ?>">
@@ -157,8 +160,8 @@ if (!empty($agendamento['proposta_id'])) {
             <?php endif; ?>
 
             <div class="form-section">
-                <h4 class="form-section-title"><i class="fas fa-file-signature"></i> Origem do serviÃ§o</h4>
-                <p class="form-section-hint">Quando houver proposta vinculada, o sistema preenche cliente, embarcaÃ§Ã£o e serviÃ§os automaticamente.</p>
+                <h4 class="form-section-title"><i class="fas fa-file-signature"></i> Origem do serviço</h4>
+                <p class="form-section-hint">Quando houver proposta vinculada, o sistema preenche cliente, embarcação e serviços automaticamente.</p>
                 <div class="form-row">
                     <div class="form-group col-12">
                         <label for="proposta_id"><i class="fas fa-file-invoice"></i> Proposta vinculada</label>
@@ -169,30 +172,32 @@ if (!empty($agendamento['proposta_id'])) {
                                         data-cliente="<?php echo h($prop['cliente_nome']); ?>"
                                         data-armador-id="<?php echo h($prop['armador_id'] ?? ''); ?>"
                                         <?php echo $agendamento['proposta_id'] === $prop['id'] ? 'selected' : ''; ?>>
-                                    <?php echo h($prop['numero']); ?> â€” <?php echo h($prop['cliente_nome']); ?> (<?php echo formatarMoeda($prop['valor_total']); ?>)
+                                    <?php echo h($prop['numero']); ?> — <?php echo h($prop['cliente_nome']); ?> (<?php echo formatarMoeda($prop['valor_total']); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Use preferencialmente propostas jÃ¡ assinadas para manter a esteira comercial organizada.</small>
+                        <small>Use preferencialmente propostas já assinadas para manter a esteira comercial organizada.</small>
                     </div>
-                    <div class="form-group col-6">
-                        <label for="armador_id">Armador responsÃ¡vel</label>
-                        <select id="armador_id" name="armador_id" <?php echo $origemTravada ? 'disabled' : ''; ?>>
-                            <option value="">-- Selecione o armador, se houver --</option>
-                            <?php foreach ($armadores as $arm): ?>
-                                <option value="<?php echo h($arm['id']); ?>"
-                                        <?php echo ($agendamento['armador_id'] ?? '') === $arm['id'] ? 'selected' : ''; ?>>
-                                    <?php echo h($arm['nome']); ?> <?php echo $arm['cpf_cnpj'] ? '(' . h($arm['cpf_cnpj']) . ')' : ''; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <small>Pessoa responsÃ¡vel pela operaÃ§Ã£o da embarcaÃ§Ã£o no dia da vistoria.</small>
-                    </div>
+                    <?php if (!$editando): ?>
+                        <div class="form-group col-6">
+                            <label for="armador_id">Armador responsável</label>
+                            <select id="armador_id" name="armador_id" <?php echo $origemTravada ? 'disabled' : ''; ?>>
+                                <option value="">-- Selecione o armador, se houver --</option>
+                                <?php foreach ($armadores as $arm): ?>
+                                    <option value="<?php echo h($arm['id']); ?>"
+                                            <?php echo ($agendamento['armador_id'] ?? '') === $arm['id'] ? 'selected' : ''; ?>>
+                                        <?php echo h($arm['nome']); ?> <?php echo $arm['cpf_cnpj'] ? '(' . h($arm['cpf_cnpj']) . ')' : ''; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small>Pessoa responsável pela operação da embarcação no dia da vistoria.</small>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="form-section">
-                <h4 class="form-section-title"><i class="fas fa-user-anchor"></i> Cliente e embarcaÃ§Ã£o</h4>
+                <h4 class="form-section-title"><i class="fas fa-user-anchor"></i> Cliente e embarcação</h4>
                 <div class="form-row">
                     <div class="form-group col-6">
                         <label for="cliente_id">Cliente *</label>
@@ -207,9 +212,9 @@ if (!empty($agendamento['proposta_id'])) {
                         </select>
                     </div>
                     <div class="form-group col-6">
-                        <label for="embarcacao_id">EmbarcaÃ§Ã£o *</label>
+                        <label for="embarcacao_id">Embarcação *</label>
                         <select id="embarcacao_id" name="embarcacao_id" required <?php echo $origemTravada ? 'disabled' : ''; ?>>
-                            <option value="">-- Selecione a embarcaÃ§Ã£o --</option>
+                            <option value="">-- Selecione a embarcação --</option>
                             <?php foreach ($embarcacoes as $emb): ?>
                                 <option value="<?php echo h($emb['id']); ?>"
                                         <?php echo $agendamento['embarcacao_id'] === $emb['id'] ? 'selected' : ''; ?>>
@@ -222,14 +227,14 @@ if (!empty($agendamento['proposta_id'])) {
             </div>
 
             <div class="form-section">
-                <h4 class="form-section-title"><i class="fas fa-clipboard-check"></i> ExecuÃ§Ã£o da vistoria</h4>
+                <h4 class="form-section-title"><i class="fas fa-clipboard-check"></i> Execução da vistoria</h4>
                 <div class="form-row">
                     <div class="form-group col-6">
-                        <label for="tipo_vistoria">Tipo de vistoria / serviÃ§os *</label>
-                        <textarea id="tipo_vistoria" name="tipo_vistoria" required rows="2" placeholder="Ex.: CSN inicial, CNBL, arqueaÃ§Ã£o, convalidaÃ§Ã£o..."><?php echo h($agendamento['tipo_vistoria']); ?></textarea>
+                        <label for="tipo_vistoria">Tipo de vistoria / serviços *</label>
+                        <textarea id="tipo_vistoria" name="tipo_vistoria" required rows="2" placeholder="Ex.: CSN inicial, CNBL, arqueação, convalidação..."><?php echo h($agendamento['tipo_vistoria']); ?></textarea>
                     </div>
                     <div class="form-group col-6">
-                        <label for="vistoriador_id">Vistoriador responsÃ¡vel *</label>
+                        <label for="vistoriador_id">Vistoriador responsável *</label>
                         <?php if ($cargo === 'ADMIN' || $cargo === 'VENDEDOR'): ?>
                             <select id="vistoriador_id" name="vistoriador_id" required>
                                 <option value="">-- Selecione o vistoriador --</option>
@@ -241,9 +246,9 @@ if (!empty($agendamento['proposta_id'])) {
                                 <?php endforeach; ?>
                             </select>
                         <?php else: ?>
-                            <input type="text" class="form-control" readonly value="<?php echo h($_SESSION['usuario_nome'] ?? 'VocÃª (VISTORIADOR)'); ?>">
+                            <input type="text" class="form-control" readonly value="<?php echo h($_SESSION['usuario_nome'] ?? 'Você (VISTORIADOR)'); ?>">
                             <input type="hidden" name="vistoriador_id" value="<?php echo h($_SESSION['usuario_id']); ?>">
-                            <small>Como vistoriador, vocÃª serÃ¡ automaticamente atribuÃ­do.</small>
+                            <small>Como vistoriador, você será automaticamente atribuído.</small>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -260,13 +265,13 @@ if (!empty($agendamento['proposta_id'])) {
                     </div>
                     <div class="form-group col-5">
                         <label for="local">Local</label>
-                        <input type="text" id="local" name="local" value="<?php echo h($agendamento['local']); ?>" placeholder="EndereÃ§o / estaleiro / porto">
+                        <input type="text" id="local" name="local" value="<?php echo h($agendamento['local']); ?>" placeholder="Endereço / estaleiro / porto">
                     </div>
                 </div>
             </div>
 
             <div class="form-section">
-                <h4 class="form-section-title"><i class="fas fa-phone-volume"></i> Contato e orientaÃ§Ãµes</h4>
+                <h4 class="form-section-title"><i class="fas fa-phone-volume"></i> Contato e orientações</h4>
                 <div class="form-row">
                     <div class="form-group col-6">
                         <label for="contato_nome">Nome do contato no local</label>
@@ -282,8 +287,8 @@ if (!empty($agendamento['proposta_id'])) {
                 </div>
                 <div class="form-row">
                     <div class="form-group col-12">
-                        <label for="observacoes">ObservaÃ§Ãµes para a equipe</label>
-                        <textarea id="observacoes" name="observacoes" rows="3" placeholder="InstruÃ§Ãµes, materiais necessÃ¡rios, pontos de atenÃ§Ã£o, acesso ao local..."><?php echo h($agendamento['observacoes']); ?></textarea>
+                        <label for="observacoes">Observações para a equipe</label>
+                        <textarea id="observacoes" name="observacoes" rows="3" placeholder="Instruções, materiais necessários, pontos de atenção, acesso ao local..."><?php echo h($agendamento['observacoes']); ?></textarea>
                     </div>
                 </div>
             </div>
@@ -316,7 +321,7 @@ function atualizarEstadoServicosTravados(travado) {
     if (!hint) {
         hint = document.createElement('small');
         hint.id = 'servicosTravadosHint';
-        hint.textContent = 'Servicos vindos da proposta vinculada. Para alterar, ajuste a proposta antes do agendamento.';
+        hint.textContent = 'Serviços vindos da proposta vinculada. Para alterar, ajuste a proposta antes do agendamento.';
         campoVistoria.insertAdjacentElement('afterend', hint);
     }
     hint.style.display = travado ? '' : 'none';
@@ -390,7 +395,7 @@ function carregarDadosProposta(propostaId) {
                     selectArmador.value = data.armador_id;
                 }
                 if (selectEmbarcacao && data.embarcacoes && data.embarcacoes.length > 0) {
-                    let options = '<option value="">Selecione a embarcaÃ§Ã£o</option>';
+                    let options = '<option value="">Selecione a embarcação</option>';
                     data.embarcacoes.forEach(function(emb) {
                         const selected = (String(emb.id) === String(data.embarcacao_id)) ? ' selected' : '';
                         options += '<option value="' + emb.id + '"' + selected + '>' + emb.nome + '</option>';
@@ -418,13 +423,13 @@ function carregarEmbarcacoesCliente(clienteId) {
         embarcacoesOriginais = selectEmbarcacao.innerHTML;
     }
 
-    selectEmbarcacao.innerHTML = '<option value="">Carregando embarcaÃ§Ãµes...</option>';
+    selectEmbarcacao.innerHTML = '<option value="">Carregando embarcações...</option>';
 
     fetch('<?php echo APP_URL; ?>ajax/busca_embarcacoes.php?cliente_id=' + encodeURIComponent(clienteId))
         .then(response => response.json())
         .then(data => {
             const lista = Array.isArray(data) ? data : (data.embarcacoes || []);
-            let options = '<option value="">-- Selecione a embarcaÃ§Ã£o --</option>';
+            let options = '<option value="">-- Selecione a embarcação --</option>';
             lista.forEach(function(emb) {
                 options += '<option value="' + emb.id + '">' + emb.nome + (emb.registro ? ' (' + emb.registro + ')' : '') + '</option>';
             });

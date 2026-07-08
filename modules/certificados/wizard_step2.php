@@ -91,6 +91,10 @@ if (empty($vistoria_id) && !empty($agendamento_id)) {
 $responsavel_id_selecionado = $_POST['responsavel_id'] ?? '';
 $data_validade_valor = $_POST['data_validade'] ?? '';
 $local_emissao_valor = $_POST['local_emissao'] ?? '';
+$emitente_valor = $_POST['emitente'] ?? '';
+$normam_aplicavel_valor = $_POST['normam_aplicavel'] ?? '';
+$tipo_vistoria_certificado_valor = $_POST['tipo_vistoria_certificado'] ?? '';
+$observacoes_verso_valor = $_POST['observacoes_verso'] ?? '';
 $modalidade_lc = $_POST['modalidade_lc'] ?? 'LC';
 $data_termino_construcao = $_POST['data_termino_construcao'] ?? '';
 
@@ -146,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 comprimento_m, arqueacao_bruta, tipo_navegacao, area_navegacao,
                                 fabricante_motor, potencia_kw, material_casco,
                                 autorizado_carga, qtd_passageiros, obs_passageiros,
+                                emitente, normam_aplicavel, tipo_vistoria_certificado, observacoes_verso,
                                 relatorio_numero, data_vistoria_seco, data_vistoria_flutuando,
                                 local_vistoria, acessibilidade_sim, acessibilidade_nao,
                                 data_emissao, data_validade, local_emissao,
@@ -157,6 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 :comprimento_m, :arqueacao_bruta, :tipo_navegacao, :area_navegacao,
                                 :fabricante_motor, :potencia_kw, :material_casco,
                                 :autorizado_carga, :qtd_passageiros, :obs_passageiros,
+                                :emitente, :normam_aplicavel, :tipo_vistoria_certificado, :observacoes_verso,
                                 :relatorio_numero, :data_vistoria_seco, :data_vistoria_flutuando,
                                 :local_vistoria, :acessibilidade_sim, :acessibilidade_nao,
                                 :data_emissao, :data_validade, :local_emissao,
@@ -172,19 +178,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':nome_embarcacao' => $dados_emb['nome'] ?? $dados_emb['nome_embarcacao'] ?? '',
                         ':numero_inscricao' => $dados_emb['numero_inscricao'] ?? $dados_emb['registro'] ?? '',
                         ':indicativo_chamada' => $dados_emb['indicativo_chamada'] ?? '',
-                        ':atividades_servicos' => $dados_emb['atividades_servicos'] ?? '',
+                        ':atividades_servicos' => $dados_emb['tipo_servico'] ?? $dados_emb['atividades_servicos'] ?? '',
                         ':tipo_embarcacao' => $dados_emb['tipo_embarcacao_nome'] ?? '',
                         ':ano_construcao' => $dados_emb['ano'] ?? $dados_emb['ano_construcao'] ?? '',
                         ':comprimento_m' => $dados_emb['comprimento_total'] ?? null,
                         ':arqueacao_bruta' => $dados_emb['arqueacao_bruta'] ?? '',
                         ':tipo_navegacao' => $dados_emb['tipo_navegacao'] ?? '',
-                        ':area_navegacao' => $dados_emb['area_navegacao'] ?? '',
+                        ':area_navegacao' => $dados_emb['cnbl_area_navegacao'] ?? $dados_emb['area_navegacao'] ?? '',
                         ':fabricante_motor' => $dados_emb['fabricante_motor'] ?? '',
                         ':potencia_kw' => $dados_emb['potencia_kw'] ?? '',
                         ':material_casco' => $dados_emb['material_casco'] ?? '',
                         ':autorizado_carga' => $dados_emb['autorizado_carga'] ?? 0,
                         ':qtd_passageiros' => $qtd_passageiros,
                         ':obs_passageiros' => $dados_emb['obs_passageiros'] ?? '',
+                        ':emitente' => $emitente_valor,
+                        ':normam_aplicavel' => $normam_aplicavel_valor,
+                        ':tipo_vistoria_certificado' => $tipo_vistoria_certificado_valor,
+                        ':observacoes_verso' => $observacoes_verso_valor,
                         ':relatorio_numero' => $dados_emb['relatorio_numero'] ?? '',
                         ':data_vistoria_seco' => $dados_emb['data_vistoria'] ?? date('Y-m-d'),
                         ':data_vistoria_flutuando' => $dados_emb['data_vistoria'] ?? date('Y-m-d'),
@@ -201,6 +211,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':criado_por' => $_SESSION['usuario_id'] ?? null,
                         ':vistoria_id' => $vistoria_id_post,
                     ]);
+
+                    $stmtDist = $pdo->prepare("INSERT INTO csn_distribuicao_passageiros
+                        (id, certificado_id, item_codigo, local_nome, quantidade, conves_principal, conves_superior, area_lazer, unidade)
+                        VALUES (:id, :certificado_id, :item_codigo, :local_nome, :quantidade, :conves_principal, :conves_superior, :area_lazer, :unidade)");
+                    $linhasDist = [
+                        ['passageiros_sentados', 'Passageiros sentados', 'passageiros', (string)($dados_emb['numero_passageiros_n1'] ?? '')],
+                        ['passageiros_camarote', 'Passageiros em camarote', 'passageiros', ''],
+                        ['passageiros_redes', 'Passageiros em redes', 'passageiros', ''],
+                        ['passageiros_em_pe', 'Passageiros em pé', 'passageiros', (string)($dados_emb['numero_passageiros_n2'] ?? '')],
+                        ['porao_carga_01', 'Porão de carga 01 (carga geral)', 't', ''],
+                        ['paiol_casco', 'Paiol no casco (mantimentos e materiais diversos)', 't', ''],
+                        ['almoxarifado_conves_principal', 'Almoxarifado no convés principal', 't', ''],
+                        ['deposito_conves_principal', 'Depósito no convés principal', 't', ''],
+                        ['deposito_conves_superior', 'Depósito no convés superior', 't', ''],
+                    ];
+                    foreach ($linhasDist as $linhaDist) {
+                        $stmtDist->execute([
+                            ':id' => gerarUUID(),
+                            ':certificado_id' => $certificado_id,
+                            ':item_codigo' => $linhaDist[0],
+                            ':local_nome' => $linhaDist[1],
+                            ':quantidade' => null,
+                            ':conves_principal' => $linhaDist[3],
+                            ':conves_superior' => '',
+                            ':area_lazer' => '',
+                            ':unidade' => $linhaDist[2],
+                        ]);
+                    }
 
                     if ($tipo === 'Definitivo') {
                         $data_vistoria = $dados_emb['data_vistoria'];
@@ -722,6 +760,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $dados_preenchidos = buscarDadosVistoriaCertificado($pdo, $vistoria_id);
 $relatorio_label = '';
+$relatorio_vinculado = !empty($agendamento_id);
 
 if ($dados_preenchidos) {
     $relatorio_label = trim(($dados_preenchidos['relatorio_numero'] ?? 'Sem número') . ' · ' .
@@ -808,7 +847,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             <div class="cert-panel-header">
                 <div>
                     <h2>1. Relatório aprovado</h2>
-                    <p>Escolha o relatório que vai alimentar automaticamente os dados do certificado.</p>
+                    <p><?= $relatorio_vinculado ? 'Relatório vinculado a este certificado. Ele não pode ser alterado nesta etapa.' : 'Escolha o relatório que vai alimentar automaticamente os dados do certificado.' ?></p>
                 </div>
             </div>
 
@@ -821,58 +860,29 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                            class="form-control"
                            placeholder="Pesquise por nome da embarcação, nº do relatório ou inscrição..."
                            value="<?= h($relatorio_label) ?>"
-                           autocomplete="off">
+                           autocomplete="off"
+                           <?= $relatorio_vinculado ? 'readonly' : '' ?>>
                     <input type="hidden" name="vistoria_id" id="vistoria_id" value="<?= h($vistoria_id) ?>">
-                    <button type="button" class="btn btn-primary btn-sm" id="abrirRelatorios">
-                        <i class="fas fa-list-check"></i> Selecionar
-                    </button>
-                    <button type="button" class="btn btn-secondary btn-sm" id="limparRelatorio" <?= empty($vistoria_id) ? 'hidden' : '' ?>>
-                        <i class="fas fa-xmark"></i> Limpar
-                    </button>
+                    <?php if (!$relatorio_vinculado): ?>
+                        <button type="button" class="btn btn-primary btn-sm" id="abrirRelatorios">
+                            <i class="fas fa-list-check"></i> Selecionar
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="limparRelatorio" <?= empty($vistoria_id) ? 'hidden' : '' ?>>
+                            <i class="fas fa-xmark"></i> Limpar
+                        </button>
+                    <?php endif; ?>
                 </div>
                 <div class="cert-search-results" id="resultadosRelatorio" hidden></div>
-                <small>Clique em Selecionar para ver os 10 relatórios aprovados mais recentes. Se precisar de um relatório antigo, pesquise por embarcação, nº do relatório ou inscrição.</small>
+                <?php if (!$relatorio_vinculado): ?>
+                    <small>Clique em Selecionar para ver os 10 relatórios aprovados mais recentes. Se precisar de um relatório antigo, pesquise por embarcação, nº do relatório ou inscrição.</small>
+                <?php endif; ?>
             </form>
 
             <?php if ($dados_preenchidos): ?>
-                <div class="cert-section-divider"></div>
-
-                <div class="cert-alert-note">
-                    <i class="fa-solid fa-lock"></i>
-                    <div>
-                        <strong>Dados bloqueados para edição nesta etapa</strong>
-                        <span>As informações abaixo vêm da embarcação e do relatório. Se algo estiver errado, corrija na origem antes de emitir.</span>
-                    </div>
-                </div>
 
                 <form method="POST" action="" class="cert-issue-form">
                     <input type="hidden" name="csrf_token" value="<?= h(gerarCSRF()) ?>">
                     <input type="hidden" name="vistoria_id" value="<?= h($vistoria_id) ?>">
-
-                    <div class="cert-data-grid">
-                        <div class="cert-readonly-card">
-                            <span>Embarcação</span>
-                            <strong><?= h($dados_preenchidos['nome_embarcacao'] ?? '') ?></strong>
-                            <small>Inscrição: <?= h($dados_preenchidos['numero_inscricao'] ?? 'Não informado') ?></small>
-                        </div>
-                        <div class="cert-readonly-card">
-                            <span>Tipo / ano</span>
-                            <strong><?= h($dados_preenchidos['tipo_embarcacao_nome'] ?? 'Não informado') ?></strong>
-                            <small>Ano: <?= h($dados_preenchidos['ano_construcao'] ?? 'Não informado') ?></small>
-                        </div>
-                        <div class="cert-readonly-card">
-                            <span>Relatório técnico</span>
-                            <strong><?= h($dados_preenchidos['relatorio_numero'] ?? 'Sem número') ?></strong>
-                            <small><?= !empty($dados_preenchidos['data_vistoria']) ? date('d/m/Y', strtotime($dados_preenchidos['data_vistoria'])) : 'Data não informada' ?></small>
-                        </div>
-                        <div class="cert-readonly-card">
-                            <span>Status</span>
-                            <strong><?= h($dados_preenchidos['relatorio_status'] ?? '') ?></strong>
-                            <small><?= $dados_preenchidos['relatorio_status'] === 'APROVADA_COM_EXIGENCIAS' ? 'Exige certificado provisório/condicional' : 'Apto para emissão definitiva' ?></small>
-                        </div>
-                    </div>
-
-                    <div class="cert-section-divider"></div>
 
                     <div class="cert-panel-header cert-panel-header--compact">
                         <div>
@@ -930,6 +940,40 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                             </select>
                         </div>
                     </div>
+
+                    <?php if ($modelo === 'CSN' || $modelo === 'Certificado de Segurança da Navegação'): ?>
+                        <div class="form-row">
+                            <div class="form-group col-4">
+                                <label for="emitente"><i class="fas fa-building-columns"></i> Emitente</label>
+                                <input type="text" name="emitente" id="emitente" class="form-control"
+                                       placeholder="Capitania, Delegacia, Agência, Certificadora ou Sociedade Classificadora"
+                                       value="<?= h($emitente_valor) ?>">
+                            </div>
+                            <div class="form-group col-4">
+                                <label for="normam_aplicavel"><i class="fas fa-book"></i> NORMAM aplicável</label>
+                                <select name="normam_aplicavel" id="normam_aplicavel" class="form-control">
+                                    <option value="">Selecione...</option>
+                                    <option value="NORMAM-01" <?= $normam_aplicavel_valor === 'NORMAM-01' ? 'selected' : '' ?>>NORMAM-01</option>
+                                    <option value="NORMAM-02" <?= $normam_aplicavel_valor === 'NORMAM-02' ? 'selected' : '' ?>>NORMAM-02</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-4">
+                                <label for="tipo_vistoria_certificado"><i class="fas fa-clipboard-check"></i> Tipo de vistoria</label>
+                                <select name="tipo_vistoria_certificado" id="tipo_vistoria_certificado" class="form-control">
+                                    <option value="">Selecione...</option>
+                                    <option value="Inicial" <?= $tipo_vistoria_certificado_valor === 'Inicial' ? 'selected' : '' ?>>Inicial</option>
+                                    <option value="Renovacao" <?= $tipo_vistoria_certificado_valor === 'Renovacao' ? 'selected' : '' ?>>Renovação</option>
+                                    <option value="Intermediaria" <?= $tipo_vistoria_certificado_valor === 'Intermediaria' ? 'selected' : '' ?>>Intermediária</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-12">
+                                <label for="observacoes_verso"><i class="fas fa-note-sticky"></i> Observações do verso do CSN</label>
+                                <textarea name="observacoes_verso" id="observacoes_verso" class="form-control" rows="3"><?= h($observacoes_verso_valor) ?></textarea>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
                     <div class="cert-action-bar">
                         <a href="<?= APP_URL ?>certificados/wizard?modelo=<?= urlencode($modelo) ?><?= !empty($agendamento_id) ? '&agendamento_id=' . urlencode($agendamento_id) : '' ?>" class="btn btn-secondary">

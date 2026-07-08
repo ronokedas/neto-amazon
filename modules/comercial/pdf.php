@@ -10,7 +10,7 @@
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
-$proposta_id = $_GET['id'] ?? '';
+$proposta_id = $GLOBALS['PROPOSTA_PDF_ID'] ?? ($_GET['id'] ?? '');
 if (empty($proposta_id)) {
     die("ID da proposta não informado.");
 }
@@ -891,5 +891,9 @@ if (!empty($proposta['token_assinatura'])) {
 // SAÍDA DO PDF
 // ============================================
 $nomeArquivo = 'Proposta_' . str_replace('/', '-', $proposta['numero']) . '.pdf';
+if (!empty($GLOBALS['PROPOSTA_PDF_RETURN_STRING'])) {
+    return $pdf->Output($nomeArquivo, 'S');
+}
+
 $pdf->Output($nomeArquivo, 'I');
 exit;

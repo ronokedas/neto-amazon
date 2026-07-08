@@ -224,7 +224,7 @@ switch ($action) {
 
             log_atividade('proposta_criada', "Proposta {$numero} criada para cliente '{$cliente_nome}'. Subtotal: R$ " . number_format($subtotal_geral, 2, ',', '.') . " | Desconto: {$desconto_percentual}% | Entrada: R$ " . number_format($valor_entrada, 2, ',', '.') . " | Total: R$ " . number_format($valor_total, 2, ',', '.'));
             setMensagem('success', "Proposta {$numero} criada com sucesso!");
-            redirecionar(APP_URL . 'comercial/propostas');
+            redirecionar(APP_URL . 'comercial?nova_proposta=' . urlencode($proposta_id));
 
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -297,11 +297,10 @@ switch ($action) {
             $htmlBody = str_replace(array_keys($replacements), array_values($replacements), $htmlBody);
 
             // Gerar PDF para anexar
-            $pdfDir  = __DIR__ . '/../../../temp_pdf/';
-            if (!is_dir($pdfDir)) {
-                mkdir($pdfDir, 0755, true);
-            }
-            $pdfFile = $pdfDir . 'proposta_' . $proposta_id . '.pdf';
+            require_once __DIR__ . '/../../../includes/proposta_pdf.php';
+            $pdfFile = salvarPropostaPdfTemporario($proposta_id, __DIR__ . '/../../../temp_pdf/');
+            $pdfContent = null;
+            if (!file_exists($pdfFile)) {
 
             // Gerar PDF via requisição HTTP interna com cookie de sessão
             $pdfUrl = APP_URL . 'comercial/pdf?id=' . urlencode($proposta_id);
@@ -314,6 +313,10 @@ switch ($action) {
             ];
             $context = stream_context_create($opts);
             $pdfContent = @file_get_contents($pdfUrl, false, $context);
+            }
+            if (file_exists($pdfFile)) {
+                $pdfContent = file_get_contents($pdfFile);
+            }
 
             if ($pdfContent && strlen($pdfContent) > 200) {
                 file_put_contents($pdfFile, $pdfContent);

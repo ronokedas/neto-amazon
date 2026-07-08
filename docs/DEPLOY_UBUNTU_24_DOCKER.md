@@ -297,6 +297,40 @@ O que cada comando faz:
 - `git commit -m "..."`: salva um pacote de alteracoes com uma descricao
 - `git push`: envia esse pacote para o repositorio no GitHub
 
+
+
+depois no vps:
+
+
+cd /opt/sistema-amazon
+git pull origin main
+
+
+
+cd /opt/sistema-amazon
+git pull
+docker compose up -d --build
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Exemplo:
 
 ```powershell

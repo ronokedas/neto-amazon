@@ -23,27 +23,35 @@ $filtro_status   = $_GET['status'] ?? 'todos';
 $filtro_busca    = trim($_GET['busca'] ?? '');
 $filtro_data_ini = $_GET['data_ini'] ?? '';
 $filtro_data_fim = $_GET['data_fim'] ?? '';
+$proposta_foco_id = trim($_GET['nova_proposta'] ?? $_GET['proposta'] ?? '');
+$modo_pos_criacao = !empty($_GET['nova_proposta']);
+$modo_foco_proposta = !empty($proposta_foco_id);
 
 $where = [];
 $params = [];
 
-if ($filtro_status !== 'todos') {
+if ($modo_foco_proposta) {
+    $where[] = 'p.id = :proposta_foco_id';
+    $params[':proposta_foco_id'] = $proposta_foco_id;
+}
+
+if (!$modo_foco_proposta && $filtro_status !== 'todos') {
     $where[] = 'p.status = :status';
     $params[':status'] = $filtro_status;
 }
 
-if (!empty($filtro_busca)) {
+if (!$modo_foco_proposta && !empty($filtro_busca)) {
     $where[] = '(c.nome LIKE :busca OR p.numero LIKE :busca2)';
     $params[':busca']  = '%' . $filtro_busca . '%';
     $params[':busca2'] = '%' . $filtro_busca . '%';
 }
 
-if (!empty($filtro_data_ini)) {
+if (!$modo_foco_proposta && !empty($filtro_data_ini)) {
     $where[] = 'p.data_emissao >= :data_ini';
     $params[':data_ini'] = $filtro_data_ini;
 }
 
-if (!empty($filtro_data_fim)) {
+if (!$modo_foco_proposta && !empty($filtro_data_fim)) {
     $where[] = 'p.data_emissao <= :data_fim';
     $params[':data_fim'] = $filtro_data_fim;
 }
@@ -172,6 +180,8 @@ $statusConfig = [
     'cancelada' => ['label' => 'Cancelada', 'cor' => 'warning'],
 ];
 
+$propostaFoco = ($modo_foco_proposta && !empty($propostas)) ? $propostas[0] : null;
+
 $titulo_page = 'Comercial - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
@@ -259,16 +269,78 @@ require_once __DIR__ . '/../../includes/sidebar.php';
     </div>
     <?php endif; ?>
 
+    <?php if ($propostaFoco): ?>
+    <?php
+        $statusFoco = $statusConfig[$propostaFoco['status']] ?? ['label' => $propostaFoco['status'], 'cor' => 'secondary'];
+        $embarcacoesFoco = $embarcacoesPorProposta[$propostaFoco['id']] ?? [];
+    ?>
+    <div data-testid="proposta-foco-card" style="margin-bottom: 22px; border: 1px solid rgba(52, 152, 219, 0.45); border-left: 6px solid #3498DB; border-radius: 8px; background: linear-gradient(135deg, rgba(52, 152, 219, 0.16), rgba(46, 204, 113, 0.08)); overflow: hidden;">
+        <div style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; align-items: center;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+                    <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #7DD3FC;">
+                        <i class="fas fa-check-circle"></i>
+                        <?php echo $modo_pos_criacao ? 'Proposta criada agora' : 'Proposta em foco'; ?>
+                    </span>
+                    <span class="badge badge-<?php echo $statusFoco['cor']; ?>"><?php echo h($statusFoco['label']); ?></span>
+                </div>
+                <h2 style="margin: 0 0 8px; color: var(--cor-texto); font-size: 1.45rem;">
+                    <?php echo h($propostaFoco['numero']); ?> - <?php echo h($propostaFoco['cliente_nome']); ?>
+                </h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 14px; color: var(--cor-texto-secundario);">
+                    <span><i class="fas fa-ship"></i> <?php echo !empty($embarcacoesFoco) ? h(implode(', ', $embarcacoesFoco)) : 'Embarcacao nao informada'; ?></span>
+                    <span><i class="fas fa-calendar"></i> <?php echo date('d/m/Y', strtotime($propostaFoco['data_emissao'])); ?></span>
+                    <span><i class="fas fa-dollar-sign"></i> R$ <?php echo number_format((float)$propostaFoco['valor_total'], 2, ',', '.'); ?></span>
+                </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; min-width: 220px;">
+                <a href="<?php echo APP_URL; ?>comercial/pdf?id=<?php echo urlencode($propostaFoco['id']); ?>"
+                   class="btn btn-primary"
+                   data-testid="proposta-foco-pdf"
+                   target="_blank"
+                   style="font-size: 1.05rem; padding: 13px 18px; display: inline-flex; justify-content: center; align-items: center; gap: 8px; box-shadow: 0 10px 24px rgba(52, 152, 219, 0.28);">
+                    <i class="fas fa-file-pdf"></i> Abrir PDF da Proposta
+                </a>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <a href="<?php echo APP_URL; ?>comercial/propostas?id=<?php echo urlencode($propostaFoco['id']); ?>&visualizar=1"
+                       class="btn btn-secondary btn-sm">
+                        <i class="fas fa-eye"></i> Detalhes
+                    </a>
+                    <a href="<?php echo APP_URL; ?>comercial" class="btn btn-secondary btn-sm" data-testid="proposta-foco-ver-todas">
+                        <i class="fas fa-list"></i> Ver todas
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php elseif ($modo_foco_proposta): ?>
+    <div class="alert alert-warning" style="margin-bottom: 20px;">
+        <i class="fas fa-exclamation-triangle"></i>
+        Nao encontrei a proposta solicitada. <a href="<?php echo APP_URL; ?>comercial">Ver todas as propostas</a>.
+    </div>
+    <?php endif; ?>
+
     <!-- ===== LISTAGEM DE PROPOSTAS ===== -->
     <div class="tabela-container">
         <div class="tabela-header">
-            <h3><i class="fas fa-file-invoice"></i> Propostas</h3>
-            <a href="<?php echo APP_URL; ?>comercial/nova" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus"></i> Nova Proposta
-            </a>
+            <h3>
+                <i class="fas fa-file-invoice"></i>
+                <?php echo $modo_foco_proposta ? 'Proposta selecionada' : 'Propostas'; ?>
+            </h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <?php if ($modo_foco_proposta): ?>
+                    <a href="<?php echo APP_URL; ?>comercial" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-list"></i> Ver todas
+                    </a>
+                <?php endif; ?>
+                <a href="<?php echo APP_URL; ?>comercial/nova" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> Nova Proposta
+                </a>
+            </div>
         </div>
 
         <!-- Filtros -->
+        <?php if (!$modo_foco_proposta): ?>
         <div class="filtros" style="margin: 15px 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
                 <label><i class="fas fa-search"></i> Buscar</label>
@@ -301,6 +373,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 </button>
             </div>
         </div>
+        <?php endif; ?>
 
         <?php if (empty($propostas)): ?>
             <div class="tabela-vazia">
@@ -322,7 +395,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <?php else: ?>
             <table id="tabelaPropostas">
                 <thead>
-                    <tr>
+                    <tr id="proposta-<?php echo h($pid); ?>" <?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? 'style="outline: 2px solid rgba(52, 152, 219, 0.75); background: rgba(52, 152, 219, 0.08);"' : ''; ?>>
                         <th>Número</th>
                         <th>Cliente</th>
                         <th>Embarcação(ões)</th>
@@ -371,8 +444,8 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <a href="<?php echo APP_URL; ?>comercial/pdf?id=<?php echo urlencode($pid); ?>"
-                                   class="btn btn-primary btn-sm" title="Gerar PDF" target="_blank" style="padding: 4px 8px;">
-                                    <i class="fas fa-file-pdf"></i>
+                                   class="btn btn-primary btn-sm" title="Gerar PDF" target="_blank" style="<?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? 'padding: 7px 12px; font-weight: 700;' : 'padding: 4px 8px;'; ?>">
+                                    <i class="fas fa-file-pdf"></i><?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? ' PDF' : ''; ?>
                                 </a>
                                 <?php if ($cargo === 'ADMIN' && $p['status'] !== 'cancelada'): ?>
                                 <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"

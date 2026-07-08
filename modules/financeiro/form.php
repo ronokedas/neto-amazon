@@ -18,6 +18,7 @@ if (!podeAcessar('financeiro')) {
 // Buscar lancamento se for edicao
 $id = $_GET['id'] ?? '';
 $lancamento = null;
+$comprovantes = [];
 $isEdicao = false;
 
 if (!empty($id)) {
@@ -30,6 +31,15 @@ if (!empty($id)) {
         if (!$lancamento) {
             setMensagem('error', 'Lancamento nao encontrado.');
             redirecionar(APP_URL . 'financeiro');
+        }
+
+        try {
+            $stmtComp = $pdo->prepare("SELECT * FROM financeiro_comprovantes WHERE lancamento_id = :lancamento_id ORDER BY criado_em DESC");
+            $stmtComp->execute([':lancamento_id' => $id]);
+            $comprovantes = $stmtComp->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log('Erro ao buscar comprovantes financeiros: ' . $e->getMessage());
+            $comprovantes = [];
         }
     } catch (Exception $e) {
         error_log('Erro ao buscar lancamento: ' . $e->getMessage());
@@ -63,6 +73,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <div class="card-body">
             <form method="POST" 
                   action="<?php echo APP_URL; ?>financeiro/actions?action=salvar" 
+                  enctype="multipart/form-data"
                   id="formFinanceiro"
                   onsubmit="return validarFormulario('formFinanceiro')">
                 
@@ -227,6 +238,63 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 </div>
 
                 <?php if ($isEdicao): ?>
+                <!-- Comprovantes / notas -->
+                <div class="form-group">
+                    <label for="comprovantes">
+                        <i class="fas fa-paperclip"></i> Comprovantes / notas
+                    </label>
+                    <input type="file"
+                           id="comprovantes"
+                           name="comprovantes[]"
+                           accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                           multiple>
+                    <div id="arquivosSelecionados" style="display: none; margin-top: 8px; border: 1px solid var(--cor-borda); border-radius: 8px; overflow: hidden;"></div>
+                    <small class="text-muted">Voce pode escolher varios arquivos de uma vez ou repetir a selecao antes de atualizar. Envie imagens ou PDFs de ate 10MB cada.</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <i class="fas fa-folder-open"></i> Ver comprovantes
+                    </label>
+                    <?php if (empty($comprovantes)): ?>
+                        <div style="border: 1px dashed var(--cor-borda); border-radius: 8px; padding: 12px; color: var(--cor-texto-secundario);">
+                            Nenhum comprovante anexado.
+                        </div>
+                    <?php else: ?>
+                        <div style="display: grid; gap: 8px;">
+                            <?php foreach ($comprovantes as $comp): ?>
+                                <div style="display: flex; gap: 8px; align-items: center; border: 1px solid var(--cor-borda); border-radius: 8px; padding: 8px;">
+                                    <a href="<?php echo APP_URL . h($comp['caminho']); ?>"
+                                       target="_blank"
+                                       rel="noopener"
+                                       class="btn btn-secondary"
+                                       style="flex: 1; justify-content: flex-start; text-align: left;">
+                                        <i class="fas <?php echo strpos((string)$comp['mime_type'], 'pdf') !== false ? 'fa-file-pdf' : 'fa-file-image'; ?>"></i>
+                                        <?php echo h($comp['nome_original']); ?>
+                                        <span style="margin-left: auto; color: var(--cor-texto-secundario); font-size: 0.8rem;">
+                                            <?php echo number_format(((int)$comp['tamanho']) / 1024, 1, ',', '.'); ?> KB
+                                        </span>
+                                    </a>
+                                    <button type="submit"
+                                            class="btn btn-danger btn-sm"
+                                            name="comprovante_id"
+                                            value="<?php echo h($comp['id']); ?>"
+                                            formaction="<?php echo APP_URL; ?>financeiro/actions?action=excluir_comprovante"
+                                            formmethod="POST"
+                                            formenctype="application/x-www-form-urlencoded"
+                                            formnovalidate
+                                            onclick="return confirm('Excluir este comprovante?')"
+                                            title="Excluir comprovante">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($isEdicao): ?>
                 <!-- Info de data -->
                 <div class="grid-2" style="margin-top: 10px;">
                     <div class="form-group">
@@ -270,6 +338,75 @@ function formatarMoedaInput(input) {
     valor = valor.replace('.', ',');
     valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     input.value = valor;
+}
+
+var comprovantesInput = document.getElementById('comprovantes');
+var arquivosSelecionados = document.getElementById('arquivosSelecionados');
+var arquivosParaUpload = window.DataTransfer ? new DataTransfer() : null;
+
+function atualizarListaArquivosSelecionados() {
+    if (!comprovantesInput || !arquivosSelecionados) {
+        return;
+    }
+
+    if (!arquivosParaUpload) {
+        return;
+    }
+
+    comprovantesInput.files = arquivosParaUpload.files;
+    arquivosSelecionados.innerHTML = '';
+
+    if (arquivosParaUpload.files.length === 0) {
+        arquivosSelecionados.style.display = 'none';
+        return;
+    }
+
+    arquivosSelecionados.style.display = 'grid';
+
+    Array.from(arquivosParaUpload.files).forEach(function(file, index) {
+        var item = document.createElement('div');
+        item.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--cor-borda);';
+
+        var nome = document.createElement('span');
+        nome.textContent = file.name + ' (' + (file.size / 1024).toFixed(1).replace('.', ',') + ' KB)';
+        nome.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis;';
+
+        var remover = document.createElement('button');
+        remover.type = 'button';
+        remover.className = 'btn btn-danger btn-sm';
+        remover.innerHTML = '<i class="fas fa-times"></i>';
+        remover.title = 'Remover da selecao';
+        remover.onclick = function() {
+            var novaLista = new DataTransfer();
+            Array.from(arquivosParaUpload.files).forEach(function(arquivo, arquivoIndex) {
+                if (arquivoIndex !== index) {
+                    novaLista.items.add(arquivo);
+                }
+            });
+            arquivosParaUpload = novaLista;
+            atualizarListaArquivosSelecionados();
+        };
+
+        item.appendChild(nome);
+        item.appendChild(remover);
+        arquivosSelecionados.appendChild(item);
+    });
+}
+
+if (comprovantesInput && arquivosParaUpload) {
+    comprovantesInput.addEventListener('change', function() {
+        Array.from(comprovantesInput.files).forEach(function(file) {
+            var jaExiste = Array.from(arquivosParaUpload.files).some(function(arquivo) {
+                return arquivo.name === file.name && arquivo.size === file.size && arquivo.lastModified === file.lastModified;
+            });
+
+            if (!jaExiste) {
+                arquivosParaUpload.items.add(file);
+            }
+        });
+
+        atualizarListaArquivosSelecionados();
+    });
 }
 </script>
 

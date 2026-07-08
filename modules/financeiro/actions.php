@@ -17,6 +17,134 @@ if (!podeAcessar('financeiro')) {
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+function normalizarArquivosUpload($campo) {
+    $arquivos = $_FILES[$campo] ?? null;
+    if (!$arquivos || empty($arquivos['name'])) {
+        return [];
+    }
+
+    if (!is_array($arquivos['name'])) {
+        return [$arquivos];
+    }
+
+    $normalizados = [];
+    foreach ($arquivos['name'] as $idx => $nome) {
+        $normalizados[] = [
+            'name' => $nome,
+            'type' => $arquivos['type'][$idx] ?? '',
+            'tmp_name' => $arquivos['tmp_name'][$idx] ?? '',
+            'error' => $arquivos['error'][$idx] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $arquivos['size'][$idx] ?? 0,
+        ];
+    }
+
+    return $normalizados;
+}
+
+function salvarComprovantesFinanceiros(PDO $pdo, string $lancamentoId, ?string $usuarioId): array {
+    $arquivos = normalizarArquivosUpload('comprovantes');
+    if (empty($arquivos)) {
+        return [];
+    }
+
+    $permitidos = [
+        'pdf' => 'application/pdf',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+    ];
+    $maxBytes = 10 * 1024 * 1024;
+    $pastaRelativa = 'uploads/financeiro/comprovantes/';
+    $pastaFisica = rtrim(BASE_PATH, '/\\') . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'financeiro' . DIRECTORY_SEPARATOR . 'comprovantes' . DIRECTORY_SEPARATOR;
+    $enviados = [];
+
+    if (!is_dir($pastaFisica) && !mkdir($pastaFisica, 0755, true)) {
+        throw new RuntimeException('Nao foi possivel criar a pasta de comprovantes.');
+    }
+
+    $stmt = $pdo->prepare("
+        INSERT INTO financeiro_comprovantes
+            (id, lancamento_id, nome_original, nome_arquivo, caminho, mime_type, tamanho, criado_por)
+        VALUES
+            (:id, :lancamento_id, :nome_original, :nome_arquivo, :caminho, :mime_type, :tamanho, :criado_por)
+    ");
+
+    foreach ($arquivos as $arquivo) {
+        if (($arquivo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+
+        if (($arquivo['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Erro ao enviar o comprovante "' . ($arquivo['name'] ?? '') . '".');
+        }
+
+        if (($arquivo['size'] ?? 0) > $maxBytes) {
+            throw new RuntimeException('O comprovante "' . ($arquivo['name'] ?? '') . '" ultrapassa o limite de 10MB.');
+        }
+
+        $nomeOriginal = basename((string)$arquivo['name']);
+        $extensao = strtolower(pathinfo($nomeOriginal, PATHINFO_EXTENSION));
+        if (!isset($permitidos[$extensao])) {
+            throw new RuntimeException('Tipo de comprovante nao permitido. Envie PDF, JPG, PNG ou WEBP.');
+        }
+
+        $mime = '';
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = $finfo ? (string)finfo_file($finfo, $arquivo['tmp_name']) : '';
+            if ($finfo) {
+                finfo_close($finfo);
+            }
+        }
+        if ($mime === '') {
+            $mime = $arquivo['type'] ?? $permitidos[$extensao];
+        }
+
+        if ($mime !== $permitidos[$extensao]) {
+            throw new RuntimeException('O arquivo "' . $nomeOriginal . '" nao parece ser um ' . strtoupper($extensao) . ' valido.');
+        }
+
+        $id = gerarUUID();
+        $nomeArquivo = $lancamentoId . '_' . $id . '.' . $extensao;
+        $destino = $pastaFisica . $nomeArquivo;
+        $caminhoRelativo = $pastaRelativa . $nomeArquivo;
+
+        if (!move_uploaded_file($arquivo['tmp_name'], $destino)) {
+            throw new RuntimeException('Nao foi possivel salvar o comprovante "' . $nomeOriginal . '".');
+        }
+
+        $stmt->execute([
+            ':id' => $id,
+            ':lancamento_id' => $lancamentoId,
+            ':nome_original' => $nomeOriginal,
+            ':nome_arquivo' => $nomeArquivo,
+            ':caminho' => $caminhoRelativo,
+            ':mime_type' => $mime,
+            ':tamanho' => (int)$arquivo['size'],
+            ':criado_por' => $usuarioId,
+        ]);
+
+        $enviados[] = $nomeOriginal;
+    }
+
+    return $enviados;
+}
+
+function removerArquivoComprovanteFinanceiro(string $caminhoRelativo): void {
+    $baseUploads = realpath(rtrim(BASE_PATH, '/\\') . DIRECTORY_SEPARATOR . 'uploads');
+    if ($baseUploads === false || $caminhoRelativo === '') {
+        return;
+    }
+
+    $arquivo = realpath(rtrim(BASE_PATH, '/\\') . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $caminhoRelativo));
+    if ($arquivo === false || strpos($arquivo, $baseUploads . DIRECTORY_SEPARATOR) !== 0 || !is_file($arquivo)) {
+        return;
+    }
+
+    unlink($arquivo);
+}
+
 switch ($action) {
 
     // ==============================
@@ -91,6 +219,7 @@ switch ($action) {
             $isEdicao = !empty($id);
 
             $pdo->beginTransaction();
+            $lancamentoId = $id;
 
             if ($isEdicao) {
                 // Atualizar
@@ -142,13 +271,20 @@ switch ($action) {
                         ]);
                     }
                 }
+                $comprovantesEnviados = salvarComprovantesFinanceiros($pdo, $lancamentoId, $_SESSION['usuario_id'] ?? null);
+
                 $pdo->commit();
-                setMensagem('success', 'Lancamento atualizado com sucesso!');
+                $msg = 'Lancamento atualizado com sucesso!';
+                if (!empty($comprovantesEnviados)) {
+                    $msg .= ' Comprovante(s) anexado(s): ' . implode(', ', $comprovantesEnviados) . '.';
+                }
+                setMensagem('success', $msg);
             } else {
                 // Criar
+                $lancamentoId = gerarUUID();
                 $stmt = $pdo->prepare("INSERT INTO financeiro_lancamentos (id, tipo, frequencia, status, data_vencimento, cliente_id, descricao, valor, data, categoria, observacoes, criado_por) VALUES (:id, :tipo, :frequencia, :status, :data_vencimento, :cliente_id, :descricao, :valor, :data, :categoria, :observacoes, :criado_por)");
                 $stmt->execute([
-                    ':id'              => gerarUUID(),
+                    ':id'              => $lancamentoId,
                     ':tipo'            => $tipo,
                     ':frequencia'      => $frequencia,
                     ':status'          => $status,
@@ -186,18 +322,81 @@ switch ($action) {
                         ':criado_por'      => $_SESSION['usuario_id'] ?? null
                     ]);
                 }
+                $comprovantesEnviados = salvarComprovantesFinanceiros($pdo, $lancamentoId, $_SESSION['usuario_id'] ?? null);
+
                 $pdo->commit();
-                setMensagem('success', 'Lancamento criado com sucesso!');
+                $msg = 'Lancamento criado com sucesso!';
+                if (!empty($comprovantesEnviados)) {
+                    $msg .= ' Comprovante(s) anexado(s): ' . implode(', ', $comprovantesEnviados) . '.';
+                }
+                setMensagem('success', $msg);
             }
         } catch (Exception $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
             error_log('Erro ao salvar lancamento: ' . $e->getMessage());
-            setMensagem('error', 'Erro ao salvar lancamento. Tente novamente.');
+            $mensagemErro = $e instanceof RuntimeException
+                ? $e->getMessage()
+                : 'Erro ao salvar lancamento. Tente novamente.';
+            setMensagem('error', $mensagemErro);
         }
 
         redirecionar(APP_URL . 'financeiro');
+        break;
+
+    // ==============================
+    // EXCLUIR COMPROVANTE
+    // ==============================
+    case 'excluir_comprovante':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            setMensagem('error', 'Requisicao invalida.');
+            redirecionar(APP_URL . 'financeiro');
+        }
+
+        $csrf = $_POST['csrf_token'] ?? '';
+        if (!verificarCSRF($csrf)) {
+            setMensagem('error', 'Token de seguranca invalido.');
+            redirecionar(APP_URL . 'financeiro');
+        }
+
+        $comprovanteId = trim($_POST['comprovante_id'] ?? '');
+        $lancamentoId = trim($_POST['id'] ?? '');
+        if ($comprovanteId === '' || $lancamentoId === '') {
+            setMensagem('error', 'Comprovante invalido.');
+            redirecionar(APP_URL . 'financeiro');
+        }
+
+        try {
+            $stmt = $pdo->prepare("
+                SELECT id, lancamento_id, caminho
+                FROM financeiro_comprovantes
+                WHERE id = :id AND lancamento_id = :lancamento_id
+                LIMIT 1
+            ");
+            $stmt->execute([
+                ':id' => $comprovanteId,
+                ':lancamento_id' => $lancamentoId,
+            ]);
+            $comprovante = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$comprovante) {
+                setMensagem('error', 'Comprovante nao encontrado.');
+                redirecionar(APP_URL . 'financeiro/form?id=' . urlencode($lancamentoId));
+            }
+
+            removerArquivoComprovanteFinanceiro((string)$comprovante['caminho']);
+
+            $stmtDelete = $pdo->prepare("DELETE FROM financeiro_comprovantes WHERE id = :id");
+            $stmtDelete->execute([':id' => $comprovanteId]);
+
+            setMensagem('success', 'Comprovante excluido com sucesso.');
+        } catch (Exception $e) {
+            error_log('Erro ao excluir comprovante financeiro: ' . $e->getMessage());
+            setMensagem('error', 'Erro ao excluir comprovante.');
+        }
+
+        redirecionar(APP_URL . 'financeiro/form?id=' . urlencode($lancamentoId));
         break;
 
     // ==============================

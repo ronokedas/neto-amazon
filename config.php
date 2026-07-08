@@ -25,7 +25,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Constantes do sistema (definidas antes de serem usadas)
 define('APP_NAME', 'Sistema Amazon');
-define('APP_URL', getenv('APP_URL') ?: 'http://localhost:8080/');
+define('APP_URL', getenv('APP_URL') ?: 'http://localhost:8082/');
 define('APP_THEME', 'verde_escuro');
 
 // Conexao com o banco de dados (usa variaveis de ambiente do Docker ou fallback)

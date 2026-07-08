@@ -328,8 +328,10 @@ function addHook($nome, $callback) {
 }
 
 // H Função auxiliar para echo seguro
-function h($texto) {
-    return htmlspecialchars((string)$texto, ENT_QUOTES, 'UTF-8');
+if (!function_exists('h')) {
+    function h($texto) {
+        return htmlspecialchars((string)$texto, ENT_QUOTES, 'UTF-8');
+    }
 }
 
 // Obter total de registros por mês

@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../../includes/auth.php';
 
 verificar_sessao();
 $cargo = getCargo();
-if (!in_array($cargo, ['ADMIN', 'VISTORIADOR'])) {
+if (!in_array($cargo, ['ADMIN', 'VENDEDOR'])) {
     setMensagem('error', 'Acesso negado.');
     redirecionar(APP_URL . 'dashboard');
 }
@@ -57,7 +57,8 @@ if (!empty($where)) {
 // BUSCAR PROPOSTAS
 // ============================================
 try {
-    $sql = "SELECT p.*, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpfcnpj
+    $sql = "SELECT p.*, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpfcnpj,
+                   c.email AS cliente_email
             FROM propostas p
             INNER JOIN clientes c ON c.id = p.cliente_id
             {$sqlWhere}
@@ -163,9 +164,9 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
             <a href="<?php echo APP_URL; ?>comercial/pdf?id=<?php echo urlencode($idDetalhe); ?>" class="btn btn-primary" target="_blank">
                 <i class="fas fa-file-pdf"></i> Gerar PDF
             </a>
-            <?php if ($cargo === 'ADMIN' && $propostaDetalhe['status'] !== 'cancelada'): ?>
+            <?php if (in_array($cargo, ['ADMIN', 'VENDEDOR']) && !empty($propostaDetalhe['cliente_email'])): ?>
             <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
-                  onsubmit="return confirm('Enviar proposta <?php echo h(addslashes($propostaDetalhe['numero'])); ?> por e-mail para o cliente?')">
+                  onsubmit="return confirm('Enviar proposta <?php echo h(addslashes($propostaDetalhe['numero'])); ?> por e-mail para <?php echo h(addslashes($propostaDetalhe['cliente_email'])); ?>?')">
                 <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
                 <input type="hidden" name="action" value="enviar_proposta">
                 <input type="hidden" name="id" value="<?php echo h($idDetalhe); ?>">
@@ -173,6 +174,10 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                     <i class="fas fa-envelope"></i> Enviar Proposta
                 </button>
             </form>
+            <?php elseif (in_array($cargo, ['ADMIN', 'VENDEDOR'])): ?>
+            <button type="button" class="btn btn-secondary" disabled title="Cliente sem e-mail cadastrado">
+                <i class="fas fa-envelope"></i> Sem e-mail
+            </button>
             <?php endif; ?>
             <a href="<?php echo APP_URL; ?>comercial/propostas" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Voltar
@@ -366,7 +371,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         Clique em "Nova Proposta" para criar a primeira proposta.
                     <?php endif; ?>
                 </p>
-                <?php if ($cargo === 'ADMIN'): ?>
+                <?php if (in_array($cargo, ['ADMIN', 'VENDEDOR'])): ?>
                 <a href="<?php echo APP_URL; ?>comercial/nova" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Nova Proposta
                 </a>
@@ -383,7 +388,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         <th>Parcelas</th>
                         <th>Status</th>
                         <th>Data</th>
-                        <th style="width: 130px;">Ações</th>
+                        <th style="width: 170px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -414,7 +419,7 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                         </td>
                         <td><small><?php echo date('d/m/Y', strtotime($p['data_emissao'])); ?></small></td>
                         <td>
-                            <div style="display: flex; gap: 4px;">
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                                 <a href="<?php echo APP_URL; ?>comercial/propostas?id=<?php echo urlencode($pid); ?>&visualizar=1"
                                    class="btn btn-secondary btn-sm" title="Visualizar" style="padding: 4px 8px;">
                                     <i class="fas fa-eye"></i>
@@ -423,6 +428,21 @@ require_once __DIR__ . '/../../../includes/sidebar.php';
                                    class="btn btn-primary btn-sm" title="Gerar PDF" target="_blank" style="padding: 4px 8px;">
                                     <i class="fas fa-file-pdf"></i>
                                 </a>
+                                <?php if (!empty($p['cliente_email'])): ?>
+                                <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
+                                      onsubmit="return confirm('Enviar proposta <?php echo h(addslashes($p['numero'])); ?> por e-mail para <?php echo h(addslashes($p['cliente_email'])); ?>?')">
+                                    <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                    <input type="hidden" name="action" value="enviar_proposta">
+                                    <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
+                                    <button type="submit" class="btn btn-success btn-sm" title="Enviar por e-mail para <?php echo h($p['cliente_email']); ?>" style="padding: 4px 8px;">
+                                        <i class="fas fa-envelope"></i>
+                                    </button>
+                                </form>
+                                <?php else: ?>
+                                <button type="button" class="btn btn-secondary btn-sm" disabled title="Cliente sem e-mail cadastrado" style="padding: 4px 8px;">
+                                    <i class="fas fa-envelope"></i>
+                                </button>
+                                <?php endif; ?>
                                 <?php if ($cargo === 'ADMIN'): ?>
                                     <?php if ($p['status'] === 'enviada' || $p['status'] === 'rascunho'): ?>
                                     <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"

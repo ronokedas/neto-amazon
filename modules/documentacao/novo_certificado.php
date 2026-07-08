@@ -51,9 +51,6 @@ $tipos = [
     'CSN'   => ['label' => 'Certificado de Segurança da Navegação', 'icone' => 'fa-ship', 'url' => APP_URL . 'documentacao/certificados/form?agendamento_id=' . urlencode($agendamento_id)],
     'CNBL'  => ['label' => 'Certificado Nacional de Borda Livre', 'icone' => 'fa-water', 'url' => APP_URL . 'documentacao/cnbl/form?agendamento_id=' . urlencode($agendamento_id)],
     'CNARQ' => ['label' => 'Certificado Nacional de Arqueação', 'icone' => 'fa-ruler-combined', 'url' => APP_URL . 'documentacao/cnarq/form?agendamento_id=' . urlencode($agendamento_id)],
-    'LP'    => ['label' => 'Licença Provisória', 'icone' => 'fa-file-alt', 'url' => APP_URL . 'documentacao/lp/form?agendamento_id=' . urlencode($agendamento_id)],
-    'LC'    => ['label' => 'Licença de Construção', 'icone' => 'fa-helmet-safety', 'url' => APP_URL . 'documentacao/lc/form?agendamento_id=' . urlencode($agendamento_id)],
-    'CHT'   => ['label' => 'Certificado de Homologação Técnica', 'icone' => 'fa-check-double', 'url' => APP_URL . 'documentacao/cht/form?agendamento_id=' . urlencode($agendamento_id)],
 ];
 
 $titulo_page = 'Emitir Certificado - ' . APP_NAME;

@@ -397,7 +397,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
             <div style="display: grid; gap: 10px; margin-top: 16px;">
                 <?php foreach ($relatorios_aprovacao_lista as $rel): ?>
-                    <a href="<?= APP_URL ?>documentacao/aprovacao_relatorios" style="display: grid; grid-template-columns: minmax(160px, 1.4fr) minmax(120px, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(0,0,0,0.16); color: inherit; text-decoration: none;">
+                    <a href="<?= APP_URL ?>vistorias/relatorio?agendamento_id=<?= urlencode($rel['agendamento_id'] ?? '') ?>" style="display: grid; grid-template-columns: minmax(160px, 1.4fr) minmax(120px, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(0,0,0,0.16); color: inherit; text-decoration: none;">
                         <div>
                             <strong style="display: block; color: var(--cor-texto);"><?= h($rel['embarcacao'] ?? 'Embarcação não informada') ?></strong>
                             <small style="color: var(--cor-texto-secundario);"><?= h($rel['proprietario'] ?? 'Proprietário não informado') ?></small>

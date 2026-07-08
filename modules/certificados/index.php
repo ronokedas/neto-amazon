@@ -10,57 +10,6 @@ require_once __DIR__ . '/../../includes/auth.php';
 
 requireLogin();
 
-$modelos = [
-    [
-        'codigo' => 'CSN',
-        'nome' => 'Certificado de Segurança da Navegação',
-        'descricao' => 'Emissão a partir de relatório aprovado, com controle de tipo, validade e responsável técnico.',
-        'icone' => 'fa-ship',
-        'status' => 'Fluxo completo',
-        'status_classe' => 'ready',
-    ],
-    [
-        'codigo' => 'CNBL',
-        'nome' => 'Certificado Nacional de Borda Livre',
-        'descricao' => 'Documento técnico para borda livre e dados complementares da embarcação.',
-        'icone' => 'fa-water',
-        'status' => 'Assistente ativo',
-        'status_classe' => 'ready',
-    ],
-    [
-        'codigo' => 'CNARQ',
-        'nome' => 'Certificado Nacional de Arqueação',
-        'descricao' => 'Registro de arqueação, dimensões e identificação técnica da embarcação.',
-        'icone' => 'fa-ruler-combined',
-        'status' => 'Assistente ativo',
-        'status_classe' => 'ready',
-    ],
-    [
-        'codigo' => 'LP',
-        'nome' => 'Licença Provisória',
-        'descricao' => 'Licença temporária emitida a partir da documentação e vistoria vinculada.',
-        'icone' => 'fa-clipboard-list',
-        'status' => 'Assistente ativo',
-        'status_classe' => 'ready',
-    ],
-    [
-        'codigo' => 'LC',
-        'nome' => 'Licença de Construção',
-        'descricao' => 'Etapa documental para construção, regularização e acompanhamento técnico.',
-        'icone' => 'fa-building-user',
-        'status' => 'Formulário dedicado',
-        'status_classe' => 'soon',
-    ],
-    [
-        'codigo' => 'CHT',
-        'nome' => 'Certificado de Homologação Técnica',
-        'descricao' => 'Homologação de empresa ou profissional prestador de serviços técnicos.',
-        'icone' => 'fa-user-check',
-        'status' => 'Assistente ativo',
-        'status_classe' => 'ready',
-    ],
-];
-
 $titulo_page = 'Certificados - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
@@ -71,12 +20,12 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <div class="cert-hero-main">
             <span class="flow-eyebrow"><i class="fas fa-file-signature"></i> Etapa final do fluxo operacional</span>
             <h1>Emissão de Certificados</h1>
-            <p>Escolha o modelo do documento e siga um fluxo guiado até validar os dados, escolher o responsável e gerar o certificado.</p>
+            <p>Escolha primeiro o relatório aprovado que vai alimentar o certificado. Depois selecione o modelo do documento e finalize a emissão.</p>
         </div>
         <div class="cert-hero-panel">
             <span>Próxima ação</span>
-            <strong>Selecione o modelo</strong>
-            <small>Depois disso o assistente mostra o tipo, relatório aprovado e dados de emissão.</small>
+            <strong>Selecione o relatório</strong>
+            <small>Use um relatório aprovado ou aprovado com exigências para seguir com a emissão.</small>
         </div>
     </section>
 
@@ -94,22 +43,22 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <li class="is-active">
                     <span>01</span>
                     <div>
-                        <strong>Modelo</strong>
-                        <small>Escolher CSN, CNBL, CNARQ, LP, LC ou CHT.</small>
+                        <strong>Relatório</strong>
+                        <small>Escolher um relatório aprovado.</small>
                     </div>
                 </li>
                 <li>
                     <span>02</span>
                     <div>
-                        <strong>Tipo</strong>
-                        <small>Definir se será provisório, condicional ou definitivo.</small>
+                        <strong>Modelo</strong>
+                        <small>Escolher CSN, CNBL ou CNARQ.</small>
                     </div>
                 </li>
                 <li>
                     <span>03</span>
                     <div>
-                        <strong>Relatório e dados</strong>
-                        <small>Usar relatório aprovado e conferir dados da embarcação.</small>
+                        <strong>Tipo</strong>
+                        <small>Definir provisório, condicional ou definitivo quando permitido.</small>
                     </div>
                 </li>
                 <li>
@@ -125,29 +74,116 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         <section class="cert-main-panel">
             <div class="cert-panel-header">
                 <div>
-                    <h2>Qual certificado será emitido?</h2>
-                    <p>Os modelos ficam agrupados em cartões para facilitar a escolha sem confundir siglas parecidas.</p>
+                    <h2>Escolha o relatório aprovado</h2>
+                    <p>Mostramos os 10 relatórios mais recentes. Para encontrar um mais antigo, pesquise por embarcação, nº do relatório ou inscrição.</p>
                 </div>
             </div>
 
-            <div class="cert-model-grid">
-                <?php foreach ($modelos as $modelo): ?>
-                    <a href="<?= APP_URL ?>certificados/wizard?modelo=<?= urlencode($modelo['codigo']) ?>" class="cert-model-card">
-                        <div class="cert-model-top">
-                            <span class="cert-model-icon"><i class="fa-solid <?= h($modelo['icone']) ?>"></i></span>
-                            <span class="cert-model-status <?= h($modelo['status_classe']) ?>"><?= h($modelo['status']) ?></span>
-                        </div>
-                        <div>
-                            <strong><?= h($modelo['codigo']) ?></strong>
-                            <h3><?= h($modelo['nome']) ?></h3>
-                            <p><?= h($modelo['descricao']) ?></p>
-                        </div>
-                        <span class="cert-model-action">Iniciar emissão <i class="fas fa-arrow-right"></i></span>
-                    </a>
-                <?php endforeach; ?>
+            <div class="cert-report-select">
+                <label for="busca_relatorio_certificado">Relatório de vistoria <span class="text-danger">*</span></label>
+                <div class="cert-search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="search"
+                           id="busca_relatorio_certificado"
+                           class="form-control"
+                           placeholder="Pesquise por nome da embarcação, nº do relatório ou inscrição..."
+                           autocomplete="off">
+                    <button type="button" class="btn btn-primary btn-sm" id="abrirRelatoriosCertificado">
+                        <i class="fas fa-list-check"></i> Ver recentes
+                    </button>
+                </div>
+                <div class="cert-search-results" id="resultadosRelatorioCertificado"></div>
             </div>
+
         </section>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('busca_relatorio_certificado');
+    const botaoRecentes = document.getElementById('abrirRelatoriosCertificado');
+    const resultados = document.getElementById('resultadosRelatorioCertificado');
+    let timerBusca = null;
+
+    const mostrarMensagem = (mensagem, tipo = 'empty') => {
+        resultados.innerHTML = `<div class="cert-search-${tipo}">${mensagem}</div>`;
+    };
+
+    const montarLinha = (item) => {
+        const embarcacao = item.embarcacao || item.nome_embarcacao || 'Embarcação sem nome';
+        const relatorio = item.numero || item.numero_relatorio || item.relatorio_numero || 'Sem número';
+        const inscricao = item.numero_inscricao || 'Inscrição não informada';
+        const status = item.status || item.relatorio_status || '';
+        const data = item.data_vistoria_formatada || item.data_vistoria || '';
+        const destino = `<?= APP_URL ?>documentacao/novo_certificado?agendamento_id=${encodeURIComponent(item.agendamento_id || '')}`;
+
+        const linha = document.createElement('button');
+        linha.type = 'button';
+        linha.className = 'cert-search-result';
+        linha.disabled = !item.agendamento_id;
+        linha.innerHTML = `
+            <strong>${escapeHtml(embarcacao)}</strong>
+            <span>${escapeHtml(relatorio)} · ${escapeHtml(inscricao)}</span>
+            <small>${escapeHtml(data)} ${status ? '· ' + escapeHtml(status) : ''}</small>
+        `;
+        linha.addEventListener('click', () => {
+            if (item.agendamento_id) {
+                window.location.href = destino;
+            }
+        });
+        return linha;
+    };
+
+    const escapeHtml = (valor) => String(valor ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[char]));
+
+    const buscarRelatorios = async (termo = '', recentes = false) => {
+        const params = new URLSearchParams();
+        if (recentes || !termo.trim()) {
+            params.set('recentes', '1');
+        } else {
+            params.set('q', termo.trim());
+        }
+
+        mostrarMensagem('Carregando relatórios aprovados...', 'loading');
+
+        try {
+            const resposta = await fetch(`<?= APP_URL ?>ajax/busca_relatorios_aprovados.php?${params.toString()}`, {
+                headers: { 'Accept': 'application/json' }
+            });
+            const dados = await resposta.json();
+
+            const lista = Array.isArray(dados) ? dados : (Array.isArray(dados.data) ? dados.data : []);
+
+            if (lista.length === 0) {
+                mostrarMensagem('Nenhum relatório aprovado encontrado.');
+                return;
+            }
+
+            resultados.innerHTML = '';
+            lista.slice(0, 10).forEach((item) => resultados.appendChild(montarLinha(item)));
+        } catch (erro) {
+            mostrarMensagem('Não foi possível carregar os relatórios agora.');
+        }
+    };
+
+    botaoRecentes?.addEventListener('click', () => {
+        if (input) input.value = '';
+        buscarRelatorios('', true);
+    });
+    input?.addEventListener('input', () => {
+        clearTimeout(timerBusca);
+        timerBusca = setTimeout(() => buscarRelatorios(input.value), 300);
+    });
+
+    buscarRelatorios('', true);
+});
+</script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

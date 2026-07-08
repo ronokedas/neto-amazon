@@ -14,6 +14,7 @@ try {
     if ($id !== '') {
         $stmt = $pdo->prepare("
             SELECT v.id,
+                   v.agendamento_id,
                    v.numero,
                    v.data_vistoria,
                    v.status,
@@ -42,15 +43,19 @@ try {
 
     if (!$recentes) {
         $whereBusca = "AND (
-              v.numero LIKE :busca
-              OR e.nome LIKE :busca
-              OR e.numero_inscricao LIKE :busca
+              v.numero LIKE :busca_numero
+              OR e.nome LIKE :busca_nome
+              OR e.numero_inscricao LIKE :busca_inscricao
           )";
-        $params[':busca'] = '%' . $termo . '%';
+        $busca = '%' . $termo . '%';
+        $params[':busca_numero'] = $busca;
+        $params[':busca_nome'] = $busca;
+        $params[':busca_inscricao'] = $busca;
     }
 
     $stmt = $pdo->prepare("
         SELECT v.id,
+               v.agendamento_id,
                v.numero,
                v.data_vistoria,
                v.status,

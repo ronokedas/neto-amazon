@@ -24,6 +24,31 @@ Constantes definidas (sem senhas hardcoded):
 
 Podem ser definidas via variáveis de ambiente Docker ou diretamente no config.php.
 
+Configuração atual recomendada para UOL Host:
+
+```env
+MAIL_HOST=smtps.uhserver.com
+MAIL_PORT=465
+MAIL_USERNAME=contato@amazonnaval.com.br
+MAIL_PASSWORD=SENHA_DO_EMAIL
+MAIL_FROM_NAME=Amazon Naval
+MAIL_ENCRYPTION=ssl
+EMAIL_CONTATO=contato@amazonnaval.com.br
+```
+
+Observação: o IMAP (`imap.uhserver.com`, porta `993`, SSL/TLS) serve para receber e-mails. O sistema usa SMTP para envio, por isso a configuração essencial aqui é o servidor `smtps.uhserver.com` na porta `465`.
+
+Antes de testar no sistema, confirme no Painel UOL HOST que a caixa `contato@amazonnaval.com.br` está liberada para uso em gerenciadores externos:
+
+1. Acesse o Painel UOL HOST.
+2. Entre em `E-mail Profissional`.
+3. No domínio `amazonnaval.com.br`, clique em `Gerenciar E-mails`.
+4. Na caixa `contato@amazonnaval.com.br`, abra `Mais opções`.
+5. Clique em `Ativar IMAP/POP para gerenciadores de email`.
+6. Marque `IMAP` como `Ativado` e salve.
+
+Se o webmail abrir, mas IMAP/SMTP externo retornar `Login denied` ou `SMTP Error: Could not authenticate`, o sistema está conseguindo chegar ao servidor da UOL, mas a caixa ainda não está autenticando fora do webmail. Nesse caso, confirme se a ativação foi salva, aguarde alguns minutos e, se persistir, redefina a senha da caixa no painel e atualize `MAIL_PASSWORD` no `.env`.
+
 ## 3. Função Central enviarEmail()
 
 Local: `includes/mailer.php`

@@ -24,7 +24,7 @@ $stmt = $pdo->prepare("
            e.nome AS embarcacao_nome, e.porto_inscricao,
            c.nome AS cliente_nome,
            arm.nome AS armador_nome,
-           a.local AS local_vistoria, a.data_vistoria AS a_data_vistoria,
+           a.local AS local_vistoria, a.data_vistoria AS a_data_vistoria, a.tipo_vistoria AS agendamento_tipo_vistoria,
            va.numero AS relatorio_anterior_numero,
            u.nome AS assinante_nome, '' AS assinante_registro, 'Engenheiro Naval' AS assinante_titulo
     FROM vistorias v
@@ -81,6 +81,34 @@ function formatarDataBR($data) {
     return date('d/m/Y', strtotime($data));
 }
 
+function normalizarTipoVistoriaPdf(string $texto): string
+{
+    $texto = mb_strtolower($texto, 'UTF-8');
+    $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texto);
+    return $ascii !== false ? $ascii : $texto;
+}
+
+function blocosDisponiveisRelatorioPdf(string $tipoVistoria, array $todos): array
+{
+    $texto = normalizarTipoVistoriaPdf($tipoVistoria);
+    $blocos = [];
+
+    if (strpos($texto, 'seco') !== false) {
+        $blocos['seco'] = $todos['seco'];
+    }
+    if (strpos($texto, 'flutu') !== false || strpos($texto, 'agua') !== false || strpos($texto, 'licenca provisoria') !== false) {
+        $blocos['flutuando'] = $todos['flutuando'];
+    }
+    if (strpos($texto, 'borda') !== false || strpos($texto, 'cnbl') !== false) {
+        $blocos['borda_livre'] = $todos['borda_livre'];
+    }
+    if (strpos($texto, 'arquea') !== false || strpos($texto, 'cnarq') !== false) {
+        $blocos['arqueacao'] = $todos['arqueacao'];
+    }
+
+    return !empty($blocos) ? $blocos : $todos;
+}
+
 // Buscar assinante responsável técnico ativo do banco de dados
 $assinante_nome = $v['assinante_nome'] ?? 'RESPONSÁVEL TÉCNICO';
 $assinante_titulo = 'Engenheiro Naval';
@@ -99,12 +127,19 @@ try {
 }
 
 // Determinar as datas de cada bloco de vistoria de forma inteligente
-$blocos = [
+$blocos_todos = [
     'seco' => 'Vistoria em Seco',
     'flutuando' => 'Vistoria Flutuando',
     'borda_livre' => 'Vistoria de Borda Livre',
     'arqueacao' => 'Vistoria de Arqueação'
 ];
+
+$blocos = blocosDisponiveisRelatorioPdf((string)($v['agendamento_tipo_vistoria'] ?? ''), $blocos_todos);
+$blocos_permitidos = array_keys($blocos);
+$exigencias = array_values(array_filter($exigencias, function ($ex) use ($blocos_permitidos) {
+    $bloco = $ex['bloco_vistoria'] ?? 'flutuando';
+    return in_array($bloco, $blocos_permitidos, true);
+}));
 
 $datas_blocos = [];
 foreach (array_keys($blocos) as $b_id) {
@@ -228,10 +263,11 @@ $pdf->Cell($value_w, 5, ' ' . mb_strtoupper(h($v['embarcacao_nome'])), 0, 1, 'L'
 $pdf->Ln(1);
 
 // Armador
+$operador_relatorio = trim((string)($v['operador_nome'] ?? '')) ?: ($v['armador_nome'] ?? $v['cliente_nome']);
 $pdf->SetFont('helvetica', 'B', 10);
-$pdf->Cell($label_w, 5, 'Armador:', 0, 0, 'R');
+$pdf->Cell($label_w, 5, 'Operador:', 0, 0, 'R');
 $pdf->SetFont('helvetica', '', 10);
-$pdf->Cell($value_w, 5, ' ' . mb_strtoupper(h($v['armador_nome'] ?? $v['cliente_nome'])), 0, 1, 'L');
+$pdf->Cell($value_w, 5, ' ' . mb_strtoupper(h($operador_relatorio)), 0, 1, 'L');
 $pdf->Ln(1);
 
 // Porto de Inscrição
@@ -266,6 +302,7 @@ function printTableHeader($pdf, $col_w) {
 
 printTableHeader($pdf, $col_w);
 
+$numero_item_pdf = 1;
 foreach ($blocos as $bloco_id => $bloco_nome) {
     $pdf->SetFont('helvetica', 'B', 8);
     $pdf->SetFillColor(255, 255, 255);
@@ -283,13 +320,14 @@ foreach ($blocos as $bloco_id => $bloco_nome) {
         $pdf->Cell(array_sum($col_w), 6, 'Sem Exigências', 1, 1, 'C');
     } else {
         foreach ($itens_bloco as $item) {
-            $vencimento = empty($item['vencimento']) ? "Sem Prazo\nVer Obs. 2" : formatarDataBR($item['vencimento']);
-            $normam = $item['item_normam'] ?? '';
+            $vencimento = empty($item['vencimento']) ? "AS\nSem Prazo\nVer Obs. 2" : formatarDataBR($item['vencimento']);
+            $descricao = trim((string)($item['descricao'] ?? '')) ?: ($item['item'] ?? '');
+            $normam = trim((string)($item['item_normam'] ?? '')) ?: ($item['item'] ?? '');
             
             $pdf->SetFont('helvetica', '', 8);
             
             // Calcular altura necessária
-            $nb_desc = $pdf->getNumLines($item['descricao'], $col_w[1]);
+            $nb_desc = $pdf->getNumLines($descricao, $col_w[1]);
             $nb_normam = $pdf->getNumLines($normam, $col_w[2]);
             $nb_venc = $pdf->getNumLines($vencimento, $col_w[3]);
             $h = max($nb_desc, $nb_normam, $nb_venc) * 4;
@@ -304,8 +342,8 @@ foreach ($blocos as $bloco_id => $bloco_nome) {
             $startY = $pdf->GetY();
             
             // Desenhar linhas com borda completa
-            $pdf->MultiCell($col_w[0], $h, $item['ordem'], 1, 'C', false, 0);
-            $pdf->MultiCell($col_w[1], $h, $item['descricao'], 1, 'J', false, 0);
+            $pdf->MultiCell($col_w[0], $h, $numero_item_pdf++, 1, 'C', false, 0);
+            $pdf->MultiCell($col_w[1], $h, $descricao, 1, 'L', false, 0);
             $pdf->MultiCell($col_w[2], $h, $normam, 1, 'C', false, 0);
             $pdf->MultiCell($col_w[3], $h, $vencimento, 1, 'C', false, 1);
         }
@@ -363,16 +401,16 @@ if (!empty($v['relatorio_anterior_id'])) {
     
     // Separamos por bloco para ser mais fiel (opcional), mas vamos listar num fluxo simples e limpo
     if (count($cumpridas) > 0) {
-        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $cumpridas) . " foram CUMPRIDAS.", 0, 'J');
+        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $cumpridas) . " foram CUMPRIDAS.", 0, 'L');
     }
     if (count($transcritas) > 0) {
-        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $transcritas) . " não foram cumpridas e, portanto, foram TRANSCRITAS neste relatório, e receberam novo sequencial.", 0, 'J');
+        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $transcritas) . " não foram cumpridas e, portanto, foram TRANSCRITAS neste relatório, e receberam novo sequencial.", 0, 'L');
     }
     if (count($reescritas) > 0) {
-        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $reescritas) . " foram cumpridas parcialmente e, portanto, foram REESCRITAS neste relatório, e receberam novo sequencial.", 0, 'J');
+        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $reescritas) . " foram cumpridas parcialmente e, portanto, foram REESCRITAS neste relatório, e receberam novo sequencial.", 0, 'L');
     }
     if (count($inseridas) > 0) {
-        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $inseridas) . " foram INSERIDAS neste relatório.", 0, 'J');
+        $pdf->MultiCell(0, 5, "- As exigências n.º " . implode(', ', $inseridas) . " foram INSERIDAS neste relatório.", 0, 'L');
     }
     
     $pdf->Ln(2);
@@ -380,30 +418,26 @@ if (!empty($v['relatorio_anterior_id'])) {
 
 // Observações Técnicas (livre)
 if (!empty($v['observacoes_tecnicas'])) {
-    $pdf->MultiCell(0, 4.5, "{$obs_counter}. " . $v['observacoes_tecnicas'], 0, 'J');
+    $pdf->MultiCell(0, 4.5, "{$obs_counter}. " . $v['observacoes_tecnicas'], 0, 'L');
     $obs_counter++;
     $pdf->Ln(2);
 }
 
 if (!empty($v['texto_observacoes_geradas'])) {
-    $pdf->MultiCell(0, 4.5, "{$obs_counter}. " . $v['texto_observacoes_geradas'], 0, 'J');
+    $pdf->MultiCell(0, 4.5, "{$obs_counter}. " . $v['texto_observacoes_geradas'], 0, 'L');
     $obs_counter++;
     $pdf->Ln(2);
 }
 
 // Observação fixa (Obs. 2)
 $obs_2 = "Em função da data de realização da vistoria essas exigências não possuem mais prazo para o cumprimento e, portanto, o armador fica ciente que deverá cumpri-las prontamente para a obtenção dos respectivos Certificados Estatutários ou receber as convalidações pertinentes.";
-$pdf->MultiCell(0, 4.5, "Obs. 2: " . $obs_2, 0, 'J');
+$pdf->MultiCell(0, 4.5, "Obs. 2: " . $obs_2, 0, 'L');
 $pdf->Ln(8);
 
 // Rodapé de emissão e termo de responsabilidade
 $pdf->SetFont('helvetica', 'B', 8);
 $emissao = $v['data_emissao'] ?? date('Y-m-d');
 $pdf->Cell(0, 6, 'RELATÓRIO EMITIDO EM: ' . mb_strtoupper(dataPorExtenso($emissao)), 0, 1, 'L');
-
-if (!empty($v['relatorio_anterior_numero'])) {
-    $pdf->Cell(0, 6, 'Este relatório substitui o de número: ' . $v['relatorio_anterior_numero'], 0, 1, 'L');
-}
 
 $pdf->Ln(4);
 

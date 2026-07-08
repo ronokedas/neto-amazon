@@ -22,7 +22,7 @@ $filtro_data_fim  = $_GET['data_fim'] ?? '';
 $filtro_categoria = $_GET['categoria'] ?? '';
 
 // Construir query com filtros
-$sql = "SELECT id, tipo, descricao, valor, data, categoria, observacoes, criado_em, atualizado_em FROM financeiro_lancamentos WHERE ativo = 1";
+$sql = "SELECT id, tipo, descricao, valor, status, data, categoria, observacoes, criado_em, atualizado_em FROM financeiro_lancamentos WHERE ativo = 1";
 $params = [];
 
 if (!empty($filtro_tipo) && in_array($filtro_tipo, ['RECEITA', 'DESPESA'])) {
@@ -58,7 +58,14 @@ try {
 
 // Calcular totais (usando os mesmos filtros)
 try {
-    $sqlTotais = "SELECT tipo, SUM(valor) as total FROM financeiro_lancamentos WHERE ativo = 1 AND status != 'CANCELADO'";
+    $sqlTotais = "
+        SELECT
+            COALESCE(SUM(CASE WHEN tipo = 'RECEITA' AND status = 'PAGO' THEN valor ELSE 0 END), 0) as total_receitas,
+            COALESCE(SUM(CASE WHEN tipo = 'RECEITA' AND status = 'PENDENTE' THEN valor ELSE 0 END), 0) as total_a_receber,
+            COALESCE(SUM(CASE WHEN tipo = 'DESPESA' AND status != 'CANCELADO' THEN valor ELSE 0 END), 0) as total_despesas
+        FROM financeiro_lancamentos
+        WHERE ativo = 1 AND status != 'CANCELADO'
+    ";
     $paramsTotais = [];
 
     if (!empty($filtro_tipo) && in_array($filtro_tipo, ['RECEITA', 'DESPESA'])) {
@@ -78,16 +85,16 @@ try {
         $paramsTotais[':categoria'] = '%' . $filtro_categoria . '%';
     }
 
-    $sqlTotais .= " GROUP BY tipo";
     $stmtTotais = $pdo->prepare($sqlTotais);
     $stmtTotais->execute($paramsTotais);
-    $totais = $stmtTotais->fetchAll(PDO::FETCH_KEY_PAIR);
+    $totais = $stmtTotais->fetch(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) {
     $totais = [];
 }
 
-$totalReceitas = floatval($totais['RECEITA'] ?? 0);
-$totalDespesas = floatval($totais['DESPESA'] ?? 0);
+$totalReceitas = floatval($totais['total_receitas'] ?? 0);
+$totalAReceber = floatval($totais['total_a_receber'] ?? 0);
+$totalDespesas = floatval($totais['total_despesas'] ?? 0);
 $saldo = $totalReceitas - $totalDespesas;
 
 // Buscar categorias distintas para o filtro
@@ -112,7 +119,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         </div>
 
         <!-- Cards de resumo -->
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 15px 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 15px; margin: 15px 20px;">
             <!-- Total Receitas -->
             <div style="background: linear-gradient(135deg, var(--cor-painel), var(--cor-sidebar)); border: 1px solid var(--cor-borda); border-radius: 12px; padding: 18px; border-left: 4px solid var(--cor-sucesso);">
                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -122,6 +129,19 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <div>
                         <div style="color: var(--cor-texto-secundario); font-size: 0.8rem; font-weight: 500; text-transform: uppercase;">Receitas</div>
                         <div style="color: var(--cor-sucesso); font-size: 1.4rem; font-weight: 700;"><?php echo formatarMoeda($totalReceitas); ?></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- A Receber -->
+            <div style="background: linear-gradient(135deg, var(--cor-painel), var(--cor-sidebar)); border: 1px solid var(--cor-borda); border-radius: 12px; padding: 18px; border-left: 4px solid var(--status-pending, #d29922);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 45px; height: 45px; border-radius: 10px; background: rgba(241, 196, 15, 0.15); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-hourglass-half" style="color: var(--status-pending, #d29922); font-size: 1.2rem;"></i>
+                    </div>
+                    <div>
+                        <div style="color: var(--cor-texto-secundario); font-size: 0.8rem; font-weight: 500; text-transform: uppercase;">A receber</div>
+                        <div style="color: var(--status-pending, #d29922); font-size: 1.4rem; font-weight: 700;"><?php echo formatarMoeda($totalAReceber); ?></div>
                     </div>
                 </div>
             </div>
@@ -203,6 +223,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <tr>
                         <th>Data</th>
                         <th>Tipo</th>
+                        <th>Status</th>
                         <th>Descricao</th>
                         <th>Categoria</th>
                         <th>Valor</th>
@@ -218,6 +239,15 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 <span class="badge badge-success"><i class="fas fa-arrow-up"></i> Receita</span>
                             <?php else: ?>
                                 <span class="badge badge-danger"><i class="fas fa-arrow-down"></i> Despesa</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($l['status'] === 'PAGO'): ?>
+                                <span class="badge badge-success">Pago</span>
+                            <?php elseif ($l['status'] === 'PENDENTE'): ?>
+                                <span class="badge badge-warning">Pendente</span>
+                            <?php else: ?>
+                                <span class="badge badge-danger">Cancelado</span>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -260,7 +290,8 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             <small class="text-muted">
                 <i class="fas fa-info-circle"></i> 
                 Total: <?php echo count($lancamentos); ?> lancamento(s) | 
-                Receitas: <?php echo formatarMoeda($totalReceitas); ?> | 
+                Receitas pagas: <?php echo formatarMoeda($totalReceitas); ?> |
+                A receber: <?php echo formatarMoeda($totalAReceber); ?> |
                 Despesas: <?php echo formatarMoeda($totalDespesas); ?> | 
                 Saldo: <strong style="color: <?php echo $saldo >= 0 ? 'var(--cor-sucesso)' : 'var(--cor-erro)'; ?>;"><?php echo formatarMoeda($saldo); ?></strong>
             </small>

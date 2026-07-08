@@ -9,6 +9,7 @@
  */
 
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/documento_destinatario.php';
 
 /**
  * Envia link de assinatura digital por e-mail, registrando no email_logs
@@ -43,23 +44,7 @@ function enviarAssinaturaEmail(PDO $pdo, string $certificado_id, string $tabela,
             return ['success' => false, 'message' => 'Certificado não encontrado.'];
         }
 
-        if ($tabela === 'certificados_cht') {
-            $cliente = [
-                'cliente_nome' => $cert['nome_embarcacao'],
-                'cliente_email' => $cert['email_destinatario'],
-            ];
-        } else {
-            $stmtCli = $pdo->prepare("
-                SELECT c.nome AS cliente_nome, c.email AS cliente_email
-                FROM clientes c
-                INNER JOIN clientes_embarcacoes ce ON ce.cliente_id = c.id
-                INNER JOIN embarcacoes e ON e.id = ce.embarcacao_id
-                WHERE e.nome = :emb_nome AND c.status = 'ATIVO'
-                LIMIT 1
-            ");
-            $stmtCli->execute([':emb_nome' => $cert['nome_embarcacao']]);
-            $cliente = $stmtCli->fetch(PDO::FETCH_ASSOC);
-        }
+        $cliente = resolverDestinatarioDocumento($pdo, $cert, $tabela);
 
         if (!$cliente || empty($cliente['cliente_email'])) {
             return ['success' => false, 'message' => 'Cliente não encontrado ou sem e-mail cadastrado para esta embarcação.'];

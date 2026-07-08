@@ -135,6 +135,8 @@ $tipo_labels = [
     'certificado'        => ['label' => 'Certificado',        'icon' => 'fa-file-certificate'],
     'assinatura'         => ['label' => 'Assinatura',         'icon' => 'fa-file-signature'],
     'alerta_vencimento'  => ['label' => 'Alerta Vencimento',  'icon' => 'fa-exclamation-triangle'],
+    'portal_acesso'      => ['label' => 'Portal - Acesso',    'icon' => 'fa-user-shield'],
+    'portal_recuperacao_senha' => ['label' => 'Portal - Senha', 'icon' => 'fa-key'],
 ];
 
 $status_labels = [
@@ -186,6 +188,8 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                     <option value="certificado" <?php echo $filtro_tipo === 'certificado' ? 'selected' : ''; ?>>Certificado</option>
                     <option value="assinatura" <?php echo $filtro_tipo === 'assinatura' ? 'selected' : ''; ?>>Assinatura</option>
                     <option value="alerta_vencimento" <?php echo $filtro_tipo === 'alerta_vencimento' ? 'selected' : ''; ?>>Alerta Vencimento</option>
+                    <option value="portal_acesso" <?php echo $filtro_tipo === 'portal_acesso' ? 'selected' : ''; ?>>Portal - Acesso</option>
+                    <option value="portal_recuperacao_senha" <?php echo $filtro_tipo === 'portal_recuperacao_senha' ? 'selected' : ''; ?>>Portal - Senha</option>
                 </select>
             </div>
             <div class="form-group" style="margin-bottom: 0; min-width: 130px;">

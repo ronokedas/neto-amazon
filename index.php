@@ -25,6 +25,14 @@ $path = ltrim($path, '/');
 $rotas = [
     ''              => 'modules/login/index.php',
     'login'         => 'modules/login/index.php',
+    'portal/login'  => 'modules/portal/login.php',
+    'portal/logout' => 'modules/portal/logout.php',
+    'portal/recuperar-senha' => 'modules/portal/recuperar_senha.php',
+    'portal/redefinir-senha' => 'modules/portal/redefinir_senha.php',
+    'portal/trocar-senha' => 'modules/portal/trocar_senha.php',
+    'portal' => 'modules/portal/index.php',
+    'portal/documentos' => 'modules/portal/documentos.php',
+    'portal/documentos/pdf' => 'modules/portal/pdf.php',
     'dashboard'     => 'modules/dashboard/index.php',
     'armadores'          => 'modules/armadores/index.php',
     'armadores/form'     => 'modules/armadores/form.php',
@@ -101,6 +109,8 @@ $rotas = [
     'agendamentos/actions'  => 'modules/agendamentos/actions.php',
     'agendamentos/os'       => 'modules/agendamentos/os.php',
     'emails'                => 'modules/emails/index.php',
+    'portal-clientes'       => 'modules/portal_clientes/index.php',
+    'portal-clientes/actions' => 'modules/portal_clientes/actions.php',
     'configuracoes'             => 'modules/configuracoes/index.php',
     'configuracoes/geral'       => 'modules/configuracoes/geral.php',
     'configuracoes/basicas'     => 'modules/configuracoes/basicas.php',
@@ -119,6 +129,9 @@ $rotas = [
 if (!isset($_SESSION['usuario_logado']) && $path !== '' && $path !== 'login') {
     // Verificar se é rota pública de assinatura
     $is_rota_publica = (strpos($path, 'assinar/') === 0);
+    if ($path === 'portal' || strpos($path, 'portal/') === 0) {
+        $is_rota_publica = true;
+    }
     
     // Verificar se é rota pública de visualização de PDF via token ou ID
     if (!$is_rota_publica && (strpos($path, '/pdf') !== false || strpos($path, 'relatorio_pdf') !== false) && (!empty($_GET['token']) || !empty($_GET['id']))) {

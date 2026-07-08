@@ -286,16 +286,11 @@ Use estes comandos no computador local, dentro da pasta do sistema:
 cd C:\sistema
 git status
 git add .
-git commit -m "Descreva aqui o que foi alterado"
+git commit -m "muita coisa"
 git push
 ```
 
-O que cada comando faz:
 
-- `git status`: mostra quais arquivos foram modificados
-- `git add .`: prepara todos os arquivos modificados para envio
-- `git commit -m "..."`: salva um pacote de alteracoes com uma descricao
-- `git push`: envia esse pacote para o repositorio no GitHub
 
 
 
@@ -310,13 +305,17 @@ git pull origin main
 cd /opt/sistema-amazon
 git pull
 docker compose up -d --build
+ou
+docker compose up -d --force-recreate app
+
+34.132.186.4:8083
+
+   - usuario: `root`
+   - senha: `root_pass_2026`
 
 
 
-
-
-
-
+nano .env
 
 
 

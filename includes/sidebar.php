@@ -139,6 +139,10 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
         <?php endif; ?>
 
         <?php if ($cargo === 'ADMIN'): ?>
+        <a href="<?= APP_URL ?>portal-clientes" class="nav-item<?= isActive('portal-clientes', $pagina_atual) ?>" data-label="Portal do Cliente">
+            <i class="fa-solid fa-user-shield"></i>
+            <span class="nav-text">Portal do Cliente</span>
+        </a>
         <a href="<?= APP_URL ?>usuarios" class="nav-item<?= isActive('usuarios', $pagina_atual) ?>" data-label="Usuários">
             <i class="fa-solid fa-users-gear"></i>
             <span class="nav-text">Usuários</span>

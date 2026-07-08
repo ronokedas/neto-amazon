@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redefinição de senha</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f6f5;font-family:Arial,Helvetica,sans-serif;color:#1d2b27;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6f5;padding:24px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #dfe8e4;">
+                    <tr>
+                        <td style="padding:28px;background:#07352d;color:#ffffff;">
+                            <h1 style="margin:0;font-size:22px;">Redefinição de senha</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:28px;">
+                            <p style="margin:0 0 14px;font-size:16px;">Olá, <strong>{{NOME_CLIENTE}}</strong>.</p>
+                            <p style="margin:0 0 18px;font-size:15px;line-height:1.6;">Recebemos uma solicitação para redefinir sua senha do Portal do Cliente. O link abaixo expira em 2 horas e só pode ser usado uma vez.</p>
+                            <p style="margin:24px 0;text-align:center;">
+                                <a href="{{LINK_REDEFINICAO}}" style="display:inline-block;background:#08785f;color:#ffffff;text-decoration:none;padding:13px 24px;font-weight:bold;">Criar nova senha</a>
+                            </p>
+                            <p style="margin:0 0 12px;font-size:13px;color:#5b6b66;line-height:1.6;">Caso o botão não funcione, copie e cole este link no navegador:</p>
+                            <p style="margin:0;font-size:13px;line-height:1.6;"><a href="{{LINK_REDEFINICAO}}" style="color:#08785f;">{{LINK_REDEFINICAO}}</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:18px 28px;background:#f7faf9;color:#5b6b66;font-size:12px;line-height:1.5;">
+                            E-mail: {{EMAIL_CONTATO}} | Telefone: {{TELEFONE_CONTATO}}<br>
+                            Se você não solicitou a troca de senha, ignore esta mensagem.
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

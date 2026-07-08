@@ -46,9 +46,10 @@ function enviarEmail(string $destinatario, string $nome, string $assunto, string
         $mail->SMTPDebug = SMTP::DEBUG_OFF;
 
         // Remetente e destinatário
-        $mail->setFrom(MAIL_USERNAME, MAIL_FROM_NAME);
+        $remetente = defined('EMAIL_CONTATO') && EMAIL_CONTATO !== '' ? EMAIL_CONTATO : MAIL_USERNAME;
+        $mail->setFrom($remetente, MAIL_FROM_NAME);
         $mail->addAddress($destinatario, $nome);
-        $mail->addReplyTo(MAIL_USERNAME, MAIL_FROM_NAME);
+        $mail->addReplyTo($remetente, MAIL_FROM_NAME);
 
         // Anexos
         if (!empty($anexos)) {

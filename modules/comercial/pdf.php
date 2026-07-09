@@ -390,7 +390,7 @@ $pdf->SetTextColor(0, 0, 0);
 $pdf->Ln(2);
 
 $pdf->SetFont('helvetica', '', 8);
-$pdf->MultiCell(0, 4, 'Prestação de serviços técnicos especializados de engenharia naval, incluindo vistorias técnicas, análises de planos, emissão de certificados e demais serviços correlatos, conforme especificações e quantidades indicadas abaixo.', 0, 'J');
+$pdf->MultiCell(0, 4, 'Prestação de serviços técnicos especializados de engenharia naval, incluindo vistorias técnicas, análises de planos, emissão de certificados e demais serviços correlatos, conforme especificações e quantidades indicadas abaixo.', 0, 'L');
 $pdf->Ln(2);
 
 // --- TABELA DE SERVIÇOS ---
@@ -567,8 +567,8 @@ if ($valorEntrada > 0) {
 
 for ($i = 1; $i <= $parcelas; $i++) {
     $valor = ($i == $parcelas) ? $ultimaParcela : $valorParcela;
-    $vencimento = $i === 1 ? '30 dias ap?s assinatura' : ($i * 30) . ' dias ap?s assinatura';
-    $condicao = ($i == 1) ? '1? parcela' : (($i == $parcelas) ? '?ltima parcela' : 'Parcela intermedi?ria');
+    $vencimento = $i === 1 ? '30 dias após assinatura' : ($i * 30) . ' dias após assinatura';
+    $condicao = ($i == 1) ? '1ª parcela' : (($i == $parcelas) ? 'Última parcela' : 'Parcela intermediária');
 
     $pdf->SetFillColor(($linhaParcela % 2 == 0) ? 250 : 255, 251, 252);
     $pdf->Cell($colParc[0], 6, $i . '/' . $parcelas, 1, 0, 'C', true);
@@ -594,7 +594,7 @@ $pdf->Cell(0, 6, 'DADOS BANCÁRIOS', 0, 1, 'L', true);
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('helvetica', '', 8);
 
-$pdf->MultiCell(0, 4, "O pagamento, quando acordado a ser realizado por transferência ou depósito, deverá ser efetuado na conta corrente do Banco Inter 077, Agência 0001, Conta Corrente 0533429765, Código do operador 70723325, ou PIX 60.360.061/0001-91.", 0, 'J');
+$pdf->MultiCell(0, 4, "O pagamento, quando acordado a ser realizado por transferência ou depósito, deverá ser efetuado na conta corrente do Banco Inter 077, Agência 0001, Conta Corrente 0533429765, Código do operador 70723325, ou PIX 60.360.061/0001-91.", 0, 'L');
 $pdf->Ln(2);
 
 // --- DESPESAS EVENTUAIS ---
@@ -605,11 +605,11 @@ $pdf->Cell(0, 6, 'DESPESAS EVENTUAIS', 0, 1, 'L', true);
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('helvetica', '', 8);
 
-$pdf->MultiCell(0, 4, "Todas as despesas de deslocamento (uber ou táxi) e alimentação dentro da cidade de BELÉM/PA deverão ser pagas pelo ACEITANTE.", 0, 'J');
+$pdf->MultiCell(0, 4, "Todas as despesas de deslocamento (uber ou táxi) e alimentação dentro da cidade de BELÉM/PA deverão ser pagas pelo ACEITANTE.", 0, 'L');
 $pdf->Ln(1);
-$pdf->MultiCell(0, 4, "Havendo necessidade de realização de vistorias no Sábado ou Domingo ou Feriado, o ACEITANTE deverá arcar com o valor de R\$300,00 (trezentos reais) a diária, a ser pago de forma integral via PIX ou transferência bancária, no dia da realização da vistoria.", 0, 'J');
+$pdf->MultiCell(0, 4, "Havendo necessidade de realização de vistorias no Sábado ou Domingo ou Feriado, o ACEITANTE deverá arcar com o valor de R\$300,00 (trezentos reais) a diária, a ser pago de forma integral via PIX ou transferência bancária, no dia da realização da vistoria.", 0, 'L');
 $pdf->Ln(1);
-$pdf->MultiCell(0, 4, "Todas as despesas com passagens (aéreas, terrestres ou fluviais), combustível, alimentação, hospedagem, entre outras, fora da cidade de BELÉM/PA deverão ser arcadas pelo ACEITANTE.", 0, 'J');
+$pdf->MultiCell(0, 4, "Todas as despesas com passagens (aéreas, terrestres ou fluviais), combustível, alimentação, hospedagem, entre outras, fora da cidade de BELÉM/PA deverão ser arcadas pelo ACEITANTE.", 0, 'L');
 $pdf->Ln(4);
 
 // --- PRAZO DE VALIDADE DA PROPOSTA ---
@@ -618,7 +618,7 @@ $pdf->SetTextColor(0, 51, 102);
 $pdf->Cell(0, 6, '5.0 - PRAZO DE VALIDADE DA PROPOSTA DE SERVIÇOS', 0, 1, 'L');
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('helvetica', '', 8);
-$pdf->MultiCell(0, 4, "O prazo de validade desta proposta de serviços é de 30 (trinta) dias contados a partir da sua data de emissão, sendo que, posteriormente a esse prazo, o PROPONENTE não se obrigará a manter as condições e os preços por ventura compactuados.", 0, 'J');
+$pdf->MultiCell(0, 4, "O prazo de validade desta proposta de serviços é de 30 (trinta) dias contados a partir da sua data de emissão, sendo que, posteriormente a esse prazo, o PROPONENTE não se obrigará a manter as condições e os preços por ventura compactuados.", 0, 'L');
 $pdf->Ln(3);
 
 // --- SERVIÇOS A REALIZAR ---
@@ -627,13 +627,13 @@ $pdf->SetTextColor(0, 51, 102);
 $pdf->Cell(0, 6, '6.0 - SERVIÇOS A REALIZAR', 0, 1, 'L');
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('helvetica', '', 8);
-$pdf->MultiCell(0, 4, "O agendamento das vistorias ficará condicionado à apresentação prévia do projeto da embarcação, em meio físico ou digital, devidamente acompanhado de todas as informações e documentos necessários para análise técnica.", 0, 'J');
+$pdf->MultiCell(0, 4, "O agendamento das vistorias ficará condicionado à apresentação prévia do projeto da embarcação, em meio físico ou digital, devidamente acompanhado de todas as informações e documentos necessários para análise técnica.", 0, 'L');
 $pdf->Ln(1);
-$pdf->MultiCell(0, 4, "Os agendamentos para realização dos serviços deverão ser feitos com a devida antecedência, sendo que as orientações dadas pelo PROPONENTE deverão ser seguidas pelo ACEITANTE.", 0, 'J');
+$pdf->MultiCell(0, 4, "Os agendamentos para realização dos serviços deverão ser feitos com a devida antecedência, sendo que as orientações dadas pelo PROPONENTE deverão ser seguidas pelo ACEITANTE.", 0, 'L');
 $pdf->Ln(1);
-$pdf->MultiCell(0, 4, "No caso do ACEITANTE não cumprir os prazos dos certificados mencionados no item acima, será realizada uma nova PROPOSTA DE SERVIÇOS.", 0, 'J');
+$pdf->MultiCell(0, 4, "No caso do ACEITANTE não cumprir os prazos dos certificados mencionados no item acima, será realizada uma nova PROPOSTA DE SERVIÇOS.", 0, 'L');
 $pdf->Ln(1);
-$pdf->MultiCell(0, 4, "No caso de excepcional desistência na conclusão dos serviços por parte do ACEITANTE, este se compromete a arcar com as despesas já realizadas e não pagas, bem como o valor residual acordado e não pago desta proposta de serviços.", 0, 'J');
+$pdf->MultiCell(0, 4, "No caso de excepcional desistência na conclusão dos serviços por parte do ACEITANTE, este se compromete a arcar com as despesas já realizadas e não pagas, bem como o valor residual acordado e não pago desta proposta de serviços.", 0, 'L');
 
 $pdf->Ln(10);
 
@@ -643,7 +643,7 @@ $pdf->SetTextColor(0, 51, 102);
 $pdf->Cell(0, 6, '7.0 - DO FORO', 0, 1, 'L');
 $pdf->SetTextColor(0, 0, 0);
 $pdf->SetFont('helvetica', '', 8);
-$pdf->MultiCell(0, 4, "Fica eleito o foro da comarca de BELÉM/PA para nele serem dirimidas as dúvidas porventura surgidas no fiel cumprimento deste instrumento.", 0, 'J');
+$pdf->MultiCell(0, 4, "Fica eleito o foro da comarca de BELÉM/PA para nele serem dirimidas as dúvidas porventura surgidas no fiel cumprimento deste instrumento.", 0, 'L');
 $pdf->Ln(5);
 
 // --- ACEITE FORMAL ---
@@ -655,9 +655,9 @@ $pdf->SetTextColor(0, 0, 0);
 $pdf->Ln(2);
 
 $pdf->SetFont('helvetica', '', 8);
-$pdf->MultiCell(0, 4, "Pela presente proposta de serviços, a CONTRATADA se compromete a prestar os serviços descritos na Cláusula 1.0 (OBJETO DA PROPOSTA E SERVIÇOS), mediante as condições de pagamento constantes na Cláusula 4.0 (CONDIÇÕES DE PAGAMENTO), e o ACEITANTE se compromete a efetuar o pagamento conforme acordado.", 0, 'J');
+$pdf->MultiCell(0, 4, "Pela presente proposta de serviços, a CONTRATADA se compromete a prestar os serviços descritos na Cláusula 1.0 (OBJETO DA PROPOSTA E SERVIÇOS), mediante as condições de pagamento constantes na Cláusula 4.0 (CONDIÇÕES DE PAGAMENTO), e o ACEITANTE se compromete a efetuar o pagamento conforme acordado.", 0, 'L');
 $pdf->Ln(1);
-$pdf->MultiCell(0, 4, "O ACEITANTE declara estar ciente e de acordo com todos os termos e condições estipulados na presente proposta de serviços.", 0, 'J');
+$pdf->MultiCell(0, 4, "O ACEITANTE declara estar ciente e de acordo com todos os termos e condições estipulados na presente proposta de serviços.", 0, 'L');
 
 $pdf->Ln(8);
 
@@ -845,7 +845,7 @@ if (!empty($proposta['observacoes'])) {
     $pdf->Cell(0, 6, 'OBSERVAÇÕES', 0, 1, 'L', true);
     $pdf->SetTextColor(0, 0, 0);
     $pdf->SetFont('helvetica', '', 8);
-    $pdf->MultiCell(0, 4, $proposta['observacoes'], 0, 'J');
+    $pdf->MultiCell(0, 4, $proposta['observacoes'], 0, 'L');
 }
 
 // --- QR Code + Link (rodapé da página) ---

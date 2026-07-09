@@ -1,0 +1,1270 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema Amazon - Apresentação Comercial</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    :root {
+      --ink: #102421;
+      --muted: #5d716d;
+      --soft: #edf4f1;
+      --paper: #fbfdfb;
+      --line: #d8e5e0;
+      --teal-950: #021815;
+      --teal-900: #06302c;
+      --teal-800: #0b403b;
+      --teal-700: #0f5c53;
+      --teal-500: #20c997;
+      --green: #39e38d;
+      --gold: #d9a948;
+      --red: #b84d4d;
+      --white: #ffffff;
+      --shadow: 0 22px 70px rgba(9, 38, 34, .14);
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      background: #dfe8e5;
+      color: var(--ink);
+      font-family: var(--font);
+      letter-spacing: 0;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      position: relative;
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 18mm 18mm 16mm;
+      overflow: hidden;
+      background: var(--paper);
+      page-break-after: always;
+    }
+
+    .sheet:last-child {
+      page-break-after: auto;
+    }
+
+    .cover {
+      display: flex;
+      min-height: 297mm;
+      padding: 0;
+      background:
+        linear-gradient(90deg, rgba(2, 24, 21, .97) 0%, rgba(2, 24, 21, .91) 45%, rgba(2, 24, 21, .38) 74%, rgba(2, 24, 21, .08) 100%),
+        url("../assets/img/portal-hero-ship.png") center center / cover no-repeat;
+      color: var(--white);
+    }
+
+    .cover-inner {
+      width: 100%;
+      padding: 22mm 18mm 18mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-row img {
+      width: 54px;
+      height: 54px;
+      object-fit: contain;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .96);
+      padding: 6px;
+    }
+
+    .brand-name {
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .brand-sub {
+      margin-top: 2px;
+      color: rgba(255, 255, 255, .68);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .cover-copy {
+      width: 65%;
+      padding-bottom: 20mm;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 620px;
+      font-size: 53px;
+      line-height: .95;
+      font-weight: 860;
+      letter-spacing: 0;
+    }
+
+    .cover-lede {
+      max-width: 520px;
+      margin-top: 20px;
+      color: rgba(255, 255, 255, .78);
+      font-size: 18px;
+      line-height: 1.48;
+      font-weight: 500;
+    }
+
+    .cover-line {
+      width: 82px;
+      height: 4px;
+      margin: 28px 0 22px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--green), var(--gold));
+    }
+
+    .cover-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 92%;
+    }
+
+    .cover-metric {
+      min-height: 76px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, .14);
+      background: rgba(2, 24, 21, .54);
+      backdrop-filter: blur(10px);
+      border-radius: 8px;
+    }
+
+    .cover-metric strong {
+      display: block;
+      font-size: 20px;
+      line-height: 1.1;
+      color: var(--white);
+    }
+
+    .cover-metric span {
+      display: block;
+      margin-top: 6px;
+      color: rgba(255, 255, 255, .66);
+      font-size: 10px;
+      line-height: 1.35;
+      text-transform: uppercase;
+      font-weight: 750;
+    }
+
+    .cover-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      color: rgba(255, 255, 255, .68);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .page-kicker {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      color: var(--teal-700);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .page-kicker::after {
+      content: "";
+      width: 78px;
+      height: 2px;
+      border-radius: 999px;
+      background: var(--teal-500);
+    }
+
+    h2 {
+      max-width: 680px;
+      font-size: 34px;
+      line-height: 1.06;
+      font-weight: 850;
+      color: var(--ink);
+    }
+
+    .lead {
+      max-width: 650px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1.04fr .96fr;
+      gap: 18px;
+      margin-top: 28px;
+      align-items: stretch;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .panel.dark {
+      color: var(--white);
+      border-color: rgba(255, 255, 255, .08);
+      background: linear-gradient(160deg, var(--teal-950), var(--teal-800));
+    }
+
+    .panel-pad {
+      padding: 20px;
+    }
+
+    .pain-list,
+    .gain-list,
+    .check-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pain-list li,
+    .gain-list li,
+    .check-list li {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 10px;
+      align-items: start;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.35;
+      font-weight: 560;
+    }
+
+    .pain-list li::before,
+    .gain-list li::before,
+    .check-list li::before {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .pain-list li::before {
+      content: "!";
+      color: var(--red);
+      background: #ffecec;
+    }
+
+    .gain-list li::before,
+    .check-list li::before {
+      content: "✓";
+      color: var(--teal-950);
+      background: var(--green);
+    }
+
+    .dark .gain-list li {
+      color: rgba(255, 255, 255, .74);
+    }
+
+    .dark h3,
+    .dark .eyebrow {
+      color: var(--white);
+    }
+
+    h3 {
+      font-size: 17px;
+      line-height: 1.2;
+      color: var(--ink);
+      font-weight: 820;
+      margin-bottom: 14px;
+    }
+
+    .eyebrow {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--teal-700);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    .callout {
+      margin-top: 22px;
+      padding: 18px 20px;
+      border-left: 5px solid var(--teal-500);
+      background: #e9f8f3;
+      color: var(--teal-900);
+      border-radius: 0 8px 8px 0;
+      font-size: 17px;
+      line-height: 1.36;
+      font-weight: 760;
+    }
+
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 13px;
+      margin-top: 30px;
+    }
+
+    .step {
+      position: relative;
+      min-height: 146px;
+      padding: 18px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      box-shadow: 0 14px 44px rgba(9, 38, 34, .08);
+    }
+
+    .step-num {
+      color: var(--teal-500);
+      font-size: 12px;
+      font-family: var(--mono);
+      font-weight: 850;
+    }
+
+    .step h3 {
+      margin: 10px 0 9px;
+      font-size: 16px;
+    }
+
+    .step p {
+      color: var(--muted);
+      font-size: 12.2px;
+      line-height: 1.42;
+      font-weight: 540;
+    }
+
+    .system-shot {
+      margin-top: 28px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #061411;
+      box-shadow: var(--shadow);
+    }
+
+    .system-shot img {
+      display: block;
+      width: 100%;
+      border-radius: 5px;
+    }
+
+    .caption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+      font-weight: 600;
+    }
+
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 13px;
+      margin-top: 26px;
+    }
+
+    .module {
+      min-height: 154px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+    }
+
+    .module h3 {
+      margin-bottom: 9px;
+      font-size: 15px;
+    }
+
+    .module p {
+      color: var(--muted);
+      font-size: 12.2px;
+      line-height: 1.42;
+      font-weight: 540;
+    }
+
+    .module strong {
+      color: var(--ink);
+      font-weight: 820;
+    }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-top: 26px;
+    }
+
+    .tech {
+      padding: 18px;
+      min-height: 132px;
+      border-radius: 8px;
+      background: #09221e;
+      color: var(--white);
+      border: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .tech h3 {
+      margin-bottom: 9px;
+      color: var(--white);
+      font-size: 15px;
+    }
+
+    .tech p {
+      color: rgba(255, 255, 255, .68);
+      font-size: 12.2px;
+      line-height: 1.42;
+      font-weight: 540;
+    }
+
+    .tech-band {
+      margin-top: 26px;
+      padding: 20px;
+      border-radius: 8px;
+      background:
+        linear-gradient(120deg, rgba(2, 24, 21, .92), rgba(11, 64, 59, .83)),
+        url("../assets/img/portal-login-maritime.png") center bottom / cover no-repeat;
+      color: var(--white);
+    }
+
+    .tech-band p {
+      max-width: 620px;
+      color: rgba(255, 255, 255, .76);
+      font-size: 13px;
+      line-height: 1.55;
+      font-weight: 550;
+    }
+
+    .price-layout {
+      display: grid;
+      grid-template-columns: .96fr 1.04fr;
+      gap: 18px;
+      margin-top: 28px;
+      align-items: stretch;
+    }
+
+    .price-card {
+      padding: 25px;
+      border-radius: 8px;
+      color: var(--white);
+      background:
+        radial-gradient(circle at 84% 14%, rgba(57, 227, 141, .24), transparent 32%),
+        linear-gradient(155deg, var(--teal-950), var(--teal-800));
+      box-shadow: var(--shadow);
+    }
+
+    .price-card .value {
+      margin-top: 18px;
+      font-size: 50px;
+      line-height: .95;
+      font-weight: 900;
+      color: var(--white);
+    }
+
+    .price-card .desc {
+      margin-top: 12px;
+      color: rgba(255, 255, 255, .74);
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 550;
+    }
+
+    .installments {
+      margin-top: 24px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .pay-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-top: 1px solid rgba(255, 255, 255, .14);
+      color: rgba(255, 255, 255, .72);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .pay-row strong {
+      color: var(--white);
+      font-size: 14px;
+    }
+
+    .terms-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 8px;
+      background: var(--white);
+      box-shadow: var(--shadow);
+      font-size: 12.3px;
+    }
+
+    .terms-table th,
+    .terms-table td {
+      padding: 13px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .terms-table th {
+      color: var(--teal-900);
+      background: var(--soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .terms-table td {
+      color: var(--muted);
+      font-weight: 560;
+      line-height: 1.35;
+    }
+
+    .terms-table td:last-child {
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .support-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .support {
+      min-height: 116px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+    }
+
+    .support h3 {
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .support p {
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.42;
+      font-weight: 540;
+    }
+
+    .scope {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .scope .panel {
+      box-shadow: none;
+    }
+
+    .outside li::before {
+      content: "•";
+      background: #fff2d4;
+      color: #946900;
+    }
+
+    .next-steps {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 26px;
+      counter-reset: steps;
+    }
+
+    .next {
+      position: relative;
+      min-height: 92px;
+      padding: 16px 16px 16px 54px;
+      border-radius: 8px;
+      background: var(--white);
+      border: 1px solid var(--line);
+    }
+
+    .next::before {
+      counter-increment: steps;
+      content: counter(steps, decimal-leading-zero);
+      position: absolute;
+      left: 15px;
+      top: 16px;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--teal-950);
+      background: var(--green);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .next h3 {
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .next p {
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.42;
+      font-weight: 540;
+    }
+
+    .close {
+      padding: 0;
+      min-height: 297mm;
+      color: var(--white);
+      background:
+        linear-gradient(180deg, rgba(2, 24, 21, .82), rgba(2, 24, 21, .96)),
+        url("../assets/img/portal-login-maritime.png") center bottom / cover no-repeat;
+    }
+
+    .close-inner {
+      min-height: 297mm;
+      padding: 22mm 18mm 18mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .close h2 {
+      max-width: 650px;
+      color: var(--white);
+      font-size: 42px;
+      line-height: 1.02;
+    }
+
+    .close .lead {
+      max-width: 610px;
+      color: rgba(255, 255, 255, .76);
+      font-size: 17px;
+    }
+
+    .contact-card {
+      width: 100%;
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, .13);
+      border-radius: 8px;
+      background: rgba(2, 24, 21, .66);
+      backdrop-filter: blur(12px);
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .contact-grid span {
+      display: block;
+      color: rgba(255, 255, 255, .5);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: 7px;
+    }
+
+    .contact-grid strong {
+      display: block;
+      color: var(--white);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .footer-mark {
+      position: absolute;
+      bottom: 8mm;
+      right: 18mm;
+      color: #95a8a3;
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .mini-logo {
+      position: absolute;
+      bottom: 8mm;
+      left: 18mm;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #7f948f;
+      font-size: 10px;
+      font-weight: 780;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .mini-logo img {
+      width: 22px;
+      height: 22px;
+      object-fit: contain;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--white);
+      color: var(--teal-900);
+      font-size: 10.5px;
+      font-weight: 800;
+    }
+
+    .demo-access {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 12px;
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      box-shadow: 0 14px 44px rgba(9, 38, 34, .08);
+    }
+
+    .demo-access h3 {
+      margin-bottom: 7px;
+      font-size: 14px;
+    }
+
+    .demo-access p,
+    .demo-access a {
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.42;
+      font-weight: 650;
+    }
+
+    .demo-access a {
+      color: var(--teal-700);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .credentials {
+      display: grid;
+      gap: 7px;
+    }
+
+    .credentials div {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 750;
+    }
+
+    .credentials strong {
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 10.5px;
+    }
+
+    .whatsapp-link {
+      color: var(--white);
+      text-decoration: none;
+    }
+
+    @media print {
+      html,
+      body {
+        width: 210mm;
+        background: var(--paper);
+      }
+
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="sheet cover">
+    <div class="cover-inner">
+      <div class="brand-row">
+        <img src="../img/logo-amazon-certificadora.svg" alt="Amazon Certificadora">
+        <div>
+          <div class="brand-name">Amazon Certificadora</div>
+          <div class="brand-sub">Apresentação comercial do sistema</div>
+        </div>
+      </div>
+
+      <div class="cover-copy">
+        <h1>Sistema Amazon</h1>
+        <div class="cover-line"></div>
+        <p class="cover-lede">ERP completo para empresas de vistoria e certificação naval: do primeiro contato comercial à emissão de certificados oficiais, com controle operacional, financeiro e documental em um único lugar.</p>
+      </div>
+
+      <div>
+        <div class="cover-grid">
+          <div class="cover-metric">
+            <strong>20 módulos</strong>
+            <span>Operação, comercial, financeiro, clientes e documentos</span>
+          </div>
+          <div class="cover-metric">
+            <strong>6 certificados</strong>
+            <span>CSN, CNBL, CNARQ, LP, LC e CHT com assinatura digital</span>
+          </div>
+          <div class="cover-metric">
+            <strong>Pronto para uso</strong>
+            <span>Instalação, treinamento e 3 meses de suporte inclusos</span>
+          </div>
+        </div>
+        <div class="cover-footer">
+          <span>ERP para certificação naval</span>
+          <span>2026</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Oportunidade</div>
+    <h2>O comprador não está adquirindo telas. Está comprando controle operacional.</h2>
+    <p class="lead">O Sistema Amazon foi desenhado para uma rotina muito específica: empresas que fazem vistorias navais, certificam embarcações e precisam trabalhar com processos regulados pela Marinha do Brasil sem depender de planilhas, papéis soltos e retrabalho manual.</p>
+
+    <div class="split">
+      <div class="panel panel-pad">
+        <span class="eyebrow">Hoje, no processo manual</span>
+        <h3>Informação espalhada custa tempo, dinheiro e confiança.</h3>
+        <ul class="pain-list">
+          <li>Propostas em Word ou Excel geram retrabalho, versões perdidas e pouca rastreabilidade.</li>
+          <li>Agendamentos por telefone ou WhatsApp aumentam conflito de horários e falhas de comunicação.</li>
+          <li>Vistorias em papel dificultam padrão, legibilidade, histórico e aprovação administrativa.</li>
+          <li>Certificados preenchidos manualmente elevam risco de erro e inconsistências documentais.</li>
+          <li>Financeiro em planilha reduz visão de caixa, cobrança e acompanhamento de parcelas.</li>
+          <li>Clientes dependem de mensagens avulsas para acessar documentos importantes.</li>
+        </ul>
+      </div>
+
+      <div class="panel dark panel-pad">
+        <span class="eyebrow">Com o Sistema Amazon</span>
+        <h3>O fluxo passa a ser integrado, auditável e profissional.</h3>
+        <ul class="gain-list">
+          <li>Proposta, assinatura, agendamento, vistoria, aprovação e certificado caminham no mesmo sistema.</li>
+          <li>Relatórios e PDFs ficam persistidos com hash de integridade e armazenamento seguro.</li>
+          <li>Perfis de acesso protegem o que cada cargo pode ver e executar.</li>
+          <li>Portal do cliente melhora a percepcao de profissionalismo e reduz solicitacoes repetidas.</li>
+          <li>O gestor acompanha operação, pendências, receitas e meta comercial em tempo real.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">A venda central é simples: menos improviso, menos erro manual e mais velocidade para transformar vistoria aprovada em documento oficial e receita recebida.</div>
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">01</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Fluxo operacional</div>
+    <h2>Um processo completo, do comercial ao certificado.</h2>
+    <p class="lead">A arquitetura do sistema acompanha a jornada real da empresa certificadora. Cada etapa alimenta a próxima, reduzindo digitação duplicada e criando histórico confiável por cliente, embarcação e documento.</p>
+
+    <div class="workflow">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Proposta</h3>
+        <p>Serviços, valores, PDF comercial, envio por e-mail e assinatura digital pública por token.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Agendamento</h3>
+        <p>Data, hora, local, embarcação, cliente, vendedor e vistoriador com status de execução.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Vistoria</h3>
+        <p>Checklist dinâmico, registro técnico, fotos, responsável e relatório gerado automaticamente em PDF.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <h3>Aprovacao</h3>
+        <p>Análise administrativa com aprovação, reprovação, exigências e baixa de pendências.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">05</div>
+        <h3>Certificados</h3>
+        <p>CSN, CNBL, CNARQ, LP, LC e CHT com numeração automática, PDF persistido e assinatura digital.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">06</div>
+        <h3>Financeiro</h3>
+        <p>Receitas, despesas, comprovantes, notas fiscais, status de cobrança e relatórios de resultado.</p>
+      </div>
+    </div>
+
+    <div class="tech-band">
+      <h3>Resultado prático</h3>
+      <p>O sistema substitui uma cadeia de ferramentas soltas por uma operação única: comercial vende, equipe agenda, vistoriador executa, administrador aprova, documentos oficiais são gerados e o financeiro acompanha o recebimento.</p>
+    </div>
+
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">02</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Demonstração disponível</div>
+    <h2>Veja o sistema atual funcionando, com acesso de demonstração.</h2>
+    <p class="lead">O comprador pode abrir o ambiente online, navegar pelo dashboard e sentir a rotina do sistema antes da decisão comercial.</p>
+
+    <div class="system-shot">
+      <img src="../img/atual.png" alt="Dashboard atual do Sistema Amazon">
+    </div>
+    <p class="caption">Imagem atual do dashboard: receitas do mês, vistorias, propostas, meta atingida, agendamentos pendentes e vistorias em andamento.</p>
+
+    <div class="pill-row">
+      <span class="pill">Receitas e despesas</span>
+      <span class="pill">Vistorias pendentes</span>
+      <span class="pill">Propostas em aberto</span>
+      <span class="pill">Meta atingida</span>
+      <span class="pill">Busca global</span>
+      <span class="pill">Controle por cargo</span>
+    </div>
+
+    <div class="demo-access">
+      <div>
+        <span class="eyebrow">Acesso online</span>
+        <h3>Ambiente de demonstração</h3>
+        <p><a href="https://sistema.amazonnaval.com.br/">https://sistema.amazonnaval.com.br/</a></p>
+      </div>
+      <div class="credentials">
+        <div><span>E-mail</span><strong>teste@teste.com</strong></div>
+        <div><span>Senha</span><strong>teste123</strong></div>
+      </div>
+    </div>
+
+    <div class="callout">A demonstração reduz a dúvida do comprador: ele pode acessar o sistema real, ver a organização das telas e confirmar que a solução já está pronta para avaliação.</div>
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">03</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Módulos por valor</div>
+    <h2>Os módulos foram agrupados para resolver áreas inteiras da empresa.</h2>
+    <p class="lead">Em vez de vender uma lista extensa de funcionalidades, a apresentação organiza o sistema pelos ganhos que importam para a operação: vender, executar, certificar, controlar e atender melhor.</p>
+
+    <div class="module-grid">
+      <div class="module">
+        <h3>Gestão operacional</h3>
+        <p><strong>Dashboard, embarcações, vistorias e agendamentos.</strong> A empresa acompanha volume de trabalho, pendências, histórico técnico, responsáveis e status de cada vistoria.</p>
+      </div>
+      <div class="module">
+        <h3>Comercial e contratos</h3>
+        <p><strong>Propostas, serviços, metas e contratos.</strong> O comercial cria propostas com numeração sequencial, envia PDF, coleta assinatura digital e acompanha meta mensal.</p>
+      </div>
+      <div class="module">
+        <h3>Documentos oficiais</h3>
+        <p><strong>CSN, CNBL, CNARQ, LP, LC e CHT.</strong> Certificados com modelos oficiais, numeração automática, assinatura digital, hash e armazenamento seguro.</p>
+      </div>
+      <div class="module">
+        <h3>Financeiro integrado</h3>
+        <p><strong>Receitas, despesas, comprovantes e cobranças.</strong> Lançamentos conectados a propostas, filtros por período, status de pagamento e relatórios financeiros.</p>
+      </div>
+      <div class="module">
+        <h3>Relacionamento com clientes</h3>
+        <p><strong>Clientes, proprietários, armadores, despachantes e portal.</strong> Dados unificados, documentos acessíveis e menos dependência de atendimento manual.</p>
+      </div>
+      <div class="module">
+        <h3>Gestão e configuração</h3>
+        <p><strong>Usuários, permissões, e-mails, backups e configurações.</strong> Controle por cargo, logs, sessão com expiração e parâmetros essenciais do sistema.</p>
+      </div>
+    </div>
+
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">04</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Diferenciais técnicos</div>
+    <h2>Base técnica pensada para confiança, rastreabilidade e implantação real.</h2>
+    <p class="lead">Os diferenciais técnicos não aparecem como detalhe: eles reduzem risco para o comprador e aumentam a capacidade de operar documentos sensíveis com segurança.</p>
+
+    <div class="tech-grid">
+      <div class="tech">
+        <h3>Assinatura digital</h3>
+        <p>Token único criptográfico, rota pública de assinatura, registro de IP, data, hora e imagem da assinatura para propostas e certificados.</p>
+      </div>
+      <div class="tech">
+        <h3>PDF com hash</h3>
+        <p>Propostas, relatórios e certificados oficiais são gerados em PDF com hash SHA-256 e persistência segura.</p>
+      </div>
+      <div class="tech">
+        <h3>Storage MinIO / S3</h3>
+        <p>Arquivos, comprovantes, imagens e documentos podem ser armazenados em S3 ou MinIO, com fallback para armazenamento local.</p>
+      </div>
+      <div class="tech">
+        <h3>Segurança aplicada</h3>
+        <p>CSRF, validação de CPF/CNPJ, senhas com hash, sessão por inatividade, permissões por cargo, logs e soft delete.</p>
+      </div>
+      <div class="tech">
+        <h3>Ambiente Docker</h3>
+        <p>PHP 8.2, MySQL 8.0 e MinIO em ambiente conteinerizado, com deploy automatizado para Ubuntu/Debian.</p>
+      </div>
+      <div class="tech">
+        <h3>Numeração sem duplicidade</h3>
+        <p>Geração atômica com SELECT FOR UPDATE para documentos como AM-CSN, AM-CNBL, AM-CNARQ e AM-REL-HT.</p>
+      </div>
+    </div>
+
+    <div class="callout">Tecnologias utilizadas: PHP 8.2, MySQL 8.0, Docker, MinIO/S3, PHPMailer, JavaScript, CSS3, HTML5, AWS SDK e PDO.</div>
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">05</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Investimento</div>
+    <h2>Uma aquisição acessível para colocar a operação em outro nível.</h2>
+    <p class="lead">A proposta foi estruturada para permitir uso imediato do sistema sem pressionar o caixa: entrada baixa, parcelas mensais e suporte nos primeiros meses de operação.</p>
+
+    <div class="price-layout">
+      <div class="price-card">
+        <span class="eyebrow">Sistema completo</span>
+        <div class="value">R$ 10.000</div>
+        <p class="desc">Licença + sistema completo, com liberação do acesso ao código-fonte após quitação total.</p>
+        <div class="installments">
+          <div class="pay-row"><span>Entrada no fechamento</span><strong>R$ 1.000</strong></div>
+          <div class="pay-row"><span>Saldo restante</span><strong>R$ 9.000</strong></div>
+          <div class="pay-row"><span>Parcelamento</span><strong>9x R$ 1.000</strong></div>
+          <div class="pay-row"><span>Total de parcelas</span><strong>10x R$ 1.000</strong></div>
+        </div>
+      </div>
+
+      <table class="terms-table">
+        <thead>
+          <tr>
+            <th>Condição</th>
+            <th>Definição</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Uso durante o pagamento</td>
+            <td>Sistema instalado e funcionando desde o primeiro mes.</td>
+          </tr>
+          <tr>
+            <td>Liberação do código-fonte</td>
+            <td>Após quitação total do valor contratado.</td>
+          </tr>
+          <tr>
+            <td>Formas de pagamento</td>
+            <td>PIX, boleto bancário ou transferência.</td>
+          </tr>
+          <tr>
+            <td>Suporte inicial</td>
+            <td>3 meses de suporte total inclusos.</td>
+          </tr>
+          <tr>
+            <td>Objetivo comercial</td>
+            <td>Começar a usar, organizar a operação e pagar de forma suave.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">O parcelamento permite que a empresa comece a capturar valor operacional antes de concluir o pagamento total.</div>
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">06</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Suporte e escopo</div>
+    <h2>O comprador recebe o sistema funcionando, com acompanhamento inicial.</h2>
+    <p class="lead">Os três primeiros meses reduzem risco de implantação: instalação, ajustes, treinamento e correção de bugs acompanham a entrada do sistema na rotina da empresa.</p>
+
+    <div class="support-grid">
+      <div class="support">
+        <h3>Instalação completa</h3>
+        <p>Servidor configurado e sistema rodando no ambiente indicado pelo cliente.</p>
+      </div>
+      <div class="support">
+        <h3>Suporte via WhatsApp</h3>
+        <p>Atendimento em horário comercial para dúvidas e orientações de uso.</p>
+      </div>
+      <div class="support">
+        <h3>Correção de bugs</h3>
+        <p>Falhas encontradas no sistema atual serão corrigidas durante o suporte.</p>
+      </div>
+      <div class="support">
+        <h3>Melhorias contínuas</h3>
+        <p>Refinamentos e pequenas melhorias dentro do que já existe no produto.</p>
+      </div>
+      <div class="support">
+        <h3>Treinamento básico</h3>
+        <p>Orientação inicial para equipe entender o fluxo e operar com segurança.</p>
+      </div>
+      <div class="support">
+        <h3>Ambiente Docker</h3>
+        <p>Deploy automatizado e ambiente padronizado para facilitar manutenção.</p>
+      </div>
+    </div>
+
+    <div class="scope">
+      <div class="panel panel-pad">
+        <span class="eyebrow">Incluso</span>
+        <ul class="check-list">
+          <li>Instalação completa do sistema.</li>
+          <li>Suporte total por 3 meses.</li>
+          <li>Correção de bugs do sistema atual.</li>
+          <li>Pequenos ajustes e refinamentos.</li>
+          <li>Treinamento básico da equipe.</li>
+        </ul>
+      </div>
+      <div class="panel panel-pad">
+        <span class="eyebrow">Valor adicional</span>
+        <ul class="check-list outside">
+          <li>Novos módulos ou funcionalidades fora do que já existe.</li>
+          <li>Integrações com APIs e sistemas externos.</li>
+          <li>Hospedagem, VPS, domínio e certificado SSL.</li>
+          <li>Suporte contratado após os 3 meses inclusos.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">07</div>
+  </section>
+
+  <section class="sheet">
+    <div class="page-kicker">Próximos passos</div>
+    <h2>O caminho de compra e implantação é direto.</h2>
+    <p class="lead">A sequência foi pensada para evitar ambiguidade: fechar, pagar a entrada, instalar, treinar, operar com suporte e liberar o código-fonte após a quitação.</p>
+
+    <div class="next-steps">
+      <div class="next">
+        <h3>Fechamento comercial</h3>
+        <p>Definição final do parcelamento, entrada e dados do cliente.</p>
+      </div>
+      <div class="next">
+        <h3>Pagamento da entrada</h3>
+        <p>Entrada de R$ 1.000,00 para iniciar a implantacao.</p>
+      </div>
+      <div class="next">
+        <h3>Servidor VPS</h3>
+        <p>Cliente providencia VPS, domínio e SSL conforme necessidade.</p>
+      </div>
+      <div class="next">
+        <h3>Instalação do sistema</h3>
+        <p>Configuração de Docker, banco de dados, storage e ambiente.</p>
+      </div>
+      <div class="next">
+        <h3>Treinamento da equipe</h3>
+        <p>Orientação prática para iniciar operação com segurança.</p>
+      </div>
+      <div class="next">
+        <h3>Início da operação</h3>
+        <p>Empresa passa a usar o sistema com suporte nos primeiros meses.</p>
+      </div>
+      <div class="next">
+        <h3>Acompanhamento</h3>
+        <p>Refinamentos, ajustes e correção de bugs durante o suporte incluso.</p>
+      </div>
+      <div class="next">
+        <h3>Quitação total</h3>
+        <p>Com R$ 10.000,00 quitados, código-fonte completo e liberado.</p>
+      </div>
+    </div>
+
+    <div class="callout">A decisão não precisa esperar um projeto do zero: o sistema atual já cobre a jornada principal de uma certificadora naval.</div>
+    <div class="mini-logo"><img src="../img/logo-amazon-icon.svg" alt="">Sistema Amazon</div>
+    <div class="footer-mark">08</div>
+  </section>
+
+  <section class="sheet close">
+    <div class="close-inner">
+      <div class="brand-row">
+        <img src="../img/logo-amazon-certificadora.svg" alt="Amazon Certificadora">
+        <div>
+          <div class="brand-name">Amazon Certificadora</div>
+          <div class="brand-sub">Automatize. Organize. Certifique.</div>
+        </div>
+      </div>
+
+      <div>
+        <h2>O Sistema Amazon é o ERP que sua empresa de certificação naval merece.</h2>
+        <p class="lead">Ele organiza a operação, reduz o improviso, profissionaliza a entrega ao cliente e cria uma base técnica confiável para crescer com mais controle.</p>
+      </div>
+
+      <div class="contact-card">
+        <span class="eyebrow">Contato comercial</span>
+        <div class="contact-grid" style="grid-template-columns: 1fr 1fr;">
+          <div>
+            <span>Desenvolvedor</span>
+            <strong>Rosano Souza</strong>
+          </div>
+          <div>
+            <span>WhatsApp</span>
+            <strong><a class="whatsapp-link" href="https://wa.me/5591989340275?text=Ol%C3%A1%20Rosano%2C%20vi%20a%20apresenta%C3%A7%C3%A3o%20do%20Sistema%20Amazon%20e%20quero%20falar%20com%20voc%C3%AA.">(91) 98934-0275</a></strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

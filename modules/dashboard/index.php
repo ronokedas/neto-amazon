@@ -349,7 +349,7 @@ $dias_portugues = [
     'Saturday' => 'Sábado',
 ];
 
-$titulo_page = 'Dashboard - ERP Sistema';
+$titulo_page = 'Inicio - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
 require_once __DIR__ . '/../../includes/sidebar.php';
 ?>
@@ -357,18 +357,20 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 <div class="main-content" id="mainContent">
     <div class="page-header">
         <div>
-            <h1 class="page-title">Dashboard</h1>
+            <h1 class="page-title">Inicio</h1>
             <p class="page-subtitle">
                 Bem-vindo, <?= h($_SESSION['usuario_nome'] ?? 'Usuário') ?> ·
                 <?= $dias_portugues[date('l')] ?? date('l') ?>, <?= date('d/m/Y') ?>
             </p>
         </div>
         <div class="page-actions">
-            <a href="<?= APP_URL ?>agendamentos/form" class="btn-secondary">
-                <i class="fa-solid fa-plus"></i> Novo Agendamento
+            <a href="<?= APP_URL ?>comercial/nova" class="btn-primary dashboard-action-proposal">
+                <i class="fa-solid fa-file-circle-plus"></i>
+                <span>Nova Proposta</span>
             </a>
-            <a href="<?= APP_URL ?>vistorias/nova" class="btn-primary">
-                Nova Vistoria <i class="fa-solid fa-arrow-right"></i>
+            <a href="<?= APP_URL ?>agendamentos/form" class="btn-secondary dashboard-action-schedule">
+                <i class="fa-solid fa-calendar-plus"></i>
+                <span>Novo Agendamento</span>
             </a>
         </div>
     </div>

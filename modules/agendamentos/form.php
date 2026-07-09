@@ -24,6 +24,7 @@ $agendamento = [
     'embarcacao_id'    => '',
     'cliente_id'       => '',
     'armador_id'       => '',
+    'operador_nome'    => '',
     'vistoriador_id'   => '',
     'tipo_vistoria'    => '',
     'data_vistoria'    => '',
@@ -63,7 +64,7 @@ try {
     $armadores = $pdo->query("SELECT id, nome, cpf_cnpj FROM clientes WHERE status = 'ATIVO' AND perfil = 'armador' ORDER BY nome ASC")->fetchAll(PDO::FETCH_ASSOC);
 
     $propostas = $pdo->query("
-        SELECT p.id, p.numero, p.armador_id, c.nome AS cliente_nome, p.valor_total
+        SELECT p.id, p.numero, p.armador_id, p.operador_nome, c.nome AS cliente_nome, p.valor_total
         FROM propostas p
         INNER JOIN clientes c ON p.cliente_id = c.id
         WHERE p.status IN ('enviada','aprovada','assinada')
@@ -155,6 +156,7 @@ if (!empty($agendamento['proposta_id'])) {
             <?php if ($origemTravada): ?>
                 <input type="hidden" name="proposta_id" value="<?php echo h($agendamento['proposta_id']); ?>">
                 <input type="hidden" name="armador_id" value="<?php echo h($agendamento['armador_id']); ?>">
+                <input type="hidden" name="operador_nome" value="<?php echo h($agendamento['operador_nome']); ?>">
                 <input type="hidden" name="cliente_id" value="<?php echo h($agendamento['cliente_id']); ?>">
                 <input type="hidden" name="embarcacao_id" value="<?php echo h($agendamento['embarcacao_id']); ?>">
             <?php endif; ?>
@@ -171,6 +173,7 @@ if (!empty($agendamento['proposta_id'])) {
                                 <option value="<?php echo h($prop['id']); ?>"
                                         data-cliente="<?php echo h($prop['cliente_nome']); ?>"
                                         data-armador-id="<?php echo h($prop['armador_id'] ?? ''); ?>"
+                                        data-operador-nome="<?php echo h($prop['operador_nome'] ?? ''); ?>"
                                         <?php echo $agendamento['proposta_id'] === $prop['id'] ? 'selected' : ''; ?>>
                                     <?php echo h($prop['numero']); ?> — <?php echo h($prop['cliente_nome']); ?> (<?php echo formatarMoeda($prop['valor_total']); ?>)
                                 </option>
@@ -191,6 +194,13 @@ if (!empty($agendamento['proposta_id'])) {
                                 <?php endforeach; ?>
                             </select>
                             <small>Pessoa responsável pela operação da embarcação no dia da vistoria.</small>
+                        </div>
+                        <div class="form-group col-6">
+                            <label for="operador_nome">Respons&aacute;vel presente na vistoria</label>
+                            <input type="text" id="operador_nome" name="operador_nome" maxlength="255"
+                                   value="<?php echo h($agendamento['operador_nome']); ?>"
+                                   placeholder="Nome do funcion&aacute;rio/operador, se houver">
+                            <small>Esse nome ser&aacute; levado para o relat&oacute;rio de vistoria.</small>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -372,10 +382,12 @@ function carregarDadosProposta(propostaId) {
     const selectEmbarcacao = document.getElementById('embarcacao_id');
     const selectCliente = document.getElementById('cliente_id');
     const selectArmador = document.getElementById('armador_id');
+    const campoOperador = document.getElementById('operador_nome');
     const campoVistoria = document.getElementById('tipo_vistoria');
     if (!propostaId) {
         if (selectCliente) selectCliente.value = '';
         if (selectArmador) selectArmador.value = '';
+        if (campoOperador) campoOperador.value = '';
         if (campoVistoria) campoVistoria.value = '';
         atualizarEstadoServicosTravados(false);
         restaurarEmbarcacoes();
@@ -393,6 +405,9 @@ function carregarDadosProposta(propostaId) {
                 }
                 if (selectArmador && data.armador_id) {
                     selectArmador.value = data.armador_id;
+                }
+                if (campoOperador) {
+                    campoOperador.value = data.operador_nome || '';
                 }
                 if (selectEmbarcacao && data.embarcacoes && data.embarcacoes.length > 0) {
                     let options = '<option value="">Selecione a embarcação</option>';

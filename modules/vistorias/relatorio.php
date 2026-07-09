@@ -41,6 +41,7 @@ try {
                e.numero_passageiros_n1, e.numero_passageiros_n2,
                u.nome AS vistoriador_nome,
                arm.nome AS armador_nome,
+               a.operador_nome AS agendamento_operador_nome,
                os.id AS os_id, os.numero AS os_numero, os.status AS os_status
         FROM agendamentos a
         INNER JOIN clientes c     ON a.cliente_id = c.id
@@ -570,7 +571,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                            id="operador_nome"
                            name="operador_nome"
                            class="form-control"
-                           value="<?php echo h($vistoria['operador_nome'] ?? ''); ?>"
+                           value="<?php echo h($vistoria['operador_nome'] ?? $ag['agendamento_operador_nome'] ?? ''); ?>"
                            placeholder="Nome do operador/responsável presente na vistoria"
                            style="margin-top: 8px; background: var(--cor-input-bg, #2a2a3e); color: var(--cor-texto, #ddd); border: 1px solid var(--cor-borda, #444);">
                 </div>

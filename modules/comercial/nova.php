@@ -177,7 +177,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 
                         <div class="armador-box">
                             <div>
-                                <label for="armador_id"><i class="fas fa-hard-hat"></i> Armador responsável pela vistoria <span class="text-danger">*</span></label>
+                                <label for="armador_id"><i class="fas fa-hard-hat"></i> Armador responsável pela vistoria</label>
                                 <small>Informe quem estará responsável pela embarcação no dia da vistoria. Pode ser diferente do proprietário.</small>
                             </div>
                             <?php if (empty($armadores)): ?>
@@ -186,7 +186,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                     <span>Nenhum armador ativo cadastrado. Cadastre um armador para concluir a proposta.</span>
                                 </div>
                             <?php else: ?>
-                                <select id="armador_id" name="armador_id" onchange="atualizarPasso1()" required>
+                                <select id="armador_id" name="armador_id" onchange="atualizarPasso1()">
                                     <option value="">Selecione o armador responsável...</option>
                                     <?php foreach ($armadores as $a): ?>
                                         <option value="<?php echo h($a['id']); ?>" <?php echo ($armadorPreSelecionadoEncontrado && $armadorPreSelecionadoId === $a['id']) ? 'selected' : ''; ?>>
@@ -195,6 +195,13 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                     <?php endforeach; ?>
                                 </select>
                             <?php endif; ?>
+                        </div>
+                        <div class="armador-box responsavel-box">
+                            <div>
+                                <label for="operador_nome"><i class="fas fa-user-check"></i> Nome do respons&aacute;vel presente na vistoria</label>
+                                <small>Use quando o respons&aacute;vel for funcion&aacute;rio, operador ou outra pessoa indicada pelo armador.</small>
+                            </div>
+                            <input type="text" id="operador_nome" name="operador_nome" maxlength="255" placeholder="Ex.: Jo&atilde;o da Silva" oninput="atualizarPasso1()">
                         </div>
                     <?php endif; ?>
                 </div>
@@ -438,6 +445,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 const ALL_SERVICOS = <?php echo json_encode($servicos, JSON_UNESCAPED_UNICODE); ?>;
 let clienteSelecionadoData = null;
 let armadorSelecionadoData = null;
+let operadorNomeData = '';
 let embarcacoesCarregadas = []; // { id, nome, registro }
 let embarcacaoSelecionadaId = null;
 let servicosSelecionadosPorEmbarcacao = {};
@@ -517,12 +525,14 @@ function clienteSelecionado(radio) {
 function atualizarPasso1() {
     const armadorSelect = document.getElementById('armador_id');
     const armadorOption = armadorSelect?.selectedOptions?.[0] || null;
+    const operadorInput = document.getElementById('operador_nome');
+    operadorNomeData = operadorInput?.value?.trim() || '';
     armadorSelecionadoData = armadorSelect?.value ? {
         id: armadorSelect.value,
         nome: armadorOption ? armadorOption.textContent.trim() : ''
     } : null;
 
-    document.getElementById('btnPasso1').disabled = !(clienteSelecionadoData && armadorSelecionadoData);
+    document.getElementById('btnPasso1').disabled = !clienteSelecionadoData;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -949,6 +959,10 @@ function montarRevisao() {
     document.getElementById('rParcelas').innerHTML = rph;
 
     // Mostra conteúdo, esconde loading
+    if (operadorNomeData) {
+        const reviewArmador = document.getElementById('reviewArmador');
+        reviewArmador.innerHTML += `<br><small class="text-muted">Respons&aacute;vel informado: ${esc(operadorNomeData)}</small>`;
+    }
     document.getElementById('reviewLoading').style.display = 'none';
     document.getElementById('reviewContent').style.display = 'block';
 }
@@ -1292,6 +1306,10 @@ function montarRevisao() {
     }
     document.getElementById('rParcelas').innerHTML = rph;
 
+    if (operadorNomeData) {
+        const reviewArmador = document.getElementById('reviewArmador');
+        reviewArmador.innerHTML += `<br><small class="text-muted">Respons&aacute;vel informado: ${esc(operadorNomeData)}</small>`;
+    }
     document.getElementById('reviewLoading').style.display = 'none';
     document.getElementById('reviewContent').style.display = 'block';
 }
@@ -1458,10 +1476,12 @@ document.addEventListener('keydown', avancarWizardComEnter);
     pointer-events: none;
 }
 .discount-control {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(150px, 1fr);
     align-items: stretch;
     justify-content: center;
     gap: 8px;
+    width: 100%;
 }
 .discount-mode {
     display: inline-grid;
@@ -1494,7 +1514,7 @@ document.addEventListener('keydown', avancarWizardComEnter);
     color: #021210;
 }
 .discount-input-wrap {
-    min-width: 140px;
+    min-width: 0;
     height: 42px;
     display: flex;
     align-items: center;
@@ -1502,6 +1522,19 @@ document.addEventListener('keydown', avancarWizardComEnter);
     border-radius: 8px;
     background: var(--cor-sidebar);
     overflow: hidden;
+}
+.discount-card,
+.entry-card {
+    min-width: 0;
+}
+@media (max-width: 520px) {
+    .discount-control {
+        grid-template-columns: 1fr;
+    }
+    .discount-mode {
+        width: 100%;
+        grid-template-columns: 1fr 1fr;
+    }
 }
 .discount-input-wrap span {
     min-width: 44px;

@@ -26,7 +26,7 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo-area">
-        <a href="<?= APP_URL ?>dashboard" class="logo-title" aria-label="Amazon Certificadora - Dashboard">
+        <a href="<?= APP_URL ?>dashboard" class="logo-title" aria-label="Amazon Certificadora - Inicio">
             <img src="<?= APP_URL ?>img/logo-amazon-sidebar.svg" alt="Amazon Certificadora" class="sidebar-brand-logo">
             <img src="<?= APP_URL ?>img/logo-amazon-icon.svg" alt="" class="sidebar-brand-icon" aria-hidden="true">
         </a>
@@ -39,9 +39,9 @@ $inicial_avatar = strtoupper(substr($nome_usuario, 0, 1));
         
         <!-- GRUPO OPERAÇÃO -->
         <div class="nav-group-label">OPERAÇÃO</div>
-        <a href="<?= APP_URL ?>dashboard" class="nav-item<?= isActive('dashboard', $pagina_atual) ?>" data-label="Dashboard">
+        <a href="<?= APP_URL ?>dashboard" class="nav-item<?= isActive('dashboard', $pagina_atual) ?>" data-label="Inicio">
             <i class="fa-solid fa-gauge-high"></i>
-            <span class="nav-text">Dashboard</span>
+            <span class="nav-text">Inicio</span>
         </a>
         <a href="<?= APP_URL ?>vistorias" class="nav-item<?= isActive('vistorias', $pagina_atual) ?>" data-label="Vistorias">
             <i class="fa-solid fa-clipboard-check"></i>

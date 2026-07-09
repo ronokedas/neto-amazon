@@ -27,7 +27,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
     
     try {
         $stmt = $pdo->prepare("
-            SELECT p.cliente_id, p.armador_id, c.nome AS cliente_nome
+            SELECT p.cliente_id, p.armador_id, p.operador_nome, c.nome AS cliente_nome
             FROM propostas p
             INNER JOIN clientes c ON p.cliente_id = c.id
             WHERE p.id = :id
@@ -65,6 +65,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'buscar_proposta') {
             'cliente_id'       => $proposta['cliente_id'],
             'cliente_nome'     => $proposta['cliente_nome'],
             'armador_id'       => $proposta['armador_id'] ?? null,
+            'operador_nome'    => $proposta['operador_nome'] ?? null,
             'embarcacoes'      => $embarcacoes,
             'embarcacao_id'    => !empty($embarcacoes) ? $embarcacoes[0]['id'] : null,
             'tipo_vistoria'    => !empty($servicos) ? implode(', ', $servicos) : '',
@@ -132,17 +133,20 @@ function obterTipoVistoriaDaProposta(PDO $pdo, ?string $proposta_id): string
     return !empty($servicos) ? implode(', ', $servicos) : '';
 }
 
-function obterArmadorDaProposta(PDO $pdo, ?string $proposta_id): ?string
+function obterDadosResponsavelDaProposta(PDO $pdo, ?string $proposta_id): array
 {
     if (empty($proposta_id)) {
-        return null;
+        return ['armador_id' => null, 'operador_nome' => null];
     }
 
-    $stmt = $pdo->prepare("SELECT armador_id FROM propostas WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT armador_id, operador_nome FROM propostas WHERE id = :id");
     $stmt->execute([':id' => $proposta_id]);
-    $armador_id = $stmt->fetchColumn();
+    $dados = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    return $armador_id ?: null;
+    return [
+        'armador_id' => $dados['armador_id'] ?? null,
+        'operador_nome' => $dados['operador_nome'] ?? null,
+    ];
 }
 
 function obterAgendamento(PDO $pdo, string $id): ?array
@@ -176,6 +180,7 @@ switch ($action) {
             $embarcacao_id   = $_POST['embarcacao_id'] ?? '';
             $cliente_id      = $_POST['cliente_id'] ?? '';
             $armador_id      = $_POST['armador_id'] ?? null;
+            $operador_nome   = trim(sanitizar($_POST['operador_nome'] ?? ''));
             $tipo_vistoria   = sanitizar($_POST['tipo_vistoria'] ?? '');
             $data_vistoria   = $_POST['data_vistoria'] ?? '';
             $hora_vistoria   = $_POST['hora_vistoria'] ?? null;
@@ -191,9 +196,12 @@ switch ($action) {
                 if (!empty($tipoVistoriaProposta)) {
                     $tipo_vistoria = $tipoVistoriaProposta;
                 }
-                $armadorProposta = obterArmadorDaProposta($pdo, $proposta_id);
-                if (!empty($armadorProposta)) {
-                    $armador_id = $armadorProposta;
+                $responsavelProposta = obterDadosResponsavelDaProposta($pdo, $proposta_id);
+                if (!empty($responsavelProposta['armador_id'])) {
+                    $armador_id = $responsavelProposta['armador_id'];
+                }
+                if (!empty($responsavelProposta['operador_nome'])) {
+                    $operador_nome = $responsavelProposta['operador_nome'];
                 }
             }
             if (!horaVistoriaValida($hora_vistoria)) {
@@ -233,11 +241,11 @@ switch ($action) {
 
             $stmt = $pdo->prepare("
                 INSERT INTO agendamentos (
-                    id, proposta_id, embarcacao_id, cliente_id, armador_id, vistoriador_id, vendedor_id,
+                    id, proposta_id, embarcacao_id, cliente_id, armador_id, operador_nome, vistoriador_id, vendedor_id,
                     tipo_vistoria, data_vistoria, hora_vistoria, local,
                     contato_nome, contato_telefone, status, observacoes, criado_por
                 ) VALUES (
-                    UUID(), :proposta_id, :embarcacao_id, :cliente_id, :armador_id, :vistoriador_id, :vendedor_id,
+                    UUID(), :proposta_id, :embarcacao_id, :cliente_id, :armador_id, :operador_nome, :vistoriador_id, :vendedor_id,
                     :tipo_vistoria, :data_vistoria, :hora_vistoria, :local,
                     :contato_nome, :contato_telefone, 'pendente', :observacoes, :criado_por
                 )
@@ -247,6 +255,7 @@ switch ($action) {
                 ':embarcacao_id'   => $embarcacao_id,
                 ':cliente_id'      => $cliente_id,
                 ':armador_id'      => $armador_id ?: null,
+                ':operador_nome'   => $operador_nome ?: null,
                 ':vistoriador_id'  => $vistoriador_id ?: null,
                 ':vendedor_id'     => $vendedor_id ?: null,
                 ':tipo_vistoria'   => $tipo_vistoria,
@@ -283,6 +292,7 @@ switch ($action) {
             $embarcacao_id   = $_POST['embarcacao_id'] ?? '';
             $cliente_id      = $_POST['cliente_id'] ?? '';
             $armador_id      = $_POST['armador_id'] ?? null;
+            $operador_nome   = trim(sanitizar($_POST['operador_nome'] ?? ''));
             $tipo_vistoria   = sanitizar($_POST['tipo_vistoria'] ?? '');
             $data_vistoria   = $_POST['data_vistoria'] ?? '';
             $hora_vistoria   = $_POST['hora_vistoria'] ?? null;
@@ -306,11 +316,16 @@ switch ($action) {
                 if (!empty($tipoVistoriaProposta)) {
                     $tipo_vistoria = $tipoVistoriaProposta;
                 }
-                $armadorProposta = obterArmadorDaProposta($pdo, $proposta_id);
-                if (!empty($armadorProposta)) {
-                    $armador_id = $armadorProposta;
+                $responsavelProposta = obterDadosResponsavelDaProposta($pdo, $proposta_id);
+                if (!empty($responsavelProposta['armador_id'])) {
+                    $armador_id = $responsavelProposta['armador_id'];
                 } elseif ($agendamentoAtual && !empty($agendamentoAtual['armador_id'])) {
                     $armador_id = $agendamentoAtual['armador_id'];
+                }
+                if (!empty($responsavelProposta['operador_nome'])) {
+                    $operador_nome = $responsavelProposta['operador_nome'];
+                } elseif ($agendamentoAtual && !empty($agendamentoAtual['operador_nome'])) {
+                    $operador_nome = $agendamentoAtual['operador_nome'];
                 }
             }
             if (!horaVistoriaValida($hora_vistoria)) {
@@ -354,6 +369,7 @@ switch ($action) {
                     embarcacao_id = :embarcacao_id,
                     cliente_id = :cliente_id,
                     armador_id = :armador_id,
+                    operador_nome = :operador_nome,
                     vistoriador_id = :vistoriador_id,
                     vendedor_id = :vendedor_id,
                     tipo_vistoria = :tipo_vistoria,
@@ -370,6 +386,7 @@ switch ($action) {
                 ':embarcacao_id'   => $embarcacao_id,
                 ':cliente_id'      => $cliente_id,
                 ':armador_id'      => $armador_id ?: null,
+                ':operador_nome'   => $operador_nome ?: null,
                 ':vistoriador_id'  => $vistoriador_id ?: null,
                 ':vendedor_id'     => $vendedor_id ?: null,
                 ':tipo_vistoria'   => $tipo_vistoria,

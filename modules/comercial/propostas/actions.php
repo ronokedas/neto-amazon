@@ -62,6 +62,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+function gerarEfeitosPropostaAssinada(PDO $pdo, array $prop, ?string $criado_por, bool $manual = false): void
+{
+    $descricaoFinanceiro = 'Referente à Proposta Comercial nº ' . $prop['numero'];
+    $stmtFinExiste = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM financeiro_lancamentos
+        WHERE cliente_id = :cliente_id
+          AND tipo = 'RECEITA'
+          AND descricao = :descricao
+          AND ativo = 1
+    ");
+    $stmtFinExiste->execute([
+        ':cliente_id' => $prop['cliente_id'],
+        ':descricao' => $descricaoFinanceiro,
+    ]);
+
+    if ((int)$stmtFinExiste->fetchColumn() === 0) {
+        $stmtFin = $pdo->prepare("INSERT INTO financeiro_lancamentos
+            (id, tipo, frequencia, status, data_vencimento, cliente_id, descricao, valor, data, categoria, observacoes, criado_por)
+            VALUES (UUID(), 'RECEITA', 'unica', 'PENDENTE', DATE_ADD(CURDATE(), INTERVAL 15 DAY), :cliente_id, :descricao, :valor, CURDATE(), 'SERVIÇOS', :observacoes, :criado_por)");
+        $stmtFin->execute([
+            ':cliente_id' => $prop['cliente_id'],
+            ':descricao' => $descricaoFinanceiro,
+            ':valor' => $prop['valor_total'],
+            ':observacoes' => $manual
+                ? 'Lançamento gerado automaticamente após aprovação interna da proposta.'
+                : 'Lançamento gerado automaticamente após assinatura da proposta.',
+            ':criado_por' => $criado_por,
+        ]);
+    }
+
+    $stmtEmb = $pdo->prepare("
+        SELECT pe.embarcacao_id, GROUP_CONCAT(s.nome SEPARATOR ', ') AS servicos_nomes
+        FROM propostas_embarcacoes pe
+        LEFT JOIN propostas_servicos ps ON ps.proposta_id = pe.proposta_id AND ps.embarcacao_id = pe.embarcacao_id
+        LEFT JOIN servicos s ON ps.servico_id = s.id
+        WHERE pe.proposta_id = :proposta_id
+        GROUP BY pe.embarcacao_id
+    ");
+    $stmtEmb->execute([':proposta_id' => $prop['id']]);
+    $embarcacoes = $stmtEmb->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtAgExiste = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM agendamentos
+        WHERE proposta_id = :proposta_id
+          AND embarcacao_id = :embarcacao_id
+    ");
+    $stmtAgendamento = $pdo->prepare("
+        INSERT INTO agendamentos (
+            id, proposta_id, embarcacao_id, cliente_id, armador_id, operador_nome, vendedor_id,
+            tipo_vistoria, status, observacoes, criado_por, data_vistoria, hora_vistoria
+        ) VALUES (
+            UUID(), :proposta_id, :embarcacao_id, :cliente_id, :armador_id, :operador_nome, :vendedor_id,
+            :tipo_vistoria, 'pendente', :observacoes, :criado_por, NULL, NULL
+        )
+    ");
+
+    foreach ($embarcacoes as $emb) {
+        $stmtAgExiste->execute([
+            ':proposta_id' => $prop['id'],
+            ':embarcacao_id' => $emb['embarcacao_id'],
+        ]);
+        if ((int)$stmtAgExiste->fetchColumn() > 0) {
+            continue;
+        }
+
+        $stmtAgendamento->execute([
+            ':proposta_id' => $prop['id'],
+            ':embarcacao_id' => $emb['embarcacao_id'],
+            ':cliente_id' => $prop['cliente_id'],
+            ':armador_id' => $prop['armador_id'] ?? null,
+            ':operador_nome' => $prop['operador_nome'] ?? null,
+            ':vendedor_id' => $prop['criado_por'] ?? null,
+            ':tipo_vistoria' => !empty($emb['servicos_nomes']) ? $emb['servicos_nomes'] : 'Vistoria Geral',
+            ':observacoes' => $manual
+                ? 'Agendamento gerado automaticamente a partir da aprovação interna da proposta. Favor definir data e vistoriador.'
+                : 'Agendamento gerado automaticamente a partir da proposta assinada. Favor definir data e vistoriador.',
+            ':criado_por' => $criado_por,
+        ]);
+    }
+}
+
 switch ($action) {
 
     case 'criar':
@@ -71,6 +154,7 @@ switch ($action) {
             $cliente_id   = $clienteData['id'] ?? '';
             $cliente_nome = $clienteData['nome'] ?? 'Desconhecido';
             $armador_id   = trim($_POST['armador_id'] ?? '');
+            $operador_nome = trim(sanitizar($_POST['operador_nome'] ?? ''));
 
             // Novo formato: serviços por embarcação via JSON
             $dados_servicos_json = $_POST['dados_servicos_json'] ?? '[]';
@@ -87,16 +171,13 @@ switch ($action) {
                 redirecionar(APP_URL . 'comercial/nova');
             }
 
-            if (empty($armador_id)) {
-                setMensagem('error', 'Selecione o armador responsavel pela vistoria.');
-                redirecionar(APP_URL . 'comercial/nova');
-            }
-
-            $stmtArmador = $pdo->prepare("SELECT id FROM clientes WHERE id = :id AND perfil = 'armador' AND status = 'ATIVO'");
-            $stmtArmador->execute([':id' => $armador_id]);
-            if (!$stmtArmador->fetchColumn()) {
-                setMensagem('error', 'Armador selecionado nao encontrado ou inativo.');
-                redirecionar(APP_URL . 'comercial/nova');
+            if (!empty($armador_id)) {
+                $stmtArmador = $pdo->prepare("SELECT id FROM clientes WHERE id = :id AND perfil = 'armador' AND status = 'ATIVO'");
+                $stmtArmador->execute([':id' => $armador_id]);
+                if (!$stmtArmador->fetchColumn()) {
+                    setMensagem('error', 'Armador selecionado nao encontrado ou inativo.');
+                    redirecionar(APP_URL . 'comercial/nova');
+                }
             }
 
             if (empty($dadosServicos)) {
@@ -169,13 +250,14 @@ switch ($action) {
             $token_assinatura = md5(uniqid(rand(), true)) . uniqid();
             
             $stmtProp = $pdo->prepare("
-                INSERT INTO propostas (id, numero, cliente_id, armador_id, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, valor_entrada, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
-                VALUES (UUID(), :numero, :cliente_id, :armador_id, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :valor_entrada, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
+                INSERT INTO propostas (id, numero, cliente_id, armador_id, operador_nome, data_emissao, data_validade, parcelas, forma_pagamento, valor_total, valor_entrada, desconto_percentual, desconto_valor, observacoes, status, criado_por, token_assinatura)
+                VALUES (UUID(), :numero, :cliente_id, :armador_id, :operador_nome, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), :parcelas, :forma_pagamento, :valor_total, :valor_entrada, :desconto_percentual, :desconto_valor, :observacoes, 'rascunho', :criado_por, :token_assinatura)
             ");
             $stmtProp->execute([
                 ':numero'              => $numero,
                 ':cliente_id'          => $cliente_id,
-                ':armador_id'          => $armador_id,
+                ':armador_id'          => $armador_id ?: null,
+                ':operador_nome'       => $operador_nome ?: null,
                 ':parcelas'            => $parcelas,
                 ':forma_pagamento'     => $forma_pagamento,
                 ':valor_total'         => $valor_total,
@@ -396,6 +478,86 @@ switch ($action) {
             error_log('Erro ao aprovar proposta: ' . $e->getMessage());
             setMensagem('error', 'Erro ao aprovar proposta.');
             redirecionar(APP_URL . 'comercial/propostas');
+        }
+        break;
+
+    case 'aprovar_assinatura_manual':
+        try {
+            if (getCargo() !== 'ADMIN') {
+                setMensagem('error', 'Apenas administradores podem aprovar uma proposta como assinada.');
+                redirecionar(APP_URL . 'comercial');
+            }
+
+            $id = $_POST['id'] ?? '';
+            if (empty($id)) {
+                setMensagem('error', 'ID da proposta não informado.');
+                redirecionar(APP_URL . 'comercial');
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT p.*, c.nome AS cliente_nome
+                FROM propostas p
+                INNER JOIN clientes c ON c.id = p.cliente_id
+                WHERE p.id = :id
+                FOR UPDATE
+            ");
+
+            $pdo->beginTransaction();
+            $stmt->execute([':id' => $id]);
+            $prop = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$prop) {
+                throw new RuntimeException('Proposta não encontrada.');
+            }
+            if (!empty($prop['assinado']) || ($prop['status'] ?? '') === 'assinada') {
+                throw new RuntimeException('Esta proposta já está assinada.');
+            }
+            if (in_array(($prop['status'] ?? ''), ['cancelada', 'recusada'], true)) {
+                throw new RuntimeException('Esta proposta não pode ser aprovada nesse status.');
+            }
+
+            $assinanteNome = 'Aprovação interna - ' . ($_SESSION['usuario_nome'] ?? 'Administrador');
+            $assinaturaIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+            $dataAssinatura = date('Y-m-d H:i:s');
+
+            $stmtUpdate = $pdo->prepare("
+                UPDATE propostas
+                SET assinatura_ip = :ip,
+                    assinatura_em = :data,
+                    assinante_nome = :nome,
+                    assinante_documento = :doc,
+                    assinado = 1,
+                    status = 'assinada'
+                WHERE id = :id AND assinado = 0
+            ");
+            $stmtUpdate->execute([
+                ':ip' => $assinaturaIp,
+                ':data' => $dataAssinatura,
+                ':nome' => $assinanteNome,
+                ':doc' => 'Aprovação interna',
+                ':id' => $id,
+            ]);
+
+            if ($stmtUpdate->rowCount() !== 1) {
+                throw new RuntimeException('Esta proposta já foi assinada ou alterada por outro acesso.');
+            }
+
+            $prop['assinado'] = 1;
+            $prop['status'] = 'assinada';
+            gerarEfeitosPropostaAssinada($pdo, $prop, $_SESSION['usuario_id'] ?? null, true);
+
+            $pdo->commit();
+
+            log_atividade('proposta_aprovada_assinatura_manual', "Proposta {$prop['numero']} aprovada internamente como assinada por {$assinanteNome}.");
+            setMensagem('success', "Proposta {$prop['numero']} aprovada como assinada. Financeiro e agendamentos foram gerados.");
+            redirecionar(APP_URL . 'comercial?proposta=' . urlencode($id));
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('Erro ao aprovar proposta como assinada: ' . $e->getMessage());
+            setMensagem('error', $e instanceof RuntimeException ? $e->getMessage() : 'Erro ao aprovar proposta como assinada.');
+            redirecionar(APP_URL . 'comercial');
         }
         break;
 

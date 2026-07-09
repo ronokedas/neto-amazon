@@ -26,6 +26,11 @@ $filtro_data_fim = $_GET['data_fim'] ?? '';
 $proposta_foco_id = trim($_GET['nova_proposta'] ?? $_GET['proposta'] ?? '');
 $modo_pos_criacao = !empty($_GET['nova_proposta']);
 $modo_foco_proposta = !empty($proposta_foco_id);
+$itens_por_pagina = 10;
+$pagina_atual_lista = max(1, (int)($_GET['pagina'] ?? 1));
+$offset_lista = ($pagina_atual_lista - 1) * $itens_por_pagina;
+$total_propostas_lista = 0;
+$total_paginas_lista = 1;
 
 $where = [];
 $params = [];
@@ -133,11 +138,27 @@ if ($cargo === 'ADMIN') {
 // BUSCAR PROPOSTAS
 // ============================================
 try {
+    $sqlCount = "SELECT COUNT(*)
+            FROM propostas p
+            INNER JOIN clientes c ON c.id = p.cliente_id
+            {$sqlWhere}";
+    $stmtCount = $pdo->prepare($sqlCount);
+    $stmtCount->execute($params);
+    $total_propostas_lista = (int)$stmtCount->fetchColumn();
+    $total_paginas_lista = max(1, (int)ceil($total_propostas_lista / $itens_por_pagina));
+    if ($pagina_atual_lista > $total_paginas_lista) {
+        $pagina_atual_lista = $total_paginas_lista;
+        $offset_lista = ($pagina_atual_lista - 1) * $itens_por_pagina;
+    }
+
     $sql = "SELECT p.*, c.nome AS cliente_nome, c.cpf_cnpj AS cliente_cpfcnpj
             FROM propostas p
             INNER JOIN clientes c ON c.id = p.cliente_id
             {$sqlWhere}
             ORDER BY p.created_at DESC";
+    if (!$modo_foco_proposta) {
+        $sql .= " LIMIT {$itens_por_pagina} OFFSET {$offset_lista}";
+    }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $propostas = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -176,11 +197,19 @@ $statusConfig = [
     'rascunho'  => ['label' => 'Rascunho',  'cor' => 'secondary'],
     'enviada'   => ['label' => 'Enviada',   'cor' => 'info'],
     'aprovada'  => ['label' => 'Aprovada',  'cor' => 'success'],
+    'assinada'  => ['label' => 'Assinada',  'cor' => 'success'],
     'recusada'  => ['label' => 'Recusada',  'cor' => 'danger'],
     'cancelada' => ['label' => 'Cancelada', 'cor' => 'warning'],
 ];
 
 $propostaFoco = ($modo_foco_proposta && !empty($propostas)) ? $propostas[0] : null;
+
+function comercialPageUrl(int $pagina): string {
+    $query = $_GET;
+    unset($query['nova_proposta'], $query['proposta']);
+    $query['pagina'] = $pagina;
+    return APP_URL . 'comercial?' . http_build_query($query);
+}
 
 $titulo_page = 'Comercial - ERP Sistema';
 require_once __DIR__ . '/../../includes/header.php';
@@ -393,84 +422,87 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                 <?php endif; ?>
             </div>
         <?php else: ?>
-            <table id="tabelaPropostas">
-                <thead>
-                    <tr id="proposta-<?php echo h($pid); ?>" <?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? 'style="outline: 2px solid rgba(52, 152, 219, 0.75); background: rgba(52, 152, 219, 0.08);"' : ''; ?>>
-                        <th>Número</th>
-                        <th>Cliente</th>
-                        <th>Embarcação(ões)</th>
-                        <th>Valor Total</th>
-                        <th>Parcelas</th>
-                        <th>Status</th>
-                        <th>Data</th>
-                        <th style="width: 130px;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($propostas as $p): ?>
-                    <?php
-                        $pid = $p['id'];
-                        $embarcacoesLista = $embarcacoesPorProposta[$pid] ?? [];
-                        $embNomes = !empty($embarcacoesLista) ? implode(', ', $embarcacoesLista) : '<em class="text-muted">N/I</em>';
-                        $statusCfg = $statusConfig[$p['status']] ?? ['label' => $p['status'], 'cor' => 'secondary'];
-                    ?>
-                    <tr>
-                        <td>
-                            <strong style="font-family: monospace; font-size: 0.9rem;"><?php echo h($p['numero']); ?></strong>
-                        </td>
-                        <td>
-                            <div style="font-weight: 600;"><?php echo h($p['cliente_nome']); ?></div>
-                            <small style="color: var(--cor-texto-secundario);"><?php echo h($p['cliente_cpfcnpj'] ?? ''); ?></small>
-                        </td>
-                        <td>
-                            <small><?php echo $embNomes; ?></small>
-                        </td>
-                        <td>
-                            <strong style="color: var(--cor-destaque);">R$ <?php echo number_format((float)$p['valor_total'], 2, ',', '.'); ?></strong>
-                        </td>
-                        <td class="text-center"><?php echo (int)$p['parcelas']; ?>x</td>
-                        <td>
-                            <span class="badge badge-<?php echo $statusCfg['cor']; ?>">
-                                <?php echo $statusCfg['label']; ?>
-                            </span>
-                        </td>
-                        <td>
+            <div class="commercial-list">
+                <?php foreach ($propostas as $p): ?>
+                <?php
+                    $pid = $p['id'];
+                    $embarcacoesLista = $embarcacoesPorProposta[$pid] ?? [];
+                    $embNomes = !empty($embarcacoesLista) ? implode(', ', $embarcacoesLista) : 'N/I';
+                    $statusCfg = $statusConfig[$p['status']] ?? ['label' => $p['status'], 'cor' => 'secondary'];
+                    $assinada = !empty($p['assinado']) || ($p['status'] ?? '') === 'assinada';
+                    $podeAprovarManual = $cargo === 'ADMIN' && !$assinada && !in_array(($p['status'] ?? ''), ['cancelada', 'recusada'], true);
+                ?>
+                <article class="proposal-row<?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? ' is-focus' : ''; ?>" id="proposta-<?php echo h($pid); ?>">
+                    <div class="proposal-main">
+                        <div class="proposal-number">
+                            <span><?php echo h($p['numero']); ?></span>
                             <small><?php echo date('d/m/Y', strtotime($p['data_emissao'])); ?></small>
-                        </td>
-                        <td>
-                            <div class="d-flex gap-1" style="display: flex; gap: 4px;">
-                                <a href="<?php echo APP_URL; ?>comercial/propostas?id=<?php echo urlencode($pid); ?>&visualizar=1"
-                                   class="btn btn-secondary btn-sm" title="Visualizar" style="padding: 4px 8px;">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="<?php echo APP_URL; ?>comercial/pdf?id=<?php echo urlencode($pid); ?>"
-                                   class="btn btn-primary btn-sm" title="Gerar PDF" target="_blank" style="<?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? 'padding: 7px 12px; font-weight: 700;' : 'padding: 4px 8px;'; ?>">
-                                    <i class="fas fa-file-pdf"></i><?php echo ($modo_foco_proposta && $pid === $proposta_foco_id) ? ' PDF' : ''; ?>
-                                </a>
-                                <?php if ($cargo === 'ADMIN' && $p['status'] !== 'cancelada'): ?>
-                                <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions" style="display: inline;"
-                                      onsubmit="return confirm('Enviar proposta <?php echo h(addslashes($p['numero'])); ?> por e-mail para o cliente?')">
-                                    <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
-                                    <input type="hidden" name="action" value="enviar_proposta">
-                                    <input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
-                                    <button type="submit" class="btn btn-success btn-sm" title="Enviar Proposta por E-mail" style="padding: 4px 8px;">
-                                        <i class="fas fa-envelope"></i>
-                                    </button>
-                                </form>
-                                <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                        </div>
+                        <div class="proposal-client">
+                            <strong><?php echo h($p['cliente_nome']); ?></strong>
+                            <small><?php echo h($p['cliente_cpfcnpj'] ?? ''); ?></small>
+                        </div>
+                        <div class="proposal-boat">
+                            <small>EMBARCA&Ccedil;&Atilde;O</small>
+                            <span><?php echo h($embNomes); ?></span>
+                        </div>
+                    </div>
+
+                    <div class="proposal-finance">
+                        <strong>R$ <?php echo number_format((float)$p['valor_total'], 2, ',', '.'); ?></strong>
+                        <small><?php echo (int)$p['parcelas']; ?>x</small>
+                    </div>
+
+                    <div class="proposal-state">
+                        <span class="commercial-status commercial-status-<?php echo h($statusCfg['cor']); ?>">
+                            <?php echo h($statusCfg['label']); ?>
+                        </span>
+                        <?php if ($assinada): ?>
+                            <small><i class="fas fa-signature"></i> Assinada</small>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="proposal-actions">
+                        <a href="<?php echo APP_URL; ?>comercial/propostas?id=<?php echo urlencode($pid); ?>&visualizar=1"
+                           class="proposal-action proposal-action-view" title="Detalhes">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="<?php echo APP_URL; ?>comercial/pdf?id=<?php echo urlencode($pid); ?>"
+                           class="proposal-action proposal-action-pdf" title="Abrir PDF" target="_blank">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                        <?php if (!empty($p['token_assinatura'])): ?>
+                            <a href="<?php echo APP_URL; ?>assinar/<?php echo urlencode($p['token_assinatura']); ?>"
+                               class="proposal-action proposal-action-sign" title="Abrir link de assinatura" target="_blank">
+                                <i class="fas fa-signature"></i>
+                            </a>
+                        <?php endif; ?>
+                        <?php if ($podeAprovarManual): ?>
+                            <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions"
+                                  onsubmit="return confirm('Aprovar <?php echo h(addslashes($p['numero'])); ?> como assinada? Isso cria os mesmos lançamentos e agendamentos da assinatura do cliente.');">
+                                <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                <input type="hidden" name="action" value="aprovar_assinatura_manual">
+                                <input type="hidden" name="id" value="<?php echo h($pid); ?>">
+                                <button type="submit" class="proposal-action proposal-action-approve" title="Aprovar como assinada">
+                                    <i class="fas fa-circle-check"></i>
+                                </button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </article>
+                <?php endforeach; ?>
+            </div>
         <?php endif; ?>
 
         <!-- Rodapé com totalizador -->
-        <div class="card-footer" style="padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div class="card-footer commercial-footer">
             <small class="text-muted">
                 <i class="fas fa-info-circle"></i> 
-                Total: <?php echo count($propostas); ?> proposta(s)
+                <?php if ($modo_foco_proposta): ?>
+                    Proposta selecionada
+                <?php else: ?>
+                    Mostrando <?php echo $total_propostas_lista > 0 ? ($offset_lista + 1) : 0; ?>-<?php echo min($offset_lista + count($propostas), $total_propostas_lista); ?> de <?php echo $total_propostas_lista; ?> proposta(s)
+                <?php endif; ?>
                 <?php if ($filtro_status !== 'todos'): ?>
                     com status "<?php echo $statusConfig[$filtro_status]['label'] ?? $filtro_status; ?>"
                 <?php endif; ?>
@@ -479,11 +511,215 @@ require_once __DIR__ . '/../../includes/sidebar.php';
             $somaLista = array_sum(array_column($propostas, 'valor_total'));
             ?>
             <small class="text-muted">
-                <strong>Soma:</strong> R$ <?php echo number_format($somaLista, 2, ',', '.'); ?>
+                <strong>Soma desta p&aacute;gina:</strong> R$ <?php echo number_format($somaLista, 2, ',', '.'); ?>
             </small>
         </div>
+        <?php if (!$modo_foco_proposta && $total_paginas_lista > 1): ?>
+            <nav class="commercial-pagination" aria-label="Paginação de propostas">
+                <a class="page-step<?php echo $pagina_atual_lista <= 1 ? ' is-disabled' : ''; ?>"
+                   href="<?php echo $pagina_atual_lista <= 1 ? '#' : h(comercialPageUrl($pagina_atual_lista - 1)); ?>">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                <?php
+                $inicioPag = max(1, $pagina_atual_lista - 2);
+                $fimPag = min($total_paginas_lista, $pagina_atual_lista + 2);
+                for ($pag = $inicioPag; $pag <= $fimPag; $pag++):
+                ?>
+                    <a class="page-number<?php echo $pag === $pagina_atual_lista ? ' is-active' : ''; ?>"
+                       href="<?php echo h(comercialPageUrl($pag)); ?>">
+                        <?php echo $pag; ?>
+                    </a>
+                <?php endfor; ?>
+                <a class="page-step<?php echo $pagina_atual_lista >= $total_paginas_lista ? ' is-disabled' : ''; ?>"
+                   href="<?php echo $pagina_atual_lista >= $total_paginas_lista ? '#' : h(comercialPageUrl($pagina_atual_lista + 1)); ?>">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </nav>
+        <?php endif; ?>
     </div>
 </div>
+
+<style>
+.commercial-list {
+    display: grid;
+    gap: 10px;
+    padding: 14px 16px 6px;
+}
+.proposal-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px 120px auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.025);
+}
+.proposal-row:hover,
+.proposal-row.is-focus {
+    border-color: rgba(86,224,173,0.34);
+    background: rgba(86,224,173,0.055);
+}
+.proposal-main {
+    display: grid;
+    grid-template-columns: 130px minmax(180px, 1fr) minmax(190px, 1fr);
+    gap: 14px;
+    align-items: center;
+    min-width: 0;
+}
+.proposal-number span,
+.proposal-client strong,
+.proposal-boat span,
+.proposal-finance strong {
+    display: block;
+    color: var(--cor-texto);
+}
+.proposal-number span {
+    font-family: monospace;
+    font-weight: 800;
+    letter-spacing: 0;
+}
+.proposal-number small,
+.proposal-client small,
+.proposal-boat small,
+.proposal-finance small,
+.proposal-state small {
+    display: block;
+    color: var(--cor-texto-secundario);
+    margin-top: 3px;
+}
+.proposal-client,
+.proposal-boat {
+    min-width: 0;
+}
+.proposal-client strong,
+.proposal-boat span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.proposal-boat small {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: rgba(125,211,252,0.92);
+}
+.proposal-finance {
+    text-align: right;
+}
+.proposal-finance strong {
+    color: #56e0ad;
+    font-size: 1rem;
+}
+.proposal-state {
+    display: grid;
+    gap: 4px;
+    justify-items: start;
+}
+.commercial-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1;
+}
+.commercial-status-success { background: rgba(46,204,113,0.16); color: #56e0ad; border: 1px solid rgba(86,224,173,0.36); }
+.commercial-status-info { background: rgba(52,152,219,0.16); color: #7dd3fc; border: 1px solid rgba(125,211,252,0.34); }
+.commercial-status-secondary { background: rgba(148,163,184,0.14); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.24); }
+.commercial-status-danger { background: rgba(231,76,60,0.16); color: #ff8b81; border: 1px solid rgba(255,139,129,0.34); }
+.commercial-status-warning { background: rgba(243,156,18,0.16); color: #f6c177; border: 1px solid rgba(246,193,119,0.34); }
+.proposal-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 7px;
+}
+.proposal-actions form {
+    margin: 0;
+}
+.proposal-action {
+    width: 38px;
+    height: 38px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+}
+.proposal-action:hover {
+    transform: translateY(-1px);
+    color: #fff;
+}
+.proposal-action-view { background: rgba(148,163,184,0.16); color: #cbd5e1; }
+.proposal-action-pdf { background: rgba(239,68,68,0.18); border-color: rgba(248,113,113,0.44); color: #fecaca; }
+.proposal-action-sign { background: rgba(59,130,246,0.20); border-color: rgba(125,211,252,0.48); color: #bfdbfe; box-shadow: 0 8px 20px rgba(59,130,246,0.14); }
+.proposal-action-approve { background: linear-gradient(135deg, #22c55e, #56e0ad); border-color: rgba(86,224,173,0.64); color: #042014; box-shadow: 0 10px 24px rgba(34,197,94,0.22); }
+.commercial-footer {
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.commercial-pagination {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    padding: 0 20px 18px;
+}
+.page-number,
+.page-step {
+    min-width: 34px;
+    height: 34px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    color: var(--cor-texto);
+    text-decoration: none;
+    font-weight: 700;
+}
+.page-number.is-active {
+    background: #56e0ad;
+    border-color: #56e0ad;
+    color: #041512;
+}
+.page-step.is-disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+@media (max-width: 1080px) {
+    .proposal-row {
+        grid-template-columns: 1fr;
+    }
+    .proposal-main {
+        grid-template-columns: 1fr 1fr;
+    }
+    .proposal-finance {
+        text-align: left;
+    }
+    .proposal-actions {
+        justify-content: flex-start;
+    }
+}
+@media (max-width: 680px) {
+    .proposal-main {
+        grid-template-columns: 1fr;
+    }
+    .proposal-client strong,
+    .proposal-boat span {
+        white-space: normal;
+    }
+}
+</style>
 
 <script>
 function filtrarPropostas() {

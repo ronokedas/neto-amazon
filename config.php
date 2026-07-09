@@ -48,6 +48,7 @@ define('MAIL_USERNAME', getenv('MAIL_USERNAME') ?: '');
 define('MAIL_PASSWORD', getenv('MAIL_PASSWORD') ?: '');
 define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: APP_NAME);
 define('MAIL_ENCRYPTION', getenv('MAIL_ENCRYPTION') ?: 'tls');
+define('MAIL_VERIFY_PEER', filter_var(getenv('MAIL_VERIFY_PEER') ?: '0', FILTER_VALIDATE_BOOL));
 
 // Dados bancários para propostas e e-mails
 define('BANCO_NOME', getenv('BANCO_NOME') ?: 'Banco do Brasil');

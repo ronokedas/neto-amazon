@@ -279,15 +279,15 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                                 <span class="badge badge-secondary"><i class="fas fa-robot"></i> Automático</span>
                             <?php endif; ?>
                         </td>
-                        <td>
-                            <div class="d-flex gap-1">
+                        <td style="white-space: nowrap; min-width: 132px;">
+                            <div class="d-flex gap-1 align-items-center flex-nowrap">
                                 <?php if ($e['status'] === 'erro'): ?>
                                 <form method="POST" style="display: inline;" 
                                       onsubmit="return confirm('Reenviar este e-mail para <?php echo h(addslashes($e['destinatario'])); ?>?')">
                                     <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
                                     <input type="hidden" name="action" value="reenviar">
                                     <input type="hidden" name="id" value="<?php echo h($e['id']); ?>">
-                                    <button type="submit" class="btn btn-warning btn-sm" title="Reenviar">
+                                    <button type="submit" class="btn btn-warning btn-sm d-inline-flex align-items-center gap-1 email-reenviar-btn" title="Reenviar">
                                         <i class="fas fa-redo-alt"></i> Reenviar
                                     </button>
                                 </form>
@@ -320,6 +320,19 @@ require_once __DIR__ . '/../../includes/sidebar.php';
         </div>
     </div>
 </div>
+
+<style>
+.email-reenviar-btn {
+    white-space: nowrap;
+    min-width: 108px;
+    justify-content: center;
+}
+.tabela-container table th:last-child,
+.tabela-container table td:last-child {
+    white-space: nowrap;
+    min-width: 132px;
+}
+</style>
 
 <script>
 function filtrar() {

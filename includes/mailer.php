@@ -40,6 +40,15 @@ function enviarEmail(string $destinatario, string $nome, string $assunto, string
         $mail->Password   = MAIL_PASSWORD;
         $mail->SMTPSecure = MAIL_ENCRYPTION;
         $mail->Port       = MAIL_PORT;
+        if (!MAIL_VERIFY_PEER) {
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer'      => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true,
+                ],
+            ];
+        }
 
         // Timeout e debug (desabilitado em produção)
         $mail->Timeout = 30;
@@ -74,9 +83,21 @@ function enviarEmail(string $destinatario, string $nome, string $assunto, string
             'message' => 'E-mail enviado com sucesso para ' . $destinatario
         ];
     } catch (Exception $e) {
+        $erro = trim((string) $mail->ErrorInfo);
+        if ($erro === '') {
+            $erro = $e->getMessage();
+        }
+        if (function_exists('iconv')) {
+            $convertido = @iconv('UTF-8', 'UTF-8//IGNORE', $erro);
+            if ($convertido !== false) {
+                $erro = $convertido;
+            }
+        }
+        $erro = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $erro);
+        $erro = trim(preg_replace('/\s+/u', ' ', (string) $erro));
         return [
             'success' => false,
-            'message' => 'Erro ao enviar e-mail: ' . $mail->ErrorInfo
+            'message' => 'Erro ao enviar e-mail: ' . $erro
         ];
     }
 }

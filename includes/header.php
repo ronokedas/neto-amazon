@@ -32,6 +32,7 @@ header('Content-Type: text/html; charset=UTF-8');
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
     <!-- Toast Notification Function -->
     <script>
     function showToast(message, type = 'success', duration = 4000) {
@@ -42,18 +43,29 @@ header('Content-Type: text/html; charset=UTF-8');
             info: { bg: 'rgba(88,166,255,0.12)', border: '#58a6ff', color: '#58a6ff', icon: 'fa-circle-info' },
         };
         const c = colors[type] || colors.success;
+        const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        })[char]);
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container';
+            document.body.appendChild(container);
+        }
         const toast = document.createElement('div');
-        toast.style.cssText = 'background:#161b22;border:1px solid '+c.border+
-            ';border-left:3px solid '+c.border+';border-radius:8px;padding:12px 16px;'+
-            'display:flex;align-items:center;gap:10px;min-width:260px;max-width:380px;'+
-            'pointer-events:all;box-shadow:0 4px 16px rgba(0,0,0,0.4);'+
-            'animation:toastIn 0.2s ease;font-family:Inter,sans-serif;font-size:13px;color:#e6edf3';
-        toast.innerHTML = '<i class="fa-solid '+c.icon+'" style="color:'+c.color+';font-size:15px"></i>'+
-            '<span>'+message+'</span>'+
-            '<button onclick="this.parentElement.remove()" style="margin-left:auto;background:none;'+
-            'border:none;color:#6e7681;cursor:pointer;font-size:14px;line-height:1">'+
+        toast.style.cssText = 'background:rgba(9,15,14,0.98);border:1px solid '+c.border+
+            ';border-left:4px solid '+c.border+';border-radius:10px;padding:14px 16px;'+
+            'display:flex;align-items:flex-start;gap:10px;min-width:320px;max-width:480px;'+
+            'pointer-events:all;box-shadow:0 10px 28px rgba(0,0,0,0.48);'+
+            'animation:toastIn 0.2s ease;font-family:Inter,sans-serif;font-size:13px;color:#e6edf3;'+
+            'line-height:1.45;backdrop-filter:blur(8px);word-break:break-word';
+        toast.innerHTML = '<i class="fa-solid '+c.icon+'" style="color:'+c.color+';font-size:15px;margin-top:2px;flex:0 0 auto"></i>'+
+            '<span style="flex:1 1 auto;">'+escapeHtml(message)+'</span>'+
+            '<button type="button" aria-label="Fechar" onclick="this.parentElement.remove()" style="margin-left:auto;background:none;'+
+            'border:none;color:#9aa4b2;cursor:pointer;font-size:14px;line-height:1;padding:0 2px 0 8px;flex:0 0 auto">'+
             '<i class="fa-solid fa-xmark"></i></button>';
-        document.getElementById('toast-container').appendChild(toast);
+        container.appendChild(toast);
         setTimeout(() => toast.style.animation = 'toastOut 0.2s ease forwards', duration - 200);
         setTimeout(() => toast.remove(), duration);
     }

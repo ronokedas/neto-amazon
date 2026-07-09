@@ -62,6 +62,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+function normalizarTextoLog(?string $texto, int $limite = 2000): ?string
+{
+    if ($texto === null) {
+        return null;
+    }
+
+    $texto = (string) $texto;
+
+    if (function_exists('iconv')) {
+        $convertido = @iconv('UTF-8', 'UTF-8//IGNORE', $texto);
+        if ($convertido !== false) {
+            $texto = $convertido;
+        }
+    }
+
+    $texto = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $texto);
+    if (!is_string($texto)) {
+        $texto = '';
+    }
+
+    $texto = trim(preg_replace('/\s+/u', ' ', $texto));
+    if ($texto === '') {
+        return null;
+    }
+
+    return mb_substr($texto, 0, $limite, 'UTF-8');
+}
+
 function gerarEfeitosPropostaAssinada(PDO $pdo, array $prop, ?string $criado_por, bool $manual = false): void
 {
     $descricaoFinanceiro = 'Referente à Proposta Comercial nº ' . $prop['numero'];
@@ -417,19 +445,23 @@ switch ($action) {
                 [$pdfFile]
             );
 
-            // Registrar no log de e-mails
-            $stmtLog = $pdo->prepare("
-                INSERT INTO email_logs (id, destinatario, assunto, tipo, referencia_tipo, referencia_id, status, mensagem_erro, enviado_por)
-                VALUES (UUID(), :destinatario, :assunto, 'proposta', 'propostas', :referencia_id, :status, :mensagem_erro, :enviado_por)
-            ");
-            $stmtLog->execute([
-                ':destinatario'  => $proposta['cliente_email'],
-                ':assunto'       => 'Proposta Comercial - ' . $proposta['numero'],
-                ':referencia_id' => $proposta_id,
-                ':status'        => $resultado['success'] ? 'enviado' : 'erro',
-                ':mensagem_erro' => $resultado['success'] ? null : $resultado['message'],
-                ':enviado_por'   => $_SESSION['usuario_id'],
-            ]);
+            // Registrar no log de e-mails sem interromper o fluxo principal
+            try {
+                $stmtLog = $pdo->prepare("
+                    INSERT INTO email_logs (id, destinatario, assunto, tipo, referencia_tipo, referencia_id, status, mensagem_erro, enviado_por)
+                    VALUES (UUID(), :destinatario, :assunto, 'proposta', 'propostas', :referencia_id, :status, :mensagem_erro, :enviado_por)
+                ");
+                $stmtLog->execute([
+                    ':destinatario'  => $proposta['cliente_email'],
+                    ':assunto'       => 'Proposta Comercial - ' . $proposta['numero'],
+                    ':referencia_id' => $proposta_id,
+                    ':status'        => $resultado['success'] ? 'enviado' : 'erro',
+                    ':mensagem_erro' => $resultado['success'] ? null : normalizarTextoLog($resultado['message']),
+                    ':enviado_por'   => $_SESSION['usuario_id'],
+                ]);
+            } catch (Throwable $e) {
+                error_log('Erro ao registrar log de e-mail da proposta ' . $proposta_id . ': ' . $e->getMessage());
+            }
 
             // Limpar PDF temporário
             if (file_exists($pdfFile)) {
@@ -449,12 +481,12 @@ switch ($action) {
                 setMensagem('error', 'Erro ao enviar: ' . $resultado['message']);
             }
 
-            redirecionar(APP_URL . 'comercial/propostas');
+            redirecionar(APP_URL . 'comercial');
 
         } catch (Exception $e) {
             error_log('Erro ao enviar proposta por e-mail: ' . $e->getMessage());
             setMensagem('error', 'Erro ao enviar proposta: ' . $e->getMessage());
-            redirecionar(APP_URL . 'comercial/propostas');
+            redirecionar(APP_URL . 'comercial');
         }
         break;
 
@@ -641,3 +673,4 @@ switch ($action) {
         redirecionar(APP_URL . 'comercial/propostas');
         break;
 }
+

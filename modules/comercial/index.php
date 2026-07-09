@@ -471,6 +471,17 @@ require_once __DIR__ . '/../../includes/sidebar.php';
                            class="proposal-action proposal-action-pdf" title="Abrir PDF" target="_blank">
                             <i class="fas fa-file-pdf"></i>
                         </a>
+                        <?php if ($cargo === 'ADMIN' && ($p['status'] ?? '') !== 'cancelada'): ?>
+                            <form method="POST" action="<?php echo APP_URL; ?>comercial/propostas/actions"
+                                  onsubmit="return confirm('Enviar proposta <?php echo h(addslashes($p['numero'])); ?> por e-mail para o cliente?')">
+                                <input type="hidden" name="csrf_token" value="<?php echo gerarCSRF(); ?>">
+                                <input type="hidden" name="action" value="enviar_proposta">
+                                <input type="hidden" name="id" value="<?php echo h($pid); ?>">
+                                <button type="submit" class="proposal-action proposal-action-email" title="Enviar por e-mail">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </form>
+                        <?php endif; ?>
                         <?php if (!empty($p['token_assinatura'])): ?>
                             <a href="<?php echo APP_URL; ?>assinar/<?php echo urlencode($p['token_assinatura']); ?>"
                                class="proposal-action proposal-action-sign" title="Abrir link de assinatura" target="_blank">
@@ -547,7 +558,7 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 }
 .proposal-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 150px 120px auto;
+    grid-template-columns: minmax(0, 1fr) 150px 120px minmax(210px, auto);
     gap: 14px;
     align-items: center;
     padding: 14px;
@@ -615,10 +626,14 @@ require_once __DIR__ . '/../../includes/sidebar.php';
     display: grid;
     gap: 4px;
     justify-items: start;
+    min-width: 120px;
 }
 .commercial-status {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    min-width: 82px;
+    white-space: nowrap;
     min-height: 28px;
     padding: 5px 10px;
     border-radius: 999px;
@@ -633,9 +648,11 @@ require_once __DIR__ . '/../../includes/sidebar.php';
 .commercial-status-warning { background: rgba(243,156,18,0.16); color: #f6c177; border: 1px solid rgba(246,193,119,0.34); }
 .proposal-actions {
     display: flex;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     align-items: center;
     gap: 7px;
+    min-width: 210px;
 }
 .proposal-actions form {
     margin: 0;
@@ -646,20 +663,30 @@ require_once __DIR__ . '/../../includes/sidebar.php';
     display: inline-grid;
     place-items: center;
     border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
+    border-radius: 10px;
     color: #fff;
     text-decoration: none;
     cursor: pointer;
-    transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+    flex: 0 0 auto;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 8px 16px rgba(0,0,0,0.10);
+    transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s, background 0.16s, color 0.16s;
 }
 .proposal-action:hover {
     transform: translateY(-1px);
     color: #fff;
 }
-.proposal-action-view { background: rgba(148,163,184,0.16); color: #cbd5e1; }
-.proposal-action-pdf { background: rgba(239,68,68,0.18); border-color: rgba(248,113,113,0.44); color: #fecaca; }
-.proposal-action-sign { background: rgba(59,130,246,0.20); border-color: rgba(125,211,252,0.48); color: #bfdbfe; box-shadow: 0 8px 20px rgba(59,130,246,0.14); }
+.proposal-action-view { background: rgba(148,163,184,0.18); color: #e2e8f0; border-color: rgba(148,163,184,0.28); }
+.proposal-action-pdf { background: linear-gradient(135deg, rgba(239,68,68,0.28), rgba(127,29,29,0.34)); border-color: rgba(248,113,113,0.50); color: #ffe4e4; }
+.proposal-action-email { background: linear-gradient(135deg, rgba(59,130,246,0.28), rgba(30,64,175,0.34)); border-color: rgba(96,165,250,0.50); color: #e0efff; }
+.proposal-action-sign { background: linear-gradient(135deg, rgba(34,197,94,0.24), rgba(14,116,144,0.24)); border-color: rgba(125,211,252,0.48); color: #d7fbff; box-shadow: 0 10px 24px rgba(59,130,246,0.14); }
 .proposal-action-approve { background: linear-gradient(135deg, #22c55e, #56e0ad); border-color: rgba(86,224,173,0.64); color: #042014; box-shadow: 0 10px 24px rgba(34,197,94,0.22); }
+.proposal-action:hover.proposal-action-view,
+.proposal-action:hover.proposal-action-pdf,
+.proposal-action:hover.proposal-action-email,
+.proposal-action:hover.proposal-action-sign,
+.proposal-action:hover.proposal-action-approve {
+    box-shadow: 0 12px 24px rgba(0,0,0,0.18);
+}
 .commercial-footer {
     padding: 14px 20px;
     display: flex;
